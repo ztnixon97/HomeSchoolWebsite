@@ -198,6 +198,23 @@ pub async fn delete_user(
     conn.execute("UPDATE class_sessions SET created_by = NULL WHERE created_by = ?1", params![id])?;
     conn.execute("UPDATE announcements SET created_by = NULL WHERE created_by = ?1", params![id])?;
 
+    // Clean up family references
+    conn.execute("DELETE FROM family_invites WHERE invited_by = ?1 OR invited_user_id = ?1", params![id])?;
+    conn.execute("UPDATE families SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    // Remove user from family; delete family if empty
+    let user_family: Option<i64> = conn.query_row(
+        "SELECT family_id FROM users WHERE id = ?1", params![id], |row| row.get(0),
+    ).unwrap_or(None);
+    conn.execute("UPDATE users SET family_id = NULL WHERE id = ?1", params![id])?;
+    if let Some(fid) = user_family {
+        let remaining: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM users WHERE family_id = ?1", params![fid], |row| row.get(0),
+        ).unwrap_or(0);
+        if remaining == 0 {
+            conn.execute("DELETE FROM families WHERE id = ?1", params![fid])?;
+        }
+    }
+
     // Remove RSVPs submitted by this user
     conn.execute("DELETE FROM rsvps WHERE parent_id = ?1", params![id])?;
 

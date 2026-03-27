@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
+import { api } from '../api';
 
 export default function Layout() {
   const { user, logout, isAdmin } = useAuth();
@@ -100,6 +101,8 @@ export default function Layout() {
         )}
       </header>
 
+      {user && <AnnouncementBanner />}
+
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
         <Outlet />
       </main>
@@ -149,6 +152,7 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
           {!mobile && <div className="w-px h-5 bg-ink/20 mx-1" />}
           <Link to="/dashboard" className={base} onClick={onClick}>Dashboard</Link>
           <Link to="/my-children" className={base} onClick={onClick}>My Children</Link>
+          <Link to="/my-rsvps" className={base} onClick={onClick}>My RSVPs</Link>
           <Link to="/members" className={base} onClick={onClick}>Members</Link>
           <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>
         </>
@@ -157,5 +161,55 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
         <Link to="/admin" className={`${base} ${!mobile ? 'text-ink hover:text-ink/80 hover:bg-ink/5' : ''}`} onClick={onClick}>Admin</Link>
       )}
     </>
+  );
+}
+
+interface Announcement {
+  id: number;
+  title: string;
+  body: string;
+  announcement_type: string;
+}
+
+function AnnouncementBanner() {
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [dismissed, setDismissed] = useState<Set<number>>(() => {
+    try {
+      const stored = sessionStorage.getItem('dismissed_announcements');
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  useEffect(() => {
+    api.get<Announcement[]>('/api/announcements').then(setAnnouncements).catch(() => {});
+  }, []);
+
+  const dismiss = (id: number) => {
+    const next = new Set([...dismissed, id]);
+    setDismissed(next);
+    sessionStorage.setItem('dismissed_announcements', JSON.stringify([...next]));
+  };
+
+  const visible = announcements.filter(a => !dismissed.has(a.id));
+  if (visible.length === 0) return null;
+
+  const styles: Record<string, string> = {
+    warning: 'bg-amber-50 border-amber-300 text-amber-900',
+    urgent: 'bg-red-50 border-red-300 text-red-900',
+    info: 'bg-blue-50 border-cobalt/30 text-ink',
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto w-full px-4 pt-4 space-y-2">
+      {visible.map(a => (
+        <div key={a.id} className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${styles[a.announcement_type] || styles.info}`}>
+          <div className="flex-1 text-sm">
+            <span className="font-semibold">{a.title}</span>
+            {a.body && <span className="ml-1 opacity-80">{a.body}</span>}
+          </div>
+          <button onClick={() => dismiss(a.id)} className="text-xs opacity-50 hover:opacity-100 flex-shrink-0 mt-0.5">✕</button>
+        </div>
+      ))}
+    </div>
   );
 }

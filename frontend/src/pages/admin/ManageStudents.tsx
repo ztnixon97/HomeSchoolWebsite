@@ -23,6 +23,9 @@ export default function ManageStudents() {
   const [dob, setDob] = useState('');
   const [allergies, setAllergies] = useState('');
   const [dietary, setDietary] = useState('');
+  const [notes, setNotes] = useState('');
+  const [emergencyName, setEmergencyName] = useState('');
+  const [emergencyPhone, setEmergencyPhone] = useState('');
 
   const refresh = () => {
     api.get<Student[]>('/api/students').then(setStudents).catch(() => {});
@@ -39,12 +42,18 @@ export default function ManageStudents() {
       date_of_birth: dob || null,
       allergies: allergies || null,
       dietary_restrictions: dietary || null,
+      notes: notes || null,
+      emergency_contact_name: emergencyName || null,
+      emergency_contact_phone: emergencyPhone || null,
     });
     setFirstName('');
     setLastName('');
     setDob('');
     setAllergies('');
     setDietary('');
+    setNotes('');
+    setEmergencyName('');
+    setEmergencyPhone('');
     setShowForm(false);
     refresh();
   };
@@ -116,6 +125,20 @@ export default function ManageStudents() {
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Dietary Restrictions</label>
               <input type="text" value={dietary} onChange={e => setDietary(e.target.value)} placeholder="e.g. vegetarian, gluten-free" className={`w-full ${inputClass}`} />
             </div>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Emergency Contact Name</label>
+              <input type="text" value={emergencyName} onChange={e => setEmergencyName(e.target.value)} placeholder="Parent/guardian name" className={`w-full ${inputClass}`} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Emergency Contact Phone</label>
+              <input type="tel" value={emergencyPhone} onChange={e => setEmergencyPhone(e.target.value)} placeholder="Phone number" className={`w-full ${inputClass}`} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
+            <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional notes" className={`w-full ${inputClass}`} />
           </div>
           <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
             Save Student

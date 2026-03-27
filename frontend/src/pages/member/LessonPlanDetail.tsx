@@ -146,7 +146,14 @@ export default function LessonPlanDetail() {
       {files.length > 0 && (
         <section className="panel-quiet p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Attachments ({files.length})</h2>
-          <FilePreviewGrid files={files} />
+          <FilePreviewGrid
+            files={files}
+            canDelete={!!canEdit}
+            onDelete={async (fileId) => {
+              await api.del(`/api/files/${fileId}`);
+              setFiles(files.filter(f => f.id !== fileId));
+            }}
+          />
         </section>
       )}
     </div>

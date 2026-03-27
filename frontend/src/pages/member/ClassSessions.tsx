@@ -75,6 +75,7 @@ export default function ClassSessions() {
     }
     if (s.status === 'open') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Unclaimed</span>;
     if (s.status === 'claimed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">Hosted by {s.host_name}</span>;
+    if (s.status === 'completed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">Completed</span>;
     if (s.status === 'closed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">Full</span>;
     return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">{s.status}</span>;
   };

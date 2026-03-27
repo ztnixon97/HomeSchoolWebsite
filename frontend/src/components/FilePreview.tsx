@@ -90,22 +90,46 @@ export default function FilePreview({ file }: Props) {
   );
 }
 
-export function FilePreviewGrid({ files }: { files: FileRecord[] }) {
+export function FilePreviewGrid({ files, canDelete, onDelete }: { files: FileRecord[]; canDelete?: boolean; onDelete?: (id: number) => void }) {
   if (files.length === 0) return null;
 
   const images = files.filter(f => f.mime_type.startsWith('image/'));
   const docs = files.filter(f => !f.mime_type.startsWith('image/'));
 
+  const DeleteBtn = ({ id, filename }: { id: number; filename: string }) => (
+    canDelete && onDelete ? (
+      <button
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (window.confirm(`Remove ${filename}?`)) onDelete(id); }}
+        className="text-xs text-red-500 hover:text-red-700 font-medium bg-white/90 rounded px-1.5 py-0.5"
+        title="Remove file"
+      >
+        Remove
+      </button>
+    ) : null
+  );
+
   return (
     <div className="space-y-4">
       {images.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {images.map(f => <FilePreview key={f.id} file={f} />)}
+          {images.map(f => (
+            <div key={f.id} className="relative group">
+              <FilePreview file={f} />
+              <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <DeleteBtn id={f.id} filename={f.filename} />
+              </div>
+            </div>
+          ))}
         </div>
       )}
       {docs.length > 0 && (
         <div className="space-y-2">
-          {docs.map(f => <FilePreview key={f.id} file={f} />)}
+          {docs.map(f => (
+            <div key={f.id} className="flex items-center gap-2">
+              <div className="flex-1"><FilePreview file={f} /></div>
+              <DeleteBtn id={f.id} filename={f.filename} />
+            </div>
+          ))}
         </div>
       )}
     </div>

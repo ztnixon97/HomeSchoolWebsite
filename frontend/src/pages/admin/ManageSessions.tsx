@@ -320,6 +320,7 @@ export default function ManageSessions() {
           <option value="">All Status</option>
           <option value="open">Open (Needs Host)</option>
           <option value="claimed">Claimed</option>
+          <option value="completed">Completed</option>
         </select>
       </div>
 
