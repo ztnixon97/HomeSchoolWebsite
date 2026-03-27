@@ -48,9 +48,14 @@ async fn main() {
     // Initialize database
     let pool = db::init_pool(&db_path);
 
-    // Initialize storage
-    let storage: Arc<dyn StorageBackend> =
-        Arc::new(LocalStorage::new(&uploads_dir, "/uploads"));
+    // Initialize storage — use R2 if configured, otherwise local disk
+    let storage: Arc<dyn StorageBackend> = if std::env::var("R2_ACCOUNT_ID").is_ok() {
+        println!("Using Cloudflare R2 storage");
+        Arc::new(storage::R2Storage::new().await)
+    } else {
+        println!("Using local file storage");
+        Arc::new(LocalStorage::new(&uploads_dir, "/uploads"))
+    };
 
     // Initialize email config
     let email_config = EmailConfig::from_env();

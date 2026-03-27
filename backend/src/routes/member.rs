@@ -221,8 +221,8 @@ pub async fn delete_file(
     }
 
     conn.execute("DELETE FROM files WHERE id = ?1", params![id])?;
-    // Best-effort delete from disk
-    let _ = std::fs::remove_file(&storage_path);
+    // Best-effort delete from storage (works for both local and R2)
+    let _ = state.storage.delete(&storage_path).await;
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -619,6 +619,17 @@ pub async fn download_file(
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
 
+    // If using R2 (public URL available), redirect to it
+    let public_url = state.storage.public_url(&storage_path);
+    if public_url.starts_with("http") {
+        return Ok(Response::builder()
+            .status(StatusCode::FOUND)
+            .header(header::LOCATION, &public_url)
+            .body(Body::empty())
+            .unwrap());
+    }
+
+    // Local storage: stream from disk
     let full_path = std::path::Path::new(&state.uploads_dir).join(&storage_path);
     let file = tokio::fs::File::open(&full_path)
         .await
