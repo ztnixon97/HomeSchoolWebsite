@@ -2017,6 +2017,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-s3",
  "axum",
+ "base64",
  "chrono",
  "lettre",
  "r2d2",

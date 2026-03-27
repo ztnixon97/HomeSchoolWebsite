@@ -958,9 +958,57 @@ pub async fn email_parents(
 
     eprintln!("[admin] Found {} recipients", recipients.len());
 
-    // Replace relative /api/files/*/download URLs with absolute URLs for email clients
+    // Process email body for email client compatibility
     let mut email_body = req.body.clone();
     let site_url = state.email_config.site_url.trim_end_matches('/').to_string();
+
+    // Convert YouTube iframes to clickable thumbnail images
+    // Email clients strip iframes, so we replace with a thumbnail + link
+    while let Some(start) = email_body.find("<iframe") {
+        if let Some(end) = email_body[start..].find("</iframe>") {
+            let iframe_html = &email_body[start..start + end + 9];
+            // Extract YouTube video ID from src attribute
+            let replacement = if let Some(src_start) = iframe_html.find("src=\"") {
+                let src_content = &iframe_html[src_start + 5..];
+                if let Some(src_end) = src_content.find('"') {
+                    let src_url = &src_content[..src_end];
+                    // Extract video ID from embed URL like https://www.youtube.com/embed/VIDEO_ID
+                    let video_id = src_url.split('/').last().unwrap_or("").split('?').next().unwrap_or("");
+                    if !video_id.is_empty() {
+                        format!(
+                            r#"<a href="https://www.youtube.com/watch?v={vid}" style="display:inline-block;text-decoration:none;">
+                                <img src="https://img.youtube.com/vi/{vid}/hqdefault.jpg" alt="Watch video" style="max-width:480px;width:100%;border-radius:8px;border:1px solid #ddd;" />
+                                <br/><span style="color:#1a73e8;font-size:14px;">Watch on YouTube</span>
+                            </a>"#,
+                            vid = video_id
+                        )
+                    } else {
+                        String::from("[Video - view in browser]")
+                    }
+                } else {
+                    String::from("[Video - view in browser]")
+                }
+            } else {
+                String::from("[Video - view in browser]")
+            };
+            email_body = format!("{}{}{}", &email_body[..start], replacement, &email_body[start + end + 9..]);
+        } else {
+            break;
+        }
+    }
+
+    // Remove Excalidraw drawings (can't render in email)
+    while let Some(start) = email_body.find("<div data-excalidraw") {
+        if let Some(end) = email_body[start..].find("</div>") {
+            email_body = format!("{}[Drawing - view in browser]{}", &email_body[..start], &email_body[start + end + 6..]);
+        } else {
+            break;
+        }
+    }
+
+    // Make any remaining relative URLs absolute
+    email_body = email_body.replace("src=\"/", &format!("src=\"{}/", site_url));
+    email_body = email_body.replace("href=\"/", &format!("href=\"{}/", site_url));
 
     // Collect file IDs and their storage paths (DB work, sync)
     let file_mappings: Vec<(i64, String)> = {

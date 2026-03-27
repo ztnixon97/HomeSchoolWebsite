@@ -1,6 +1,13 @@
+use base64::Engine;
 use lettre::message::{MultiPart, SinglePart};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
+
+fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
+    base64::engine::general_purpose::STANDARD
+        .decode(input.trim())
+        .map_err(|e| format!("base64 decode error: {}", e))
+}
 
 #[derive(Clone, Debug)]
 pub struct EmailConfig {
@@ -156,6 +163,56 @@ pub async fn send_email(
 
     eprintln!("[email] Building message (body len={}, plain len={})...", html_body.len(), plain.len());
 
+    // Extract inline images (data URLs) and convert to CID attachments
+    let mut processed_html = html_body.to_string();
+    let mut inline_attachments: Vec<(String, Vec<u8>, String)> = Vec::new(); // (cid, data, mime_type)
+    let mut cid_counter = 0;
+
+    // Find all data URL images and convert to CID references
+    while let Some(start) = processed_html.find("src=\"data:image/") {
+        let src_start = start + 5; // skip 'src="'
+        if let Some(end) = processed_html[src_start..].find('"') {
+            let data_url = processed_html[src_start..src_start + end].to_string();
+            // Parse data URL: data:image/png;base64,xxxxx
+            if let Some(comma) = data_url.find(',') {
+                let header = &data_url[5..comma]; // skip "data:"
+                let mime = header.split(';').next().unwrap_or("image/png");
+                let b64_data = &data_url[comma + 1..];
+                if let Ok(bytes) = base64_decode(b64_data) {
+                    cid_counter += 1;
+                    let cid = format!("img{}@wlpc", cid_counter);
+                    inline_attachments.push((cid.clone(), bytes, mime.to_string()));
+                    let old_src = format!("src=\"{}\"", data_url);
+                    let new_src = format!("src=\"cid:{}\"", cid);
+                    processed_html = processed_html.replacen(&old_src, &new_src, 1);
+                    continue; // re-scan from beginning since string changed
+                }
+            }
+        }
+        break; // couldn't parse, stop to avoid infinite loop
+    }
+
+    // Build email with inline attachments if any
+    let html_part = SinglePart::html(processed_html.clone());
+    let plain_part = SinglePart::plain(plain);
+
+    let body = if inline_attachments.is_empty() {
+        MultiPart::alternative()
+            .singlepart(plain_part)
+            .singlepart(html_part)
+    } else {
+        // related() allows HTML to reference CID attachments
+        let mut related = MultiPart::related().singlepart(html_part);
+        for (cid, data, mime) in &inline_attachments {
+            let attachment = lettre::message::Attachment::new_inline(cid.clone())
+                .body(data.clone(), mime.parse().unwrap_or("image/png".parse().unwrap()));
+            related = related.singlepart(attachment);
+        }
+        MultiPart::alternative()
+            .singlepart(plain_part)
+            .multipart(related)
+    };
+
     let email = Message::builder()
         .from(
             config
@@ -171,11 +228,7 @@ pub async fn send_email(
             format!("Invalid to: {}", e)
         })?)
         .subject(subject)
-        .multipart(
-            MultiPart::alternative()
-                .singlepart(SinglePart::plain(plain))
-                .singlepart(SinglePart::html(html_body.to_string())),
-        )
+        .multipart(body)
         .map_err(|e| {
             eprintln!("[email] Email build error: {}", e);
             format!("Email build error: {}", e)

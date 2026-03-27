@@ -25,5 +25,6 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1-rustl
 aws-sdk-s3 = "1"
 aws-config = { version = "1", features = ["behavior-version-latest"] }
 time = "0.3"
+base64 = "0.22"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
