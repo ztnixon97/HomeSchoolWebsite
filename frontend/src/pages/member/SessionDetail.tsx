@@ -324,8 +324,8 @@ export default function SessionDetail() {
         {session.lesson_plan_id && (
           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
             <span className="font-semibold text-blue-800">Lesson Plan:</span>
-            <Link to={`/lesson-plans/${session.lesson_plan_id}`} className="text-blue-700 ml-2 hover:text-blue-900">
-              View plan
+            <Link to={`/lesson-plans/${session.lesson_plan_id}`} className="text-blue-700 ml-2 hover:text-blue-900 underline underline-offset-2">
+              {lessonPlans.find(lp => lp.id === session.lesson_plan_id)?.title || 'View plan'}
             </Link>
           </div>
         )}

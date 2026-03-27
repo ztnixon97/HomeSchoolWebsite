@@ -179,9 +179,41 @@ pub async fn delete_user(
 
     let conn = state.db.get()?;
 
-    // Remove student-parent links
-    conn.execute("DELETE FROM student_parents WHERE user_id = ?1", params![id])?;
-    // Remove the user
+    // Clean up all foreign key references to this user before deletion.
+    // Tables with ON DELETE CASCADE (student_parents, lesson_plan_collaborators,
+    // password_reset_tokens) are handled automatically by SQLite.
+
+    // Nullify references where we want to keep the content
+    conn.execute("UPDATE posts SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE post_comments SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE lesson_plans SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE files SET uploader_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE uploader_id = ?1", params![id])?;
+    conn.execute("UPDATE milestones SET recorded_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE recorded_by = ?1", params![id])?;
+
+    // Nullify nullable references
+    conn.execute("UPDATE invites SET used_by = NULL WHERE used_by = ?1", params![id])?;
+    conn.execute("UPDATE events SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE class_sessions SET host_id = NULL, status = 'open' WHERE host_id = ?1", params![id])?;
+    conn.execute("UPDATE class_sessions SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE announcements SET created_by = NULL WHERE created_by = ?1", params![id])?;
+
+    // Remove RSVPs submitted by this user
+    conn.execute("DELETE FROM rsvps WHERE parent_id = ?1", params![id])?;
+
+    // Delete students that belong only to this parent (no other parent linked)
+    conn.execute(
+        "DELETE FROM students WHERE id IN (
+            SELECT sp.student_id FROM student_parents sp
+            WHERE sp.user_id = ?1
+            AND NOT EXISTS (
+                SELECT 1 FROM student_parents sp2
+                WHERE sp2.student_id = sp.student_id AND sp2.user_id != ?1
+            )
+        )",
+        params![id],
+    )?;
+
+    // Remove the user (cascades handle student_parents, lesson_plan_collaborators, password_reset_tokens)
     conn.execute("DELETE FROM users WHERE id = ?1", params![id])?;
 
     Ok(Json(serde_json::json!({ "ok": true })))
