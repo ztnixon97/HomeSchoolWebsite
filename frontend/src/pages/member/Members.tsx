@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
-import Pagination from '../../components/Pagination';
+import { ServerPagination } from '../../components/Pagination';
 
 interface Member {
   id: number;
@@ -18,15 +18,22 @@ interface Member {
 export default function Members() {
   const [members, setMembers] = useState<Member[]>([]);
   const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 12;
 
   useEffect(() => {
-    api.get<Member[]>('/api/members').then(setMembers).catch(() => {});
-  }, []);
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('page_size', String(PAGE_SIZE));
+    if (query) params.set('q', query);
+    api.get<{ items: Member[]; total: number } | Member[]>(`/api/members?${params}`).then(res => {
+      if (Array.isArray(res)) { setMembers(res); setTotal(res.length); }
+      else { setMembers(res.items); setTotal(res.total); }
+    }).catch(() => {});
+  }, [page, query]);
 
-  const filtered = members.filter(m => {
-    const text = `${m.display_name} ${m.email}`.toLowerCase();
-    return text.includes(query.trim().toLowerCase());
-  });
+  useEffect(() => { setPage(1); }, [query]);
 
   return (
     <div className="space-y-6">
@@ -45,10 +52,8 @@ export default function Members() {
         </div>
       </div>
 
-      <Pagination items={filtered} pageSize={12}>
-        {(pageItems) => (
       <div className="grid md:grid-cols-2 gap-4">
-        {pageItems.map(m => (
+        {members.map(m => (
           <div key={m.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -98,8 +103,7 @@ export default function Members() {
           </div>
         ))}
       </div>
-        )}
-      </Pagination>
+      <ServerPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
     </div>
   );
 }

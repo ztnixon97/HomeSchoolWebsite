@@ -747,3 +747,56 @@ pub struct UpdateFamilyRequest {
 pub struct InviteFamilyMemberRequest {
     pub email: String,
 }
+
+// ── Pagination ──
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T: serde::Serialize> {
+    pub items: Vec<T>,
+    pub total: i64,
+    pub page: i64,
+    pub page_size: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SessionsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub q: Option<String>,
+    pub status: Option<String>,
+    pub session_type_id: Option<i64>,
+    pub date_from: Option<String>,
+    pub date_to: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LessonPlansQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub q: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MembersQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub q: Option<String>,
+    pub role: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdminUsersQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub q: Option<String>,
+    pub role: Option<String>,
+    pub active: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RsvpsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub upcoming: Option<bool>,
+}

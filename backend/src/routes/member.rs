@@ -19,32 +19,62 @@ use crate::AppState;
 pub async fn list_lesson_plans(
     RequireAuth(_user): RequireAuth,
     State(state): State<AppState>,
-) -> Result<Json<Vec<LessonPlan>>, AppError> {
-    let mut conn = state.db.get()?;
-    let mut stmt = conn.prepare(
-        "SELECT lp.id, lp.author_id, u.display_name, lp.title, lp.description, lp.age_group, lp.category, lp.created_at, lp.updated_at
-         FROM lesson_plans lp JOIN users u ON lp.author_id = u.id
-         ORDER BY lp.created_at DESC",
-    )?;
+    axum::extract::Query(query): axum::extract::Query<LessonPlansQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
 
-    let plans: Vec<LessonPlan> = stmt
-        .query_map([], |row| {
-            Ok(LessonPlan {
-                id: row.get(0)?,
-                author_id: row.get(1)?,
-                author_name: row.get(2)?,
-                title: row.get(3)?,
-                description: row.get(4)?,
-                age_group: row.get(5)?,
-                category: row.get(6)?,
-                created_at: row.get(7)?,
-                updated_at: row.get(8)?,
-            })
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+    let mut where_clauses = vec!["1=1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
-    Ok(Json(plans))
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("lp.title LIKE ?{}", params_vec.len()));
+        }
+    }
+    if let Some(ref cat) = query.category {
+        if !cat.is_empty() {
+            params_vec.push(Box::new(cat.clone()));
+            where_clauses.push(format!("lp.category = ?{}", params_vec.len()));
+        }
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!("FROM lesson_plans lp JOIN users u ON lp.author_id = u.id WHERE {}", where_sql);
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(12).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!(
+            "SELECT lp.id, lp.author_id, u.display_name, lp.title, lp.description, lp.age_group, lp.category, lp.created_at, lp.updated_at {} ORDER BY lp.created_at DESC LIMIT ?{} OFFSET ?{}",
+            base, lp.len() - 1, lp.len()
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let plans: Vec<LessonPlan> = stmt.query_map(rusqlite::params_from_iter(&lp), |row| {
+            Ok(LessonPlan { id: row.get(0)?, author_id: row.get(1)?, author_name: row.get(2)?, title: row.get(3)?, description: row.get(4)?, age_group: row.get(5)?, category: row.get(6)?, created_at: row.get(7)?, updated_at: row.get(8)? })
+        })?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": plans, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    let sql = format!("SELECT lp.id, lp.author_id, u.display_name, lp.title, lp.description, lp.age_group, lp.category, lp.created_at, lp.updated_at {} ORDER BY lp.created_at DESC", base);
+    let mut stmt = conn.prepare(&sql)?;
+    let plans: Vec<LessonPlan> = stmt.query_map(rusqlite::params_from_iter(&params_refs), |row| {
+        Ok(LessonPlan { id: row.get(0)?, author_id: row.get(1)?, author_name: row.get(2)?, title: row.get(3)?, description: row.get(4)?, age_group: row.get(5)?, category: row.get(6)?, created_at: row.get(7)?, updated_at: row.get(8)? })
+    })?.filter_map(|r| r.ok()).collect();
+
+    Ok(Json(serde_json::json!(plans)))
 }
 
 pub async fn get_lesson_plan(
@@ -1054,56 +1084,133 @@ pub async fn create_session(
 pub async fn list_sessions(
     RequireAuth(_user): RequireAuth,
     State(state): State<AppState>,
-) -> Result<Json<Vec<ClassSession>>, AppError> {
+    axum::extract::Query(query): axum::extract::Query<SessionsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    let mut stmt = conn.prepare(
+
+    let mut where_clauses = Vec::new();
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern.clone()));
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("(cs.title LIKE ?{} OR cs.theme LIKE ?{})", params_vec.len() - 1, params_vec.len()));
+        }
+    }
+    if let Some(ref status) = query.status {
+        if !status.is_empty() {
+            params_vec.push(Box::new(status.clone()));
+            where_clauses.push(format!("cs.status = ?{}", params_vec.len()));
+        }
+    }
+    if let Some(type_id) = query.session_type_id {
+        params_vec.push(Box::new(type_id));
+        where_clauses.push(format!("cs.session_type_id = ?{}", params_vec.len()));
+    }
+    if let Some(ref df) = query.date_from {
+        if !df.is_empty() {
+            params_vec.push(Box::new(df.clone()));
+            where_clauses.push(format!("cs.session_date >= ?{}", params_vec.len()));
+        }
+    }
+    if let Some(ref dt) = query.date_to {
+        if !dt.is_empty() {
+            params_vec.push(Box::new(dt.clone()));
+            where_clauses.push(format!("cs.session_date <= ?{}", params_vec.len()));
+        }
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {}", where_clauses.join(" AND "))
+    };
+
+    let base_select = format!(
+        "FROM class_sessions cs
+         LEFT JOIN users u ON cs.host_id = u.id
+         LEFT JOIN session_types st ON cs.session_type_id = st.id
+         {}", where_sql
+    );
+
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    // If pagination requested, return paginated response
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(12).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(
+            &format!("SELECT COUNT(*) {}", base_select),
+            rusqlite::params_from_iter(&params_refs),
+            |row| row.get(0),
+        )?;
+
+        let mut limit_params = params_vec.iter().map(|p| p.as_ref() as &dyn rusqlite::types::ToSql).collect::<Vec<_>>();
+        limit_params.push(&page_size);
+        limit_params.push(&offset);
+
+        let sql = format!(
+            "SELECT cs.id, cs.title, cs.theme, cs.session_date, cs.end_date, cs.start_time, cs.end_time,
+                    cs.host_id, u.display_name, cs.host_address, cs.location_name, cs.location_address,
+                    cs.cost_amount, cs.cost_details, cs.lesson_plan_id,
+                    cs.materials_needed, cs.max_students, cs.notes, cs.status,
+                    cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,
+                    cs.created_by, cs.created_at
+             {} ORDER BY cs.session_date ASC, cs.start_time ASC LIMIT ?{} OFFSET ?{}",
+            base_select, limit_params.len() - 1, limit_params.len()
+        );
+
+        let mut stmt = conn.prepare(&sql)?;
+        let sessions: Vec<ClassSession> = stmt.query_map(rusqlite::params_from_iter(&limit_params), |row| {
+            Ok(ClassSession {
+                id: row.get(0)?, title: row.get(1)?, theme: row.get(2)?,
+                session_date: row.get(3)?, end_date: row.get(4)?, start_time: row.get(5)?,
+                end_time: row.get(6)?, host_id: row.get(7)?, host_name: row.get(8)?,
+                host_address: row.get(9)?, location_name: row.get(10)?, location_address: row.get(11)?,
+                cost_amount: row.get(12)?, cost_details: row.get(13)?, lesson_plan_id: row.get(14)?,
+                materials_needed: row.get(15)?, max_students: row.get(16)?, notes: row.get(17)?,
+                status: row.get(18)?, session_type_id: row.get(19)?, session_type_name: row.get(20)?,
+                session_type_label: row.get(21)?, rsvp_cutoff: row.get(22)?, require_approval: row.get(23)?,
+                created_by: row.get(24)?, created_at: row.get(25)?,
+            })
+        })?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": sessions, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    // No pagination — return all (backwards compatible for Dashboard, etc.)
+    let sql = format!(
         "SELECT cs.id, cs.title, cs.theme, cs.session_date, cs.end_date, cs.start_time, cs.end_time,
                 cs.host_id, u.display_name, cs.host_address, cs.location_name, cs.location_address,
                 cs.cost_amount, cs.cost_details, cs.lesson_plan_id,
                 cs.materials_needed, cs.max_students, cs.notes, cs.status,
                 cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,
                 cs.created_by, cs.created_at
-         FROM class_sessions cs
-         LEFT JOIN users u ON cs.host_id = u.id
-         LEFT JOIN session_types st ON cs.session_type_id = st.id
-         ORDER BY cs.session_date ASC, cs.start_time ASC",
-    )?;
+         {} ORDER BY cs.session_date ASC, cs.start_time ASC",
+        base_select
+    );
 
-    let sessions: Vec<ClassSession> = stmt
-        .query_map([], |row| {
-            Ok(ClassSession {
-                id: row.get(0)?,
-                title: row.get(1)?,
-                theme: row.get(2)?,
-                session_date: row.get(3)?,
-                end_date: row.get(4)?,
-                start_time: row.get(5)?,
-                end_time: row.get(6)?,
-                host_id: row.get(7)?,
-                host_name: row.get(8)?,
-                host_address: row.get(9)?,
-                location_name: row.get(10)?,
-                location_address: row.get(11)?,
-                cost_amount: row.get(12)?,
-                cost_details: row.get(13)?,
-                lesson_plan_id: row.get(14)?,
-                materials_needed: row.get(15)?,
-                max_students: row.get(16)?,
-                notes: row.get(17)?,
-                status: row.get(18)?,
-                session_type_id: row.get(19)?,
-                session_type_name: row.get(20)?,
-                session_type_label: row.get(21)?,
-                rsvp_cutoff: row.get(22)?,
-                require_approval: row.get(23)?,
-                created_by: row.get(24)?,
-                created_at: row.get(25)?,
-            })
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+    let mut stmt = conn.prepare(&sql)?;
+    let sessions: Vec<ClassSession> = stmt.query_map(rusqlite::params_from_iter(&params_refs), |row| {
+        Ok(ClassSession {
+            id: row.get(0)?, title: row.get(1)?, theme: row.get(2)?,
+            session_date: row.get(3)?, end_date: row.get(4)?, start_time: row.get(5)?,
+            end_time: row.get(6)?, host_id: row.get(7)?, host_name: row.get(8)?,
+            host_address: row.get(9)?, location_name: row.get(10)?, location_address: row.get(11)?,
+            cost_amount: row.get(12)?, cost_details: row.get(13)?, lesson_plan_id: row.get(14)?,
+            materials_needed: row.get(15)?, max_students: row.get(16)?, notes: row.get(17)?,
+            status: row.get(18)?, session_type_id: row.get(19)?, session_type_name: row.get(20)?,
+            session_type_label: row.get(21)?, rsvp_cutoff: row.get(22)?, require_approval: row.get(23)?,
+            created_by: row.get(24)?, created_at: row.get(25)?,
+        })
+    })?.filter_map(|r| r.ok()).collect();
 
-    Ok(Json(sessions))
+    Ok(Json(serde_json::json!(sessions)))
 }
 
 pub async fn list_users(
@@ -1134,34 +1241,76 @@ pub async fn list_users(
 pub async fn list_members(
     RequireTeacher(_user): RequireTeacher,
     State(state): State<AppState>,
-) -> Result<Json<Vec<MemberProfile>>, AppError> {
+    axum::extract::Query(query): axum::extract::Query<MembersQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    // Single query with GROUP_CONCAT to avoid N+1
-    let mut stmt = conn.prepare(
-        "SELECT u.id, u.display_name, u.email, u.role, u.phone, u.address, u.preferred_contact,
-                COALESCE((SELECT GROUP_CONCAT(cs.title, '||') FROM class_sessions cs WHERE cs.host_id = u.id ORDER BY cs.session_date DESC), ''),
-                COALESCE((SELECT GROUP_CONCAT(cs2.title, '||') FROM class_sessions cs2 WHERE cs2.host_id = u.id AND cs2.session_date >= date('now') ORDER BY cs2.session_date ASC), ''),
-                COALESCE((SELECT GROUP_CONCAT(s.first_name || ' ' || s.last_name, '||') FROM students s JOIN student_parents sp ON s.id = sp.student_id WHERE sp.user_id = u.id ORDER BY s.first_name), '')
-         FROM users u WHERE u.active = 1 ORDER BY u.display_name",
-    )?;
-    let members: Vec<MemberProfile> = stmt.query_map([], |row| {
+
+    let mut where_clauses = vec!["u.active = 1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern.clone()));
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("(u.display_name LIKE ?{} OR u.email LIKE ?{})", params_vec.len() - 1, params_vec.len()));
+        }
+    }
+    if let Some(ref role) = query.role {
+        if !role.is_empty() {
+            params_vec.push(Box::new(role.clone()));
+            where_clauses.push(format!("u.role = ?{}", params_vec.len()));
+        }
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!("FROM users u WHERE {}", where_sql);
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    let make_row = |row: &rusqlite::Row| -> rusqlite::Result<MemberProfile> {
         let hosted_str: String = row.get(7)?;
         let upcoming_str: String = row.get(8)?;
         let children_str: String = row.get(9)?;
         Ok(MemberProfile {
-            id: row.get(0)?,
-            display_name: row.get(1)?,
-            email: row.get(2)?,
-            role: row.get(3)?,
-            phone: row.get(4)?,
-            address: row.get(5)?,
-            preferred_contact: row.get(6)?,
+            id: row.get(0)?, display_name: row.get(1)?, email: row.get(2)?, role: row.get(3)?,
+            phone: row.get(4)?, address: row.get(5)?, preferred_contact: row.get(6)?,
             hosted_sessions: if hosted_str.is_empty() { vec![] } else { hosted_str.split("||").map(String::from).collect() },
             upcoming_sessions: if upcoming_str.is_empty() { vec![] } else { upcoming_str.split("||").map(String::from).collect() },
             children: if children_str.is_empty() { vec![] } else { children_str.split("||").map(String::from).collect() },
         })
-    })?.filter_map(|r| r.ok()).collect();
-    Ok(Json(members))
+    };
+
+    let select_cols = format!(
+        "SELECT u.id, u.display_name, u.email, u.role, u.phone, u.address, u.preferred_contact,
+                COALESCE((SELECT GROUP_CONCAT(cs.title, '||') FROM class_sessions cs WHERE cs.host_id = u.id), ''),
+                COALESCE((SELECT GROUP_CONCAT(cs2.title, '||') FROM class_sessions cs2 WHERE cs2.host_id = u.id AND cs2.session_date >= date('now')), ''),
+                COALESCE((SELECT GROUP_CONCAT(s.first_name || ' ' || s.last_name, '||') FROM students s JOIN student_parents sp ON s.id = sp.student_id WHERE sp.user_id = u.id), '')
+         {}", base
+    );
+
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(12).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!("{} ORDER BY u.display_name LIMIT ?{} OFFSET ?{}", select_cols, lp.len() - 1, lp.len());
+        let mut stmt = conn.prepare(&sql)?;
+        let members: Vec<MemberProfile> = stmt.query_map(rusqlite::params_from_iter(&lp), make_row)?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": members, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    let sql = format!("{} ORDER BY u.display_name", select_cols);
+    let mut stmt = conn.prepare(&sql)?;
+    let members: Vec<MemberProfile> = stmt.query_map(rusqlite::params_from_iter(&params_refs), make_row)?.filter_map(|r| r.ok()).collect();
+    Ok(Json(serde_json::json!(members)))
 }
 
 pub async fn list_lesson_plan_collaborators(

@@ -102,31 +102,68 @@ pub async fn list_invites(
 pub async fn list_users(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
-) -> Result<Json<Vec<UserResponse>>, AppError> {
+    axum::extract::Query(query): axum::extract::Query<crate::models::AdminUsersQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    let mut stmt = conn.prepare(
-        "SELECT id, email, display_name, role, active, phone, address, preferred_contact, family_id, created_at FROM users ORDER BY created_at",
-    )?;
 
-    let users: Vec<UserResponse> = stmt
-        .query_map([], |row| {
-            Ok(UserResponse {
-                id: row.get(0)?,
-                email: row.get(1)?,
-                display_name: row.get(2)?,
-                role: row.get(3)?,
-                active: row.get(4)?,
-                phone: row.get(5)?,
-                address: row.get(6)?,
-                preferred_contact: row.get(7)?,
-                family_id: row.get(8)?,
-                created_at: row.get(9)?,
-            })
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+    let mut where_clauses = vec!["1=1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
-    Ok(Json(users))
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern.clone()));
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("(display_name LIKE ?{} OR email LIKE ?{})", params_vec.len() - 1, params_vec.len()));
+        }
+    }
+    if let Some(ref role) = query.role {
+        if !role.is_empty() {
+            params_vec.push(Box::new(role.clone()));
+            where_clauses.push(format!("role = ?{}", params_vec.len()));
+        }
+    }
+    if let Some(active) = query.active {
+        params_vec.push(Box::new(active));
+        where_clauses.push(format!("active = ?{}", params_vec.len()));
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!("FROM users WHERE {}", where_sql);
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    let make_row = |row: &rusqlite::Row| -> rusqlite::Result<UserResponse> {
+        Ok(UserResponse {
+            id: row.get(0)?, email: row.get(1)?, display_name: row.get(2)?,
+            role: row.get(3)?, active: row.get(4)?, phone: row.get(5)?,
+            address: row.get(6)?, preferred_contact: row.get(7)?,
+            family_id: row.get(8)?, created_at: row.get(9)?,
+        })
+    };
+
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!("SELECT id, email, display_name, role, active, phone, address, preferred_contact, family_id, created_at {} ORDER BY created_at LIMIT ?{} OFFSET ?{}", base, lp.len() - 1, lp.len());
+        let mut stmt = conn.prepare(&sql)?;
+        let users: Vec<UserResponse> = stmt.query_map(rusqlite::params_from_iter(&lp), make_row)?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": users, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    let sql = format!("SELECT id, email, display_name, role, active, phone, address, preferred_contact, family_id, created_at {} ORDER BY created_at", base);
+    let mut stmt = conn.prepare(&sql)?;
+    let users: Vec<UserResponse> = stmt.query_map(rusqlite::params_from_iter(&params_refs), make_row)?.filter_map(|r| r.ok()).collect();
+    Ok(Json(serde_json::json!(users)))
 }
 
 #[derive(serde::Deserialize)]

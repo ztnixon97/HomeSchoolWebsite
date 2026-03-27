@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
-import Pagination from '../../components/Pagination';
+import { ServerPagination } from '../../components/Pagination';
 
 interface Session {
   id: number;
@@ -40,7 +40,6 @@ interface SessionType {
 
 export default function ClassSessions() {
   const { user } = useAuth();
-  const [sessions, setSessions] = useState<Session[]>([]);
   const [view, setView] = useState<'list' | 'calendar'>('calendar');
   const [showCreate, setShowCreate] = useState(false);
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
@@ -59,15 +58,36 @@ export default function ClassSessions() {
   const [notes, setNotes] = useState('');
   const [rsvpCutoff, setRsvpCutoff] = useState('');
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [listPage, setListPage] = useState(1);
+  const [listTotal, setListTotal] = useState(0);
+  const PAGE_SIZE = 12;
 
+  // Load all sessions for calendar view
   useEffect(() => {
-    api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
   }, []);
 
+  // Load paginated sessions for list view
+  const [listSessions, setListSessions] = useState<Session[]>([]);
+  useEffect(() => {
+    if (view !== 'list') return;
+    const params = new URLSearchParams();
+    params.set('page', String(listPage));
+    params.set('page_size', String(PAGE_SIZE));
+    if (search) params.set('q', search);
+    if (statusFilter) params.set('status', statusFilter);
+    api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {
+      setListSessions(res.items);
+      setListTotal(res.total);
+    }).catch(() => {});
+  }, [view, listPage, search, statusFilter]);
+
+  // Reset page when filters change
+  useEffect(() => { setListPage(1); }, [search, statusFilter]);
+
   const today = new Date().toISOString().slice(0, 10);
-  const upcoming = sessions.filter(s => (s.end_date || s.session_date) >= today);
-  const past = sessions.filter(s => (s.end_date || s.session_date) < today);
 
   const sessionTypeMap = new Map(sessionTypes.map(t => [t.id, t]));
   const statusBadge = (s: Session) => {
@@ -254,96 +274,94 @@ export default function ClassSessions() {
       )}
 
       {view === 'list' ? (
-        <div className="space-y-8">
-          {upcoming.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Upcoming</h2>
-              <Pagination items={upcoming} pageSize={12}>
-                {(pageItems) => (
-                  <div className="space-y-3">
-                    {pageItems.map(s => (
-                      <Link
-                        key={s.id}
-                        to={`/sessions/${s.id}`}
-                        className={`block bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-all no-underline ${
-                          s.status === 'open' ? 'border-amber-200 hover:border-amber-300' : 'border-gray-100 hover:border-gray-200'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-gray-900">{s.title}</h3>
-                          {statusBadge(s)}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                          {s.end_date && s.end_date !== s.session_date && ` - ${new Date(s.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`}
-                          {s.start_time && ` at ${s.start_time}`}
-                          {s.end_time && ` - ${s.end_time}`}
-                        </div>
-                        {s.theme && (
-                          <div className="mt-2">
-                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                              {s.theme}
-                            </span>
-                          </div>
-                        )}
-                        {s.session_type_label && s.session_type_name !== 'holiday' && (
-                          <div className="mt-2">
-                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                              {s.session_type_label}
-                            </span>
-                          </div>
-                        )}
-                        {s.status === 'open' && user && s.session_type_name !== 'holiday' && (
-                          <div className="text-xs text-emerald-700 mt-2 font-medium">Sign up to host this session &rarr;</div>
-                        )}
-                      </Link>
-                    ))}
+        <div className="space-y-6">
+          {/* Search and filter */}
+          <div className="flex flex-wrap gap-3">
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search sessions..."
+              className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            >
+              <option value="">All Status</option>
+              <option value="open">Unclaimed</option>
+              <option value="claimed">Hosted</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+
+          <div className="space-y-3">
+            {listSessions.map(s => (
+              <Link
+                key={s.id}
+                to={`/sessions/${s.id}`}
+                className={`block bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-all no-underline ${
+                  s.status === 'open' ? 'border-amber-200 hover:border-amber-300' : 'border-gray-100 hover:border-gray-200'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold text-gray-900">{s.title}</h3>
+                  {statusBadge(s)}
+                </div>
+                <div className="text-sm text-gray-500">
+                  {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                  {s.end_date && s.end_date !== s.session_date && ` - ${new Date(s.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`}
+                  {s.start_time && ` at ${s.start_time}`}
+                  {s.end_time && ` - ${s.end_time}`}
+                </div>
+                {s.theme && (
+                  <div className="mt-2">
+                    <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">{s.theme}</span>
                   </div>
                 )}
-              </Pagination>
-            </div>
-          )}
-
-          {past.length > 0 && (
-            <div>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Past Sessions</h2>
-              <Pagination items={past} pageSize={12}>
-                {(pageItems) => (
-                  <div className="space-y-2">
-                    {pageItems.map(s => (
-                      <Link key={s.id} to={`/sessions/${s.id}`} className="block bg-white rounded-xl border border-gray-100 p-4 opacity-60 hover:opacity-100 transition-opacity no-underline">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-gray-700">{s.title}</span>
-                          <span className="text-xs text-gray-400">
-                            {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
+                {s.session_type_label && s.session_type_name !== 'holiday' && (
+                  <div className="mt-2">
+                    <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{s.session_type_label}</span>
                   </div>
                 )}
-              </Pagination>
-            </div>
-          )}
-
-          {sessions.length === 0 && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No class sessions scheduled yet.</p>
-            </div>
-          )}
+                {s.status === 'open' && user && s.session_type_name !== 'holiday' && (
+                  <div className="text-xs text-emerald-700 mt-2 font-medium">Sign up to host this session &rarr;</div>
+                )}
+              </Link>
+            ))}
+            {listSessions.length === 0 && (
+              <div className="text-center py-12">
+                <p className="text-gray-500">{search || statusFilter ? 'No sessions match your filters.' : 'No class sessions scheduled yet.'}</p>
+              </div>
+            )}
+          </div>
+          <ServerPagination page={listPage} pageSize={PAGE_SIZE} total={listTotal} onPageChange={setListPage} />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
-          <CalendarView sessions={sessions} />
+          <CalendarView />
         </div>
       )}
     </div>
   );
 }
 
-function CalendarView({ sessions }: { sessions: Session[] }) {
+function CalendarView() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  // Load sessions for current month +/- 1 month buffer
+  useEffect(() => {
+    const from = new Date(year, month - 1, 1);
+    const to = new Date(year, month + 2, 0);
+    const dateFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`;
+    const dateTo = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, '0')}-${String(to.getDate()).padStart(2, '0')}`;
+    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${dateFrom}&date_to=${dateTo}`).then(res => {
+      setSessions(Array.isArray(res) ? res : res.items);
+    }).catch(() => {});
+  }, [year, month]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
