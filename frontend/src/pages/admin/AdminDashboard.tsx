@@ -214,6 +214,12 @@ export default function AdminDashboard() {
             description="Post quick alerts and notices"
             href="/admin/announcements"
           />
+          <AdminLink
+            icon="📁"
+            title="File Management"
+            description="Monitor storage and manage uploaded files"
+            href="/admin/files"
+          />
         </div>
       </section>
     </div>
