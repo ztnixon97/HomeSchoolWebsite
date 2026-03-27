@@ -368,7 +368,8 @@ async fn main() {
         .route("/api/admin/announcements", post(routes::admin::create_announcement))
         .route("/api/admin/announcements", get(routes::admin::list_announcements))
         .route("/api/admin/announcements/{id}", put(routes::admin::update_announcement))
-        .route("/api/admin/announcements/{id}", delete(routes::admin::delete_announcement));
+        .route("/api/admin/announcements/{id}", delete(routes::admin::delete_announcement))
+        .route("/api/admin/recent-activity", get(routes::admin::recent_activity));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

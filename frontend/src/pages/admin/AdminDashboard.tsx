@@ -153,11 +153,8 @@ export default function AdminDashboard() {
         )}
       </section>
 
-      {/* Recent Activity Placeholder */}
-      <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
-        <p className="text-gray-400 text-sm italic">Coming soon</p>
-      </section>
+      {/* Recent Activity */}
+      <RecentActivity />
 
       {/* Admin Navigation Grid */}
       <section>
@@ -220,5 +217,45 @@ export default function AdminDashboard() {
         </div>
       </section>
     </div>
+  );
+}
+
+interface ActivityItem {
+  type: string;
+  message: string;
+  timestamp: string;
+}
+
+function RecentActivity() {
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  useEffect(() => {
+    api.get<ActivityItem[]>('/api/admin/recent-activity').then(setActivity).catch(() => {});
+  }, []);
+
+  const typeIcons: Record<string, string> = {
+    registration: '👤',
+    rsvp: '✋',
+    session_claim: '🏠',
+  };
+
+  return (
+    <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
+      {activity.length === 0 ? (
+        <p className="text-gray-400 text-sm">No recent activity.</p>
+      ) : (
+        <div className="space-y-2">
+          {activity.map((item, i) => (
+            <div key={i} className="flex items-center gap-3 text-sm py-1.5">
+              <span className="text-base">{typeIcons[item.type] || '📌'}</span>
+              <span className="text-gray-700 flex-1">{item.message}</span>
+              <span className="text-xs text-gray-400 flex-shrink-0">
+                {new Date(item.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }

@@ -64,6 +64,41 @@ export default function StudentProgress() {
     }
   };
 
+  const [editingMilestone, setEditingMilestone] = useState<number | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editNotes, setEditNotes] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+
+  const refreshMilestones = () => {
+    if (selected) {
+      api.get<Milestone[]>(`/api/students/${selected}/milestones`).then(setMilestones).catch(() => {});
+    }
+  };
+
+  const startEditMilestone = (m: Milestone) => {
+    setEditingMilestone(m.id);
+    setEditTitle(m.title);
+    setEditNotes(m.notes || '');
+    setEditCategory(m.category);
+  };
+
+  const saveEditMilestone = async () => {
+    if (!editingMilestone) return;
+    await api.put(`/api/milestones/${editingMilestone}`, {
+      title: editTitle,
+      notes: editNotes || null,
+      category: editCategory,
+    });
+    setEditingMilestone(null);
+    refreshMilestones();
+  };
+
+  const deleteMilestone = async (mid: number) => {
+    if (!window.confirm('Delete this milestone?')) return;
+    await api.del(`/api/milestones/${mid}`);
+    refreshMilestones();
+  };
+
   const selectedStudent = students.find(s => s.id === selected);
 
   return (
@@ -98,14 +133,38 @@ export default function StudentProgress() {
               <div className="space-y-2">
                 {milestones.map(m => (
                   <div key={m.id} className="p-3 border border-gray-100 rounded text-sm">
-                    <div className="flex justify-between">
-                      <span className="font-medium">{m.title}</span>
-                      <span className="text-xs text-gray-400 capitalize">{m.category}</span>
-                    </div>
-                    {m.notes && <p className="text-xs text-gray-500 mt-1">{m.notes}</p>}
-                    <p className="text-xs text-gray-400 mt-1">
-                      {m.achieved_date ? `Achieved: ${new Date(m.achieved_date).toLocaleDateString()}` : 'In progress'}
-                    </p>
+                    {editingMilestone === m.id ? (
+                      <div className="space-y-2">
+                        <input className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+                        <select className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                          <option value="social">Social</option>
+                          <option value="motor">Motor</option>
+                          <option value="language">Language</option>
+                          <option value="cognitive">Cognitive</option>
+                          <option value="creative">Creative</option>
+                        </select>
+                        <textarea className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} />
+                        <div className="flex gap-2">
+                          <button onClick={saveEditMilestone} className="text-xs text-emerald-600 font-medium">Save</button>
+                          <button onClick={() => setEditingMilestone(null)} className="text-xs text-gray-500">Cancel</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span className="font-medium">{m.title}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400 capitalize">{m.category}</span>
+                            <button onClick={() => startEditMilestone(m)} className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
+                            <button onClick={() => deleteMilestone(m.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
+                          </div>
+                        </div>
+                        {m.notes && <p className="text-xs text-gray-500 mt-1">{m.notes}</p>}
+                        <p className="text-xs text-gray-400 mt-1">
+                          {m.achieved_date ? `Achieved: ${new Date(m.achieved_date).toLocaleDateString()}` : 'In progress'}
+                        </p>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>

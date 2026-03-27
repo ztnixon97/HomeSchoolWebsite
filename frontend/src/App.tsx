@@ -36,6 +36,7 @@ import SessionDetail from './pages/member/SessionDetail';
 import StudentProgress from './pages/member/StudentProgress';
 import Members from './pages/member/Members';
 import AccountSettings from './pages/member/AccountSettings';
+import MyRsvps from './pages/member/MyRsvps';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -82,6 +83,7 @@ export default function App() {
             <Route path="/sessions/:id" element={<RoleGuard><SessionDetail /></RoleGuard>} />
             <Route path="/members" element={<RoleGuard><Members /></RoleGuard>} />
             <Route path="/my-children" element={<RoleGuard><MyChildren /></RoleGuard>} />
+            <Route path="/my-rsvps" element={<RoleGuard><MyRsvps /></RoleGuard>} />
             <Route path="/account" element={<RoleGuard><AccountSettings /></RoleGuard>} />
 
             {/* Teacher+ */}

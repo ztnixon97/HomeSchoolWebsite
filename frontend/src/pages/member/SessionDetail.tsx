@@ -228,9 +228,11 @@ export default function SessionDetail() {
               ? 'bg-red-100 text-red-800'
               : session.status === 'claimed'
                 ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-700'
+                : session.status === 'completed'
+                  ? 'bg-blue-100 text-blue-800'
+                  : 'bg-gray-100 text-gray-700'
           }`}>
-            {session.status === 'open' ? 'Unclaimed' : session.status === 'claimed' ? 'Hosted' : 'Full'}
+            {session.status === 'open' ? 'Unclaimed' : session.status === 'claimed' ? 'Hosted' : session.status === 'completed' ? 'Completed' : 'Full'}
           </span>
         </div>
 
@@ -396,12 +398,25 @@ export default function SessionDetail() {
         )}
 
         {isHost && hostable && (
-          <button
-            onClick={handleUnclaim}
-            className="text-sm text-red-600 hover:text-red-800 mt-3 font-medium"
-          >
-            Withdraw as Host
-          </button>
+          <div className="flex gap-4 mt-3">
+            <button
+              onClick={handleUnclaim}
+              className="text-sm text-red-600 hover:text-red-800 font-medium"
+            >
+              Withdraw as Host
+            </button>
+            {session.status === 'claimed' && (
+              <button
+                onClick={async () => {
+                  await api.post(`/api/sessions/${id}/complete`);
+                  refresh();
+                }}
+                className="text-sm text-emerald-600 hover:text-emerald-800 font-medium"
+              >
+                Mark as Completed
+              </button>
+            )}
+          </div>
         )}
       </div>
 

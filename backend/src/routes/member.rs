@@ -1136,62 +1136,31 @@ pub async fn list_members(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<MemberProfile>>, AppError> {
     let conn = state.db.get()?;
-    // Step 1: get basic user info
+    // Single query with GROUP_CONCAT to avoid N+1
     let mut stmt = conn.prepare(
-        "SELECT id, display_name, email, role, phone, address, preferred_contact
-         FROM users WHERE active = 1 ORDER BY display_name",
+        "SELECT u.id, u.display_name, u.email, u.role, u.phone, u.address, u.preferred_contact,
+                COALESCE((SELECT GROUP_CONCAT(cs.title, '||') FROM class_sessions cs WHERE cs.host_id = u.id ORDER BY cs.session_date DESC), ''),
+                COALESCE((SELECT GROUP_CONCAT(cs2.title, '||') FROM class_sessions cs2 WHERE cs2.host_id = u.id AND cs2.session_date >= date('now') ORDER BY cs2.session_date ASC), ''),
+                COALESCE((SELECT GROUP_CONCAT(s.first_name || ' ' || s.last_name, '||') FROM students s JOIN student_parents sp ON s.id = sp.student_id WHERE sp.user_id = u.id ORDER BY s.first_name), '')
+         FROM users u WHERE u.active = 1 ORDER BY u.display_name",
     )?;
-    let users: Vec<(i64, String, String, String, Option<String>, Option<String>, Option<String>)> = stmt.query_map([], |row| {
-        Ok((
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-        ))
-    })?
-    .filter_map(|r| r.ok())
-    .collect();
-    drop(stmt);
-
-    // Step 2: for each user, look up hosted sessions, upcoming sessions, children
-    let mut members = Vec::new();
-    for (id, display_name, email, role, phone, address, preferred_contact) in users {
-        let hosted_sessions: Vec<String> = conn.prepare(
-            "SELECT title FROM class_sessions WHERE host_id = ?1 ORDER BY session_date DESC"
-        )?.query_map(params![id], |row| row.get(0))?
-        .filter_map(|r| r.ok())
-        .collect();
-
-        let upcoming_sessions: Vec<String> = conn.prepare(
-            "SELECT title FROM class_sessions WHERE host_id = ?1 AND session_date >= date('now') ORDER BY session_date ASC"
-        )?.query_map(params![id], |row| row.get(0))?
-        .filter_map(|r| r.ok())
-        .collect();
-
-        let children: Vec<String> = conn.prepare(
-            "SELECT s.first_name || ' ' || s.last_name FROM students s
-             JOIN student_parents sp ON s.id = sp.student_id
-             WHERE sp.user_id = ?1 ORDER BY s.first_name"
-        )?.query_map(params![id], |row| row.get(0))?
-        .filter_map(|r| r.ok())
-        .collect();
-
-        members.push(MemberProfile {
-            id,
-            display_name,
-            email,
-            role,
-            phone,
-            address,
-            preferred_contact,
-            hosted_sessions,
-            upcoming_sessions,
-            children,
-        });
-    }
+    let members: Vec<MemberProfile> = stmt.query_map([], |row| {
+        let hosted_str: String = row.get(7)?;
+        let upcoming_str: String = row.get(8)?;
+        let children_str: String = row.get(9)?;
+        Ok(MemberProfile {
+            id: row.get(0)?,
+            display_name: row.get(1)?,
+            email: row.get(2)?,
+            role: row.get(3)?,
+            phone: row.get(4)?,
+            address: row.get(5)?,
+            preferred_contact: row.get(6)?,
+            hosted_sessions: if hosted_str.is_empty() { vec![] } else { hosted_str.split("||").map(String::from).collect() },
+            upcoming_sessions: if upcoming_str.is_empty() { vec![] } else { upcoming_str.split("||").map(String::from).collect() },
+            children: if children_str.is_empty() { vec![] } else { children_str.split("||").map(String::from).collect() },
+        })
+    })?.filter_map(|r| r.ok()).collect();
     Ok(Json(members))
 }
 

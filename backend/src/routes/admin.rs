@@ -1101,3 +1101,76 @@ pub async fn delete_announcement(
     conn.execute("DELETE FROM announcements WHERE id = ?1", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
+
+// ── Recent Activity ──
+
+pub async fn recent_activity(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut activity: Vec<serde_json::Value> = Vec::new();
+
+    // Recent user registrations
+    let mut stmt = conn.prepare(
+        "SELECT display_name, role, created_at FROM users ORDER BY created_at DESC LIMIT 5",
+    )?;
+    for row in stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "type": "registration",
+            "message": format!("{} joined as {}", row.get::<_, String>(0)?, row.get::<_, String>(1)?),
+            "timestamp": row.get::<_, String>(2)?,
+        }))
+    })? {
+        if let Ok(r) = row { activity.push(r); }
+    }
+    drop(stmt);
+
+    // Recent RSVPs
+    let mut stmt = conn.prepare(
+        "SELECT u.display_name, s.first_name || ' ' || s.last_name, cs.title, r.created_at
+         FROM rsvps r
+         JOIN users u ON r.parent_id = u.id
+         JOIN students s ON r.student_id = s.id
+         JOIN class_sessions cs ON r.session_id = cs.id
+         ORDER BY r.created_at DESC LIMIT 5",
+    )?;
+    for row in stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "type": "rsvp",
+            "message": format!("{} RSVP'd {} for {}", row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?),
+            "timestamp": row.get::<_, String>(3)?,
+        }))
+    })? {
+        if let Ok(r) = row { activity.push(r); }
+    }
+    drop(stmt);
+
+    // Recent session claims
+    let mut stmt = conn.prepare(
+        "SELECT u.display_name, cs.title, cs.created_at
+         FROM class_sessions cs
+         JOIN users u ON cs.host_id = u.id
+         WHERE cs.status = 'claimed'
+         ORDER BY cs.created_at DESC LIMIT 5",
+    )?;
+    for row in stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "type": "session_claim",
+            "message": format!("{} is hosting {}", row.get::<_, String>(0)?, row.get::<_, String>(1)?),
+            "timestamp": row.get::<_, String>(2)?,
+        }))
+    })? {
+        if let Ok(r) = row { activity.push(r); }
+    }
+
+    // Sort by timestamp descending and take top 10
+    activity.sort_by(|a, b| {
+        let ta = a["timestamp"].as_str().unwrap_or("");
+        let tb = b["timestamp"].as_str().unwrap_or("");
+        tb.cmp(ta)
+    });
+    activity.truncate(10);
+
+    Ok(Json(activity))
+}

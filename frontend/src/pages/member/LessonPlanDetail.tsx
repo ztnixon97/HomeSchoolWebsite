@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
 import RichTextDisplay from '../../components/RichTextDisplay';
@@ -43,6 +43,7 @@ const categoryColors: Record<string, string> = {
 export default function LessonPlanDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [plan, setPlan] = useState<LessonPlan | null>(null);
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
@@ -104,9 +105,35 @@ export default function LessonPlanDetail() {
               </span>
             )}
             {canEdit && (
-              <Link to={`/lesson-plans/${plan.id}/edit`} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium">
-                Edit
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link to={`/lesson-plans/${plan.id}/edit`} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium">
+                  Edit
+                </Link>
+                <button
+                  onClick={async () => {
+                    const res = await api.post<{ id: number }>('/api/lesson-plans', {
+                      title: `${plan.title} (Copy)`,
+                      description: plan.description,
+                      age_group: plan.age_group,
+                      category: plan.category,
+                    });
+                    navigate(`/lesson-plans/${res.id}/edit`);
+                  }}
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Duplicate
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!window.confirm('Delete this lesson plan?')) return;
+                    await api.del(`/api/lesson-plans/${plan.id}`);
+                    navigate('/lesson-plans');
+                  }}
+                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                >
+                  Delete
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -208,9 +208,18 @@ export default function Dashboard() {
               })}
             </ul>
           )}
-          <Link to="/sessions" className="text-ink hover:text-ink/70 text-sm mt-4 inline-block font-medium">
-            View full schedule &rarr;
-          </Link>
+          <div className="flex items-center gap-4 mt-4">
+            <Link to="/sessions" className="text-ink hover:text-ink/70 text-sm font-medium">
+              View full schedule &rarr;
+            </Link>
+            <a
+              href="/api/my-calendar.ics"
+              className="text-xs text-cobalt hover:text-ink font-medium"
+              title="Download .ics file or paste this URL into Google Calendar / Apple Calendar to subscribe"
+            >
+              Subscribe to Calendar
+            </a>
+          </div>
         </div>
 
         {/* My Children */}
@@ -266,6 +275,7 @@ export default function Dashboard() {
             <QuickLink to="/lesson-plans" label="Browse Lesson Plans" />
             <QuickLink to="/resources" label="View Resources" />
             <QuickLink to="/my-children" label="My Children" />
+            <QuickLink to="/my-rsvps" label="My RSVPs" />
             <QuickLink to="/members" label="Member Directory" />
             {(isTeacher || isAdmin) && (
               <>
