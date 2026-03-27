@@ -269,6 +269,26 @@ fn run_migrations(pool: &DbPool) {
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(family_id, invited_user_id)
         );
+
+        CREATE TABLE IF NOT EXISTS session_supplies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+            item_name TEXT NOT NULL,
+            quantity TEXT,
+            claimed_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS session_attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+            present INTEGER NOT NULL DEFAULT 0,
+            note TEXT,
+            recorded_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(session_id, student_id)
+        );
         ",
     )
     .expect("Failed to run migrations");

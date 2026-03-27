@@ -235,6 +235,12 @@ async fn main() {
             delete(routes::member::delete_milestone),
         )
         .route("/api/attendance", post(routes::member::record_attendance))
+        .route("/api/sessions/{id}/attendance", get(routes::member::get_session_attendance))
+        .route("/api/session-attendance", post(routes::member::save_session_attendance))
+        .route("/api/sessions/{id}/supplies", get(routes::member::list_session_supplies).post(routes::member::add_session_supply))
+        .route("/api/supplies/{id}/claim", post(routes::member::claim_supply))
+        .route("/api/supplies/{id}/unclaim", post(routes::member::unclaim_supply))
+        .route("/api/supplies/{id}", delete(routes::member::delete_supply))
         // Family routes (authenticated)
         .route("/api/my-family", post(routes::member::create_family).get(routes::member::get_my_family).put(routes::member::update_my_family).delete(routes::member::leave_family))
         .route("/api/my-family/invite", post(routes::member::invite_family_member))

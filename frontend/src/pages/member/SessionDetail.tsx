@@ -59,6 +59,24 @@ interface HealthSummary {
   allergies: string[];
 }
 
+interface Supply {
+  id: number;
+  session_id: number;
+  item_name: string;
+  quantity: string | null;
+  claimed_by: number | null;
+  claimed_by_name: string | null;
+}
+
+interface AttendanceRecord {
+  id: number;
+  session_id: number;
+  student_id: number;
+  student_name: string | null;
+  present: boolean;
+  note: string | null;
+}
+
 interface SessionType {
   id: number;
   name: string;
@@ -95,11 +113,20 @@ export default function SessionDetail() {
   const [editCutoff, setEditCutoff] = useState('');
   const [editLessonPlanId, setEditLessonPlanId] = useState('');
   const [error, setError] = useState('');
+  const [supplies, setSupplies] = useState<Supply[]>([]);
+  const [newSupplyName, setNewSupplyName] = useState('');
+  const [newSupplyQty, setNewSupplyQty] = useState('');
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [attendanceEdits, setAttendanceEdits] = useState<Record<number, boolean>>({});
+  const [sessionPhotos, setSessionPhotos] = useState<{ id: number; filename: string }[]>([]);
 
   const refresh = () => {
     if (!id) return;
     api.get<Session>(`/api/sessions/${id}`).then(setSession).catch(() => {});
     api.get<Rsvp[]>(`/api/sessions/${id}/rsvps`).then(setRsvps).catch(() => {});
+    api.get<Supply[]>(`/api/sessions/${id}/supplies`).then(setSupplies).catch(() => {});
+    api.get<AttendanceRecord[]>(`/api/sessions/${id}/attendance`).then(setAttendance).catch(() => {});
+    api.get<{ id: number; filename: string }[]>(`/api/files/session/${id}`).then(setSessionPhotos).catch(() => setSessionPhotos([]));
   };
 
   useEffect(() => {
@@ -557,6 +584,9 @@ export default function SessionDetail() {
                     {r.status === 'pending' && (
                       <span className="ml-2 text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">Pending</span>
                     )}
+                    {r.status === 'waitlisted' && (
+                      <span className="ml-2 text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Waitlisted</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {(isHost || isAdmin) && r.status === 'pending' && (
@@ -592,7 +622,10 @@ export default function SessionDetail() {
                   </button>
                 ))}
               </div>
-              {(isFull || session.require_approval) && (
+              {isFull && (
+                <p className="text-xs text-amber-700 mt-2">This session is full. Your child will be added to the waitlist and automatically confirmed if a spot opens up.</p>
+              )}
+              {!isFull && session.require_approval && (
                 <p className="text-xs text-amber-700 mt-2">Your RSVP will be sent to the host for approval.</p>
               )}
             </div>
@@ -632,6 +665,122 @@ export default function SessionDetail() {
                 ))}
               </ul>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Supply Sign-up List */}
+      {(supplies.length > 0 || canEdit) && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Supply Sign-up</h2>
+
+          {supplies.length > 0 && (
+            <div className="space-y-2 mb-4">
+              {supplies.map(s => (
+                <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                  <div>
+                    <span className="font-medium text-gray-800">{s.item_name}</span>
+                    {s.quantity && <span className="text-gray-400 text-xs ml-2">({s.quantity})</span>}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {s.claimed_by ? (
+                      <>
+                        <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{s.claimed_by_name}</span>
+                        {(s.claimed_by === user?.id || user?.role === 'admin') && (
+                          <button onClick={async () => { await api.post(`/api/supplies/${s.id}/unclaim`); refresh(); }} className="text-xs text-gray-500 hover:text-gray-700">Unclaim</button>
+                        )}
+                      </>
+                    ) : (
+                      <button onClick={async () => { await api.post(`/api/supplies/${s.id}/claim`); refresh(); }} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">I'll bring this</button>
+                    )}
+                    {canEdit && (
+                      <button onClick={async () => { await api.del(`/api/supplies/${s.id}`); refresh(); }} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canEdit && (
+            <div className="flex gap-2">
+              <input type="text" value={newSupplyName} onChange={e => setNewSupplyName(e.target.value)} placeholder="Item needed" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <input type="text" value={newSupplyQty} onChange={e => setNewSupplyQty(e.target.value)} placeholder="Qty" className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+              <button onClick={async () => {
+                if (!newSupplyName.trim()) return;
+                await api.post(`/api/sessions/${id}/supplies`, { item_name: newSupplyName.trim(), quantity: newSupplyQty || null });
+                setNewSupplyName(''); setNewSupplyQty(''); refresh();
+              }} className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800">Add</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Attendance (host/admin, for completed or claimed sessions) */}
+      {canEdit && session.status !== 'open' && rsvps.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
+          <div className="space-y-2 mb-4">
+            {rsvps.filter(r => r.status === 'confirmed').map(r => {
+              const existing = attendance.find(a => a.student_id === r.student_id);
+              const checked = attendanceEdits[r.student_id] ?? existing?.present ?? false;
+              return (
+                <label key={r.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg text-sm cursor-pointer hover:bg-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={e => setAttendanceEdits(prev => ({ ...prev, [r.student_id]: e.target.checked }))}
+                    className="w-4 h-4 text-emerald-600 rounded"
+                  />
+                  <span className={`font-medium ${checked ? 'text-gray-900' : 'text-gray-400'}`}>{r.student_name}</span>
+                  {existing && <span className="text-xs text-gray-400 ml-auto">{existing.present ? 'Attended' : 'Absent'}</span>}
+                </label>
+              );
+            })}
+          </div>
+          <button
+            onClick={async () => {
+              const records = rsvps.filter(r => r.status === 'confirmed').map(r => ({
+                student_id: r.student_id,
+                present: attendanceEdits[r.student_id] ?? attendance.find(a => a.student_id === r.student_id)?.present ?? false,
+                note: null,
+              }));
+              await api.post('/api/session-attendance', { session_id: Number(id), records });
+              refresh();
+            }}
+            className="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-800"
+          >
+            Save Attendance
+          </button>
+        </div>
+      )}
+
+      {/* Session Photos */}
+      {(sessionPhotos.length > 0 || canEdit) && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Session Photos</h2>
+          {sessionPhotos.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+              {sessionPhotos.map(p => (
+                <a key={p.id} href={`/api/files/${p.id}/download`} target="_blank" rel="noopener noreferrer">
+                  <img src={`/api/files/${p.id}/download`} alt={p.filename} className="rounded-lg border border-gray-200 w-full h-40 object-cover hover:opacity-90 transition-opacity" />
+                </a>
+              ))}
+            </div>
+          )}
+          {canEdit && (
+            <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
+              Upload Photos
+              <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                const files = e.target.files;
+                if (!files) return;
+                for (const file of Array.from(files)) {
+                  await api.upload(file, 'session', Number(id));
+                }
+                refresh();
+                e.target.value = '';
+              }} />
+            </label>
           )}
         </div>
       )}

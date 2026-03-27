@@ -800,3 +800,52 @@ pub struct RsvpsQuery {
     pub page_size: Option<i64>,
     pub upcoming: Option<bool>,
 }
+
+// ── Session Attendance ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionAttendance {
+    pub id: i64,
+    pub session_id: i64,
+    pub student_id: i64,
+    pub student_name: Option<String>,
+    pub present: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RecordSessionAttendanceRequest {
+    pub session_id: i64,
+    pub records: Vec<AttendanceRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AttendanceRecord {
+    pub student_id: i64,
+    pub present: bool,
+    pub note: Option<String>,
+}
+
+// ── Session Supplies ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SessionSupply {
+    pub id: i64,
+    pub session_id: i64,
+    pub item_name: String,
+    pub quantity: Option<String>,
+    pub claimed_by: Option<i64>,
+    pub claimed_by_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateSupplyRequest {
+    pub item_name: String,
+    pub quantity: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSupplyRequest {
+    pub item_name: Option<String>,
+    pub quantity: Option<String>,
+}

@@ -1785,7 +1785,9 @@ pub async fn create_rsvp(
     }
 
     let is_full = max_students.map(|max| confirmed_count >= max).unwrap_or(false);
-    let status = if require_approval == 1 || is_full {
+    let status = if is_full {
+        "waitlisted"
+    } else if require_approval == 1 {
         "pending"
     } else {
         "confirmed"
@@ -1852,14 +1854,14 @@ pub async fn delete_rsvp(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
 
-    let (parent_id, host_id): (i64, Option<i64>) = conn
+    let (parent_id, host_id, session_id, was_confirmed): (i64, Option<i64>, i64, String) = conn
         .query_row(
-            "SELECT r.parent_id, cs.host_id
+            "SELECT r.parent_id, cs.host_id, r.session_id, r.status
              FROM rsvps r
              JOIN class_sessions cs ON r.session_id = cs.id
              WHERE r.id = ?1",
             params![id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
         )
         .map_err(|_| AppError::NotFound("RSVP not found".to_string()))?;
 
@@ -1875,6 +1877,178 @@ pub async fn delete_rsvp(
     }
 
     conn.execute("DELETE FROM rsvps WHERE id = ?1", params![id])?;
+
+    // If a confirmed RSVP was removed, auto-promote the first waitlisted
+    if was_confirmed == "confirmed" {
+        let _ = conn.execute(
+            "UPDATE rsvps SET status = 'confirmed' WHERE id = (
+                SELECT id FROM rsvps WHERE session_id = ?1 AND status = 'waitlisted' ORDER BY created_at ASC LIMIT 1
+            )",
+            params![session_id],
+        );
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Session Attendance ──
+
+pub async fn get_session_attendance(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+    Path(session_id): Path<i64>,
+) -> Result<Json<Vec<SessionAttendance>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT sa.id, sa.session_id, sa.student_id, s.first_name || ' ' || s.last_name, sa.present, sa.note
+         FROM session_attendance sa
+         JOIN students s ON sa.student_id = s.id
+         WHERE sa.session_id = ?1",
+    )?;
+    let records: Vec<SessionAttendance> = stmt.query_map(params![session_id], |row| {
+        Ok(SessionAttendance {
+            id: row.get(0)?, session_id: row.get(1)?, student_id: row.get(2)?,
+            student_name: row.get(3)?, present: row.get(4)?, note: row.get(5)?,
+        })
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(records))
+}
+
+pub async fn save_session_attendance(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Json(req): Json<RecordSessionAttendanceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    // Only host or admin can record attendance
+    let host_id: Option<i64> = conn.query_row(
+        "SELECT host_id FROM class_sessions WHERE id = ?1",
+        params![req.session_id],
+        |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Session not found".to_string()))?;
+
+    if host_id != Some(user.id) && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    for record in &req.records {
+        conn.execute(
+            "INSERT INTO session_attendance (session_id, student_id, present, note, recorded_by)
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(session_id, student_id) DO UPDATE SET present = ?3, note = ?4, recorded_by = ?5",
+            params![req.session_id, record.student_id, record.present, record.note, user.id],
+        )?;
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Session Supplies ──
+
+pub async fn list_session_supplies(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+    Path(session_id): Path<i64>,
+) -> Result<Json<Vec<SessionSupply>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT ss.id, ss.session_id, ss.item_name, ss.quantity, ss.claimed_by, u.display_name
+         FROM session_supplies ss
+         LEFT JOIN users u ON ss.claimed_by = u.id
+         WHERE ss.session_id = ?1
+         ORDER BY ss.created_at ASC",
+    )?;
+    let supplies: Vec<SessionSupply> = stmt.query_map(params![session_id], |row| {
+        Ok(SessionSupply {
+            id: row.get(0)?, session_id: row.get(1)?, item_name: row.get(2)?,
+            quantity: row.get(3)?, claimed_by: row.get(4)?, claimed_by_name: row.get(5)?,
+        })
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(supplies))
+}
+
+pub async fn add_session_supply(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(session_id): Path<i64>,
+    Json(req): Json<CreateSupplyRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    let host_id: Option<i64> = conn.query_row(
+        "SELECT host_id FROM class_sessions WHERE id = ?1", params![session_id], |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Session not found".to_string()))?;
+
+    if host_id != Some(user.id) && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute(
+        "INSERT INTO session_supplies (session_id, item_name, quantity) VALUES (?1, ?2, ?3)",
+        params![session_id, req.item_name, req.quantity],
+    )?;
+
+    Ok(Json(serde_json::json!({ "id": conn.last_insert_rowid() })))
+}
+
+pub async fn claim_supply(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    let claimed = conn.execute(
+        "UPDATE session_supplies SET claimed_by = ?1 WHERE id = ?2 AND claimed_by IS NULL",
+        params![user.id, id],
+    )?;
+
+    if claimed == 0 {
+        return Err(AppError::BadRequest("This item has already been claimed".to_string()));
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn unclaim_supply(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    // Only the person who claimed it (or admin) can unclaim
+    let claimed_by: Option<i64> = conn.query_row(
+        "SELECT claimed_by FROM session_supplies WHERE id = ?1", params![id], |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Supply not found".to_string()))?;
+
+    if claimed_by != Some(user.id) && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute("UPDATE session_supplies SET claimed_by = NULL WHERE id = ?1", params![id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_supply(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    // Only host of the session or admin can delete
+    let host_id: Option<i64> = conn.query_row(
+        "SELECT cs.host_id FROM session_supplies ss JOIN class_sessions cs ON ss.session_id = cs.id WHERE ss.id = ?1",
+        params![id], |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Supply not found".to_string()))?;
+
+    if host_id != Some(user.id) && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute("DELETE FROM session_supplies WHERE id = ?1", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -1933,7 +2107,34 @@ pub async fn calendar_ics_by_token(
          ORDER BY cs.session_date ASC",
     )?;
 
-    let mut ics = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WLPC//Preschool Co-op//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nX-WR-CALNAME:WLPC Sessions\r\n");
+    let mut ics = String::from(concat!(
+        "BEGIN:VCALENDAR\r\n",
+        "VERSION:2.0\r\n",
+        "PRODID:-//WLPC//Preschool Co-op//EN\r\n",
+        "CALSCALE:GREGORIAN\r\n",
+        "METHOD:PUBLISH\r\n",
+        "X-WR-CALNAME:WLPC Sessions\r\n",
+        "X-WR-TIMEZONE:America/New_York\r\n",
+        "REFRESH-INTERVAL;VALUE=DURATION:PT1H\r\n",
+        "X-PUBLISHED-TTL:PT1H\r\n",
+        "BEGIN:VTIMEZONE\r\n",
+        "TZID:America/New_York\r\n",
+        "BEGIN:STANDARD\r\n",
+        "DTSTART:19701101T020000\r\n",
+        "RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\n",
+        "TZOFFSETFROM:-0400\r\n",
+        "TZOFFSETTO:-0500\r\n",
+        "TZNAME:EST\r\n",
+        "END:STANDARD\r\n",
+        "BEGIN:DAYLIGHT\r\n",
+        "DTSTART:19700308T020000\r\n",
+        "RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r\n",
+        "TZOFFSETFROM:-0500\r\n",
+        "TZOFFSETTO:-0400\r\n",
+        "TZNAME:EDT\r\n",
+        "END:DAYLIGHT\r\n",
+        "END:VTIMEZONE\r\n",
+    ));
 
     let rows = stmt.query_map(params![user_id], |row| {
         Ok((
@@ -1980,8 +2181,8 @@ pub async fn calendar_ics_by_token(
             ics.push_str(&format!("UID:session-{}@westernloudouncoop.org\r\n", id));
             ics.push_str(&format!("DTSTAMP:{}\r\n", dtstamp));
             if start_time.is_some() {
-                ics.push_str(&format!("DTSTART:{}\r\n", dtstart));
-                ics.push_str(&format!("DTEND:{}\r\n", dtend));
+                ics.push_str(&format!("DTSTART;TZID=America/New_York:{}\r\n", dtstart));
+                ics.push_str(&format!("DTEND;TZID=America/New_York:{}\r\n", dtend));
             } else {
                 ics.push_str(&format!("DTSTART;VALUE=DATE:{}\r\n", dtstart));
             }
