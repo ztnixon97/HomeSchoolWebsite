@@ -1922,13 +1922,14 @@ pub async fn calendar_ics_by_token(
         |row| row.get(0),
     ).map_err(|_| AppError::NotFound("Invalid calendar token".to_string()))?;
 
+    // All sessions, with a flag for whether user is hosting or has RSVP'd a child
     let mut stmt = conn.prepare(
         "SELECT DISTINCT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
-                COALESCE(cs.location_name, cs.host_address, '') as location, cs.notes
+                COALESCE(cs.location_name, cs.host_address, '') as location, cs.notes,
+                CASE WHEN cs.host_id = ?1 THEN 1
+                     WHEN EXISTS (SELECT 1 FROM rsvps r JOIN student_parents sp ON r.student_id = sp.student_id WHERE r.session_id = cs.id AND sp.user_id = ?1) THEN 2
+                     ELSE 0 END as involvement
          FROM class_sessions cs
-         LEFT JOIN rsvps r ON r.session_id = cs.id
-         LEFT JOIN student_parents sp ON r.student_id = sp.student_id AND sp.user_id = ?1
-         WHERE cs.host_id = ?1 OR sp.user_id = ?1
          ORDER BY cs.session_date ASC",
     )?;
 
@@ -1943,11 +1944,18 @@ pub async fn calendar_ics_by_token(
             row.get::<_, Option<String>>(4)?,
             row.get::<_, String>(5)?,
             row.get::<_, Option<String>>(6)?,
+            row.get::<_, i64>(7)?,
         ))
     })?;
 
     for row in rows {
-        if let Ok((id, title, date, start_time, end_time, location, notes)) = row {
+        if let Ok((id, title, date, start_time, end_time, location, notes, involvement)) = row {
+            // Prefix title based on involvement: 1=hosting, 2=RSVP'd
+            let display_title = match involvement {
+                1 => format!("[Hosting] {}", title),
+                2 => format!("[RSVP'd] {}", title),
+                _ => title.clone(),
+            };
             let date_clean = date.replace('-', "");
             let dtstart = if let Some(ref st) = start_time {
                 format!("{}T{}00", date_clean, st.replace(':', ""))
@@ -1975,7 +1983,7 @@ pub async fn calendar_ics_by_token(
             } else {
                 ics.push_str(&format!("DTSTART;VALUE=DATE:{}\r\n", dtstart));
             }
-            ics.push_str(&format!("SUMMARY:{}\r\n", title.replace(',', "\\,")));
+            ics.push_str(&format!("SUMMARY:{}\r\n", display_title.replace(',', "\\,")));
             if !location.is_empty() {
                 ics.push_str(&format!("LOCATION:{}\r\n", location.replace(',', "\\,")));
             }
