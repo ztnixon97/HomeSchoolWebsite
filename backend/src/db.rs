@@ -297,6 +297,7 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE posts ADD COLUMN category TEXT", []);
     let _ = conn.execute("ALTER TABLE class_sessions ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE users ADD COLUMN family_id INTEGER REFERENCES families(id)", []);
+    let _ = conn.execute("ALTER TABLE users ADD COLUMN calendar_token TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_name TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_phone TEXT", []);
 

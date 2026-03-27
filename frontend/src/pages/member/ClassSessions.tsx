@@ -117,15 +117,7 @@ export default function ClassSessions() {
               {showCreate ? 'Cancel' : 'Create Session'}
             </button>
           )}
-          {user && (
-            <a
-              href="/api/my-calendar.ics"
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-emerald-700 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 transition-colors"
-              title="Download .ics file or paste this URL into Google Calendar / Apple Calendar"
-            >
-              Add to Calendar
-            </a>
-          )}
+          {user && <CalendarSubscribeButton />}
           <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
           <button
             onClick={() => setView('list')}
@@ -341,6 +333,50 @@ export default function ClassSessions() {
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
           <CalendarView />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CalendarSubscribeButton() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const getUrl = async () => {
+    if (url) {
+      // Copy to clipboard
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      return;
+    }
+    const res = await api.get<{ token: string }>('/api/my-calendar-url');
+    const fullUrl = `${window.location.origin}/api/calendar/${res.token}`;
+    setUrl(fullUrl);
+    await navigator.clipboard.writeText(fullUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={getUrl}
+        className="px-3 py-1.5 rounded-md text-sm font-medium text-emerald-700 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 transition-colors"
+        title="Get a URL to subscribe in Google Calendar, Apple Calendar, or Outlook"
+      >
+        {copied ? 'URL Copied!' : url ? 'Copy Calendar URL' : 'Subscribe to Calendar'}
+      </button>
+      {url && (
+        <div className="absolute top-full mt-2 right-0 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10 w-80">
+          <p className="text-xs text-gray-500 mb-2">Paste this URL into Google Calendar ("Add by URL") or Apple Calendar ("Subscribe"):</p>
+          <input
+            readOnly
+            value={url}
+            onClick={e => (e.target as HTMLInputElement).select()}
+            className="w-full text-xs px-2 py-1.5 border border-gray-200 rounded bg-gray-50 font-mono"
+          />
         </div>
       )}
     </div>

@@ -212,13 +212,9 @@ export default function Dashboard() {
             <Link to="/sessions" className="text-ink hover:text-ink/70 text-sm font-medium">
               View full schedule &rarr;
             </Link>
-            <a
-              href="/api/my-calendar.ics"
-              className="text-xs text-cobalt hover:text-ink font-medium"
-              title="Download .ics file or paste this URL into Google Calendar / Apple Calendar to subscribe"
-            >
+            <Link to="/sessions" className="text-xs text-cobalt hover:text-ink font-medium">
               Subscribe to Calendar
-            </a>
+            </Link>
           </div>
         </div>
 

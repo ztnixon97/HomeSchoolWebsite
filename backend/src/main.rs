@@ -134,6 +134,8 @@ async fn main() {
         )
         .route("/api/pages/{slug}", get(routes::public::get_site_page))
         .route("/api/announcements", get(routes::public::list_active_announcements))
+        // Public calendar feed (token-based auth, no session needed)
+        .route("/api/calendar/{token}", get(routes::member::calendar_ics_by_token))
         // Auth routes
         .route("/api/auth/login", post(routes::auth::login))
         .route("/api/auth/register", post(routes::auth::register))
@@ -257,7 +259,7 @@ async fn main() {
             post(routes::member::complete_session),
         )
         .route("/api/my-rsvps", get(routes::member::my_rsvps))
-        .route("/api/my-calendar.ics", get(routes::member::my_calendar_ics))
+        .route("/api/my-calendar-url", get(routes::member::get_calendar_url))
         .route(
             "/api/sessions/{id}/unclaim",
             post(routes::member::unclaim_session),

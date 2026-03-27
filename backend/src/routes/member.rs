@@ -1880,13 +1880,48 @@ pub async fn delete_rsvp(
 
 // ── Calendar (iCal) ──
 
-pub async fn my_calendar_ics(
+/// Returns the user's personal calendar URL (generates token if needed)
+pub async fn get_calendar_url(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    // Check if user already has a token
+    let existing: Option<String> = conn.query_row(
+        "SELECT calendar_token FROM users WHERE id = ?1",
+        params![user.id],
+        |row| row.get(0),
+    ).unwrap_or(None);
+
+    let token = if let Some(t) = existing {
+        t
+    } else {
+        // Generate a new token
+        let token = uuid::Uuid::new_v4().to_string();
+        conn.execute("UPDATE users SET calendar_token = ?1 WHERE id = ?2", params![token, user.id])?;
+        token
+    };
+
+    Ok(Json(serde_json::json!({ "token": token })))
+}
+
+/// Serves the iCal feed — public endpoint, auth via token in URL
+pub async fn calendar_ics_by_token(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
 ) -> Result<Response, AppError> {
     let conn = state.db.get()?;
 
-    // Get all sessions the user is involved in (hosting or has RSVP'd children)
+    // Strip .ics extension if present
+    let token = token.strip_suffix(".ics").unwrap_or(&token);
+
+    let user_id: i64 = conn.query_row(
+        "SELECT id FROM users WHERE calendar_token = ?1 AND active = 1",
+        params![token],
+        |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Invalid calendar token".to_string()))?;
+
     let mut stmt = conn.prepare(
         "SELECT DISTINCT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
                 COALESCE(cs.location_name, cs.host_address, '') as location, cs.notes
@@ -1899,7 +1934,7 @@ pub async fn my_calendar_ics(
 
     let mut ics = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WLPC//Preschool Co-op//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nX-WR-CALNAME:WLPC Sessions\r\n");
 
-    let rows = stmt.query_map(params![user.id], |row| {
+    let rows = stmt.query_map(params![user_id], |row| {
         Ok((
             row.get::<_, i64>(0)?,
             row.get::<_, String>(1)?,
@@ -1922,7 +1957,6 @@ pub async fn my_calendar_ics(
             let dtend = if let Some(ref et) = end_time {
                 format!("{}T{}00", date_clean, et.replace(':', ""))
             } else if start_time.is_some() {
-                // Default 1 hour duration
                 format!("{}T{}00", date_clean, start_time.as_ref().map(|s| {
                     let parts: Vec<&str> = s.split(':').collect();
                     let h: u32 = parts.first().and_then(|p| p.parse().ok()).unwrap_or(9) + 1;
@@ -1957,7 +1991,6 @@ pub async fn my_calendar_ics(
     Ok(Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"))
-        .header(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment; filename=\"wlpc-sessions.ics\""))
         .body(Body::from(ics))
         .unwrap())
 }
