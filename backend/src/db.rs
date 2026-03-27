@@ -5,6 +5,21 @@ use std::path::Path;
 
 pub type DbPool = Pool<SqliteConnectionManager>;
 
+/// Customizer that sets per-connection PRAGMAs on every connection from the pool.
+/// Without this, only the first connection gets the right settings.
+#[derive(Debug)]
+struct ConnectionInit;
+
+impl r2d2::CustomizeConnection<rusqlite::Connection, rusqlite::Error> for ConnectionInit {
+    fn on_acquire(&self, conn: &mut rusqlite::Connection) -> Result<(), rusqlite::Error> {
+        conn.execute_batch(
+            "PRAGMA foreign_keys = ON;
+             PRAGMA busy_timeout = 5000;",
+        )?;
+        Ok(())
+    }
+}
+
 pub fn init_pool(db_path: &str) -> DbPool {
     // Ensure parent directory exists
     if let Some(parent) = Path::new(db_path).parent() {
@@ -14,17 +29,15 @@ pub fn init_pool(db_path: &str) -> DbPool {
     let manager = SqliteConnectionManager::file(db_path);
     let pool = Pool::builder()
         .max_size(5)
+        .connection_customizer(Box::new(ConnectionInit))
         .build(manager)
         .expect("Failed to create database pool");
 
-    // Enable WAL mode and foreign keys
+    // Enable WAL mode (database-level, persists across connections)
     {
         let conn = pool.get().expect("Failed to get connection");
-        conn.execute_batch(
-            "PRAGMA journal_mode=WAL;
-             PRAGMA foreign_keys=ON;",
-        )
-        .expect("Failed to set pragmas");
+        conn.execute_batch("PRAGMA journal_mode=WAL;")
+            .expect("Failed to set WAL mode");
     }
 
     run_migrations(&pool);
