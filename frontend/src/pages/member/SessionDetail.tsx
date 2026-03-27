@@ -550,7 +550,7 @@ export default function SessionDetail() {
                         <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Decline</button>
                       </>
                     )}
-                    {user && (r.parent_id === user.id || user.role === 'admin') && (
+                    {user && (r.parent_id === user.id || children.some(c => c.id === r.student_id) || user.role === 'admin') && (
                       <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
                     )}
                   </div>

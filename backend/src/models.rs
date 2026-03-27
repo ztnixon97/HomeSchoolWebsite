@@ -14,6 +14,7 @@ pub struct User {
     pub phone: Option<String>,
     pub address: Option<String>,
     pub preferred_contact: Option<String>,
+    pub family_id: Option<i64>,
     pub created_at: String,
 }
 
@@ -41,6 +42,7 @@ pub struct UserResponse {
     pub phone: Option<String>,
     pub address: Option<String>,
     pub preferred_contact: Option<String>,
+    pub family_id: Option<i64>,
     pub created_at: String,
 }
 
@@ -55,6 +57,7 @@ impl From<User> for UserResponse {
             phone: u.phone,
             address: u.address,
             preferred_contact: u.preferred_contact,
+            family_id: u.family_id,
             created_at: u.created_at,
         }
     }
@@ -692,4 +695,47 @@ pub struct UpdateAnnouncementRequest {
     pub announcement_type: Option<String>,
     pub active: Option<bool>,
     pub expires_at: Option<String>,
+}
+
+// ── Families ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FamilyMember {
+    pub id: i64,
+    pub display_name: String,
+    pub email: String,
+    pub role: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FamilyDetail {
+    pub id: i64,
+    pub name: String,
+    pub members: Vec<FamilyMember>,
+    pub children: Vec<Student>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FamilyInviteInfo {
+    pub id: i64,
+    pub family_id: i64,
+    pub family_name: String,
+    pub invited_by_name: String,
+    pub status: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateFamilyRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateFamilyRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct InviteFamilyMemberRequest {
+    pub email: String,
 }

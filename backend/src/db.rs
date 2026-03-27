@@ -252,6 +252,23 @@ fn run_migrations(pool: &DbPool) {
             expires_at TEXT,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS families (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            created_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS family_invites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            family_id INTEGER NOT NULL REFERENCES families(id) ON DELETE CASCADE,
+            invited_by INTEGER NOT NULL REFERENCES users(id),
+            invited_user_id INTEGER NOT NULL REFERENCES users(id),
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(family_id, invited_user_id)
+        );
         ",
     )
     .expect("Failed to run migrations");
@@ -279,6 +296,7 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE users ADD COLUMN preferred_contact TEXT", []);
     let _ = conn.execute("ALTER TABLE posts ADD COLUMN category TEXT", []);
     let _ = conn.execute("ALTER TABLE class_sessions ADD COLUMN reminder_sent INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE users ADD COLUMN family_id INTEGER REFERENCES families(id)", []);
 
     // Seed default session types if missing
     let _ = conn.execute(
@@ -357,6 +375,7 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_reset_tokens ON password_reset_tokens(token)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(active)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_users_family ON users(family_id)", []);
 }
 
 fn seed_admin(pool: &DbPool) {

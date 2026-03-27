@@ -8,6 +8,7 @@ export interface User {
   display_name: string;
   role: 'admin' | 'teacher' | 'parent';
   active: boolean;
+  family_id: number | null;
   created_at: string;
 }
 

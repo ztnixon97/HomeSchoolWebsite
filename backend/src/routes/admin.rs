@@ -105,7 +105,7 @@ pub async fn list_users(
 ) -> Result<Json<Vec<UserResponse>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, email, display_name, role, active, phone, address, preferred_contact, created_at FROM users ORDER BY created_at",
+        "SELECT id, email, display_name, role, active, phone, address, preferred_contact, family_id, created_at FROM users ORDER BY created_at",
     )?;
 
     let users: Vec<UserResponse> = stmt
@@ -119,7 +119,8 @@ pub async fn list_users(
                 phone: row.get(5)?,
                 address: row.get(6)?,
                 preferred_contact: row.get(7)?,
-                created_at: row.get(8)?,
+                family_id: row.get(8)?,
+                created_at: row.get(9)?,
             })
         })?
         .filter_map(|r| r.ok())

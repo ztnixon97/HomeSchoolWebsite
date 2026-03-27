@@ -18,7 +18,7 @@ pub async fn login(
 
     let user = conn
         .query_row(
-            "SELECT id, email, display_name, password_hash, role, active, phone, address, preferred_contact, created_at FROM users WHERE LOWER(email) = ?1",
+            "SELECT id, email, display_name, password_hash, role, active, phone, address, preferred_contact, family_id, created_at FROM users WHERE LOWER(email) = ?1",
             params![email],
             |row| {
                 Ok(crate::models::User {
@@ -31,7 +31,8 @@ pub async fn login(
                     phone: row.get(6)?,
                     address: row.get(7)?,
                     preferred_contact: row.get(8)?,
-                    created_at: row.get(9)?,
+                    family_id: row.get(9)?,
+                    created_at: row.get(10)?,
                 })
             },
         )
@@ -155,6 +156,7 @@ pub async fn register(
         phone: None,
         address: None,
         preferred_contact: None,
+        family_id: None,
         created_at: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
     };
 

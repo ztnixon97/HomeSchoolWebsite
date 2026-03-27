@@ -46,7 +46,7 @@ pub async fn clear_session(session: &Session) -> Result<(), AppError> {
 fn get_user_by_id(pool: &DbPool, user_id: i64) -> Result<User, AppError> {
     let conn = pool.get()?;
     let user = conn.query_row(
-        "SELECT id, email, display_name, password_hash, role, active, phone, address, preferred_contact, created_at FROM users WHERE id = ?1 AND active = 1",
+        "SELECT id, email, display_name, password_hash, role, active, phone, address, preferred_contact, family_id, created_at FROM users WHERE id = ?1 AND active = 1",
         [user_id],
         |row| {
             Ok(User {
@@ -59,7 +59,8 @@ fn get_user_by_id(pool: &DbPool, user_id: i64) -> Result<User, AppError> {
                 phone: row.get(6)?,
                 address: row.get(7)?,
                 preferred_contact: row.get(8)?,
-                created_at: row.get(9)?,
+                family_id: row.get(9)?,
+                created_at: row.get(10)?,
             })
         },
     ).map_err(|_| AppError::Unauthorized)?;
