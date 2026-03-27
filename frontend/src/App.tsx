@@ -49,6 +49,7 @@ import BulkSessions from './pages/admin/BulkSessions';
 import ManageSiteContent from './pages/admin/ManageSiteContent';
 import EmailParents from './pages/admin/EmailParents';
 import ManageAnnouncements from './pages/admin/ManageAnnouncements';
+import ManageFiles from './pages/admin/ManageFiles';
 
 export default function App() {
   return (
@@ -106,6 +107,7 @@ export default function App() {
             <Route path="/admin/site-content" element={<RoleGuard requireRole="admin"><ManageSiteContent /></RoleGuard>} />
             <Route path="/admin/email-parents" element={<RoleGuard requireRole="admin"><EmailParents /></RoleGuard>} />
             <Route path="/admin/announcements" element={<RoleGuard requireRole="admin"><ManageAnnouncements /></RoleGuard>} />
+            <Route path="/admin/files" element={<RoleGuard requireRole="admin"><ManageFiles /></RoleGuard>} />
           </Route>
             </Routes>
           </AuthProvider>

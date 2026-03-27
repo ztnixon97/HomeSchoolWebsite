@@ -194,12 +194,26 @@ pub async fn delete_lesson_plan(
         return Err(AppError::Forbidden);
     }
 
-    // Unlink from any sessions referencing this plan
+    // Collect file paths to delete from storage, then drop conn before async calls
+    let file_paths: Vec<(i64, String)> = {
+        let mut stmt = conn.prepare("SELECT id, storage_path FROM files WHERE linked_type = 'lesson_plan' AND linked_id = ?1")?;
+        let results: Vec<(i64, String)> = stmt.query_map(params![id], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        })?.filter_map(|r| r.ok()).collect();
+        drop(stmt);
+        results
+    };
+
+    // Unlink sessions, delete file records and plan (all sync DB ops)
     conn.execute("UPDATE class_sessions SET lesson_plan_id = NULL WHERE lesson_plan_id = ?1", params![id])?;
-    // Delete associated files
     conn.execute("DELETE FROM files WHERE linked_type = 'lesson_plan' AND linked_id = ?1", params![id])?;
-    // Delete collaborators (cascaded) and the plan itself
     conn.execute("DELETE FROM lesson_plans WHERE id = ?1", params![id])?;
+    drop(conn);
+
+    // Now delete from storage (async, conn dropped)
+    for (_fid, path) in &file_paths {
+        let _ = state.storage.delete(path).await;
+    }
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }

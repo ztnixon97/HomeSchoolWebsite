@@ -112,10 +112,42 @@ pub fn start_photo_cleanup_task(pool: DbPool, storage: Arc<dyn StorageBackend>) 
                 Err(e) => tracing::error!(error = %e, "Session file cleanup failed"),
             }
 
+            // Check total storage usage and warn if approaching R2 free tier limit
+            check_storage_usage(&pool);
+
             // Run daily
             tokio::time::sleep(std::time::Duration::from_secs(24 * 60 * 60)).await;
         }
     });
+}
+
+fn check_storage_usage(pool: &DbPool) {
+    if let Ok(conn) = pool.get() {
+        let total_bytes: i64 = conn
+            .query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files", [], |row| row.get(0))
+            .unwrap_or(0);
+        let total_mb = total_bytes as f64 / (1024.0 * 1024.0);
+        let total_gb = total_mb / 1024.0;
+        let file_count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0))
+            .unwrap_or(0);
+
+        tracing::info!(total_mb = format!("{:.1}", total_mb), files = file_count, "Storage usage check");
+
+        if total_gb > 5.0 {
+            tracing::warn!(
+                total_gb = format!("{:.2}", total_gb),
+                files = file_count,
+                "Storage usage exceeds 5GB! Approaching R2 free tier limit (10GB). Review and clean up files."
+            );
+        } else if total_gb > 3.0 {
+            tracing::warn!(
+                total_gb = format!("{:.2}", total_gb),
+                files = file_count,
+                "Storage usage above 3GB. Monitor growth."
+            );
+        }
+    }
 }
 
 async fn cleanup_old_session_files(pool: &DbPool, storage: &Arc<dyn StorageBackend>) -> Result<usize, String> {

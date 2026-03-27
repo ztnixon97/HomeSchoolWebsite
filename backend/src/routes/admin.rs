@@ -1239,3 +1239,68 @@ pub async fn recent_activity(
 
     Ok(Json(activity))
 }
+
+// ── File Management ──
+
+pub async fn list_all_files(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+
+    // Storage summary
+    let total_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files", [], |row| row.get(0)).unwrap_or(0);
+    let file_count: i64 = conn.query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0)).unwrap_or(0);
+    let session_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type = 'session'", [], |row| row.get(0)).unwrap_or(0);
+    let lesson_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type = 'lesson_plan'", [], |row| row.get(0)).unwrap_or(0);
+    let other_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type IS NULL OR (linked_type != 'session' AND linked_type != 'lesson_plan')", [], |row| row.get(0)).unwrap_or(0);
+
+    // All files with uploader info
+    let mut stmt = conn.prepare(
+        "SELECT f.id, f.filename, f.mime_type, f.size_bytes, f.linked_type, f.linked_id, f.created_at, u.display_name
+         FROM files f
+         LEFT JOIN users u ON f.uploader_id = u.id
+         ORDER BY f.created_at DESC"
+    )?;
+    let files: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "filename": row.get::<_, String>(1)?,
+            "mime_type": row.get::<_, String>(2)?,
+            "size_bytes": row.get::<_, i64>(3)?,
+            "linked_type": row.get::<_, Option<String>>(4)?,
+            "linked_id": row.get::<_, Option<i64>>(5)?,
+            "created_at": row.get::<_, String>(6)?,
+            "uploader_name": row.get::<_, Option<String>>(7)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+
+    Ok(Json(serde_json::json!({
+        "summary": {
+            "total_bytes": total_bytes,
+            "total_mb": format!("{:.1}", total_bytes as f64 / (1024.0 * 1024.0)),
+            "file_count": file_count,
+            "session_bytes": session_bytes,
+            "lesson_plan_bytes": lesson_bytes,
+            "other_bytes": other_bytes,
+            "r2_free_tier_gb": 10,
+        },
+        "files": files,
+    })))
+}
+
+pub async fn admin_delete_file(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let storage_path: String = {
+        let conn = state.db.get()?;
+        let path: String = conn.query_row("SELECT storage_path FROM files WHERE id = ?1", params![id], |row| row.get(0))
+            .map_err(|_| AppError::NotFound("File not found".to_string()))?;
+        conn.execute("DELETE FROM files WHERE id = ?1", params![id])?;
+        path
+    };
+    let _ = state.storage.delete(&storage_path).await;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
