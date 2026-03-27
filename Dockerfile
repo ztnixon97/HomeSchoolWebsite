@@ -7,7 +7,7 @@ COPY frontend/ ./
 RUN npm run build
 
 # ─── Stage 2: Build Rust backend ───
-FROM rust:1.88-slim AS backend-build
+FROM rust:1.92-slim AS backend-build
 RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
 # Cache dependencies by building with dummy main
