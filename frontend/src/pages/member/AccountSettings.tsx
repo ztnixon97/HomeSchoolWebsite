@@ -73,8 +73,8 @@ export default function AccountSettings() {
       showToast('New passwords do not match', 'error');
       return;
     }
-    if (newPassword.length < 6) {
-      showToast('Password must be at least 6 characters', 'error');
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword)) {
+      showToast('Password must be at least 8 characters with uppercase, lowercase, and a number', 'error');
       return;
     }
     setSavingPassword(true);
@@ -168,7 +168,7 @@ export default function AccountSettings() {
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">New Password</label>
-          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} className={inputClass} placeholder="At least 6 characters" />
+          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} className={inputClass} placeholder="8+ chars, uppercase, lowercase, number" />
         </div>
 
         <div>

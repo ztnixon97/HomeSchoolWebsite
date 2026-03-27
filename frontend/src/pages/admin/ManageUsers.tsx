@@ -144,6 +144,12 @@ export default function ManageUsers() {
                   <span className="text-gray-400 text-xs ml-auto">
                     Sent {new Date(inv.created_at).toLocaleDateString()}
                   </span>
+                  <button
+                    onClick={async () => { await api.del(`/api/admin/invites/${inv.id}`); refresh(); }}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium"
+                  >
+                    Revoke
+                  </button>
                 </div>
               ))}
             </div>

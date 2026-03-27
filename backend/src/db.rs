@@ -414,8 +414,13 @@ fn seed_admin(pool: &DbPool) {
         .unwrap_or(0);
 
     if count == 0 {
-        // Create default admin: admin@preschool.local / admin123
-        // The password should be changed on first login in production
+        // Create admin from environment variables, or skip if not set
+        let admin_email = std::env::var("ADMIN_EMAIL").unwrap_or_else(|_| "admin@preschool.local".into());
+        let admin_password = std::env::var("ADMIN_PASSWORD").unwrap_or_else(|_| {
+            eprintln!("WARNING: No ADMIN_PASSWORD env var set. Using default 'admin123'. Change this immediately!");
+            "admin123".into()
+        });
+
         use argon2::{
             password_hash::{rand_core::OsRng, SaltString},
             Argon2, PasswordHasher,
@@ -424,17 +429,17 @@ fn seed_admin(pool: &DbPool) {
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
         let hash = argon2
-            .hash_password(b"admin123", &salt)
+            .hash_password(admin_password.as_bytes(), &salt)
             .expect("Failed to hash admin password")
             .to_string();
 
         conn.execute(
             "INSERT INTO users (email, display_name, password_hash, role) VALUES (?1, ?2, ?3, 'admin')",
-            params!["admin@preschool.local", "Admin", hash],
+            params![admin_email, "Admin", hash],
         )
         .expect("Failed to seed admin user");
 
-        println!("Created default admin user: admin@preschool.local / admin123");
+        println!("Created admin user: {}", admin_email);
     }
 }
 

@@ -44,8 +44,8 @@ export default function Register() {
       setError('Passwords do not match');
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
+    if (password.length < 8 || !/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError('Password must be at least 8 characters with an uppercase letter, lowercase letter, and number');
       return;
     }
 
@@ -132,7 +132,7 @@ export default function Register() {
               required
               minLength={6}
               className="w-full px-3 py-2.5 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(31,75,122,0.2)] focus:border-[rgba(31,75,122,0.4)] transition-colors bg-white"
-              placeholder="At least 6 characters"
+              placeholder="8+ chars, uppercase, lowercase, number"
             />
           </div>
 

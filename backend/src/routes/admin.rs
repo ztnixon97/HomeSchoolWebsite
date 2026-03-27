@@ -76,7 +76,7 @@ pub async fn list_invites(
 ) -> Result<Json<Vec<Invite>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, code, role, email, used_by, created_at, expires_at FROM invites ORDER BY created_at DESC",
+        "SELECT id, code, role, email, used_by, created_at, expires_at FROM invites WHERE used_by IS NULL ORDER BY created_at DESC",
     )?;
 
     let invites: Vec<Invite> = stmt
@@ -95,6 +95,16 @@ pub async fn list_invites(
         .collect();
 
     Ok(Json(invites))
+}
+
+pub async fn delete_invite(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute("DELETE FROM invites WHERE id = ?1 AND used_by IS NULL", params![id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 // ── User Management ──

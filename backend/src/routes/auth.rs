@@ -113,6 +113,8 @@ pub async fn register(
         return Err(AppError::BadRequest("Email already registered".to_string()));
     }
 
+    crate::sanitize::validate_password(&req.password)?;
+
     let password_hash = hash_password(&req.password).map_err(|e| {
         eprintln!("[register] Password hash failed: {}", e);
         e
@@ -262,6 +264,8 @@ pub async fn reset_password(
         |row| row.get(0),
     ).map_err(|_| AppError::BadRequest("Invalid or expired password reset token".to_string()))?;
 
+    crate::sanitize::validate_password(&req.new_password)?;
+
     // Hash new password
     let hashed = hash_password(&req.new_password)?;
 
@@ -358,9 +362,7 @@ pub async fn change_password(
         return Err(AppError::BadRequest("Current password is incorrect".to_string()));
     }
 
-    if req.new_password.len() < 6 {
-        return Err(AppError::BadRequest("Password must be at least 6 characters".to_string()));
-    }
+    crate::sanitize::validate_password(&req.new_password)?;
 
     let hashed = hash_password(&req.new_password)?;
     let conn = state.db.get()?;

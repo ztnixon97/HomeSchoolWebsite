@@ -52,3 +52,29 @@ pub fn validate_max_length(field: &str, max: usize, field_name: &str) -> Result<
         Ok(())
     }
 }
+
+/// Validate password meets security requirements
+pub fn validate_password(password: &str) -> Result<(), crate::errors::AppError> {
+    let mut errors = Vec::new();
+
+    if password.len() < 8 {
+        errors.push("at least 8 characters");
+    }
+    if !password.chars().any(|c| c.is_uppercase()) {
+        errors.push("an uppercase letter");
+    }
+    if !password.chars().any(|c| c.is_lowercase()) {
+        errors.push("a lowercase letter");
+    }
+    if !password.chars().any(|c| c.is_ascii_digit()) {
+        errors.push("a number");
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(crate::errors::AppError::BadRequest(
+            format!("Password must contain {}", errors.join(", "))
+        ))
+    }
+}

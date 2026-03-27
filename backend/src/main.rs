@@ -295,6 +295,7 @@ async fn main() {
         // Admin routes
         .route("/api/admin/invites", post(routes::admin::create_invite))
         .route("/api/admin/invites", get(routes::admin::list_invites))
+        .route("/api/admin/invites/{id}", delete(routes::admin::delete_invite))
         .route("/api/admin/users", get(routes::admin::list_users))
         .route("/api/admin/users/{id}", put(routes::admin::update_user).delete(routes::admin::delete_user))
         .route(
