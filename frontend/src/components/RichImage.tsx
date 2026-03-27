@@ -2,6 +2,18 @@ import { Image } from '@tiptap/extension-image';
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
 import { useRef } from 'react';
 
+const parseStyleString = (style: string): React.CSSProperties => {
+  const result: Record<string, string> = {};
+  style.split(';').filter(Boolean).forEach(part => {
+    const [key, ...vals] = part.split(':');
+    if (key && vals.length) {
+      const camelKey = key.trim().replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+      result[camelKey] = vals.join(':').trim();
+    }
+  });
+  return result;
+};
+
 const floatTokens = ['img-float-left', 'img-float-right', 'img-float-none'];
 const sizeTokens = ['img-size-sm', 'img-size-md', 'img-size-lg', 'img-size-full'];
 const alignTokens = ['img-align-center'];
@@ -79,10 +91,10 @@ function RichImageNodeView({
       <img
         ref={imgRef}
         src={node.attrs.src}
-        alt={node.attrs.alt}
-        title={node.attrs.title}
-        className={node.attrs.class}
-        style={node.attrs.style}
+        alt={node.attrs.alt || undefined}
+        title={node.attrs.title || undefined}
+        className={node.attrs.class || undefined}
+        style={node.attrs.style ? parseStyleString(node.attrs.style) : undefined}
         draggable
       />
       {!extension.options.readOnly && (
