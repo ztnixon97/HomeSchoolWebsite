@@ -117,38 +117,33 @@ pub async fn register(
         e
     })?;
 
-    // Atomically claim the invite (prevents race condition with concurrent registrations)
-    let claimed = conn.execute(
-        "UPDATE invites SET used_by = -1 WHERE id = ?1 AND used_by IS NULL",
-        params![invite_id],
-    ).map_err(|e| {
-        eprintln!("[register] Failed to claim invite {}: {}", invite_id, e);
-        AppError::Database(e.to_string())
-    })?;
-    if claimed == 0 {
-        return Err(AppError::BadRequest("This invite link has already been used. Please contact the co-op admin for a new invitation.".to_string()));
-    }
-
+    // Create user first, then atomically claim the invite with the real user ID.
+    // We can't use a sentinel like -1 because used_by is a FK to users(id).
     conn.execute(
         "INSERT INTO users (email, display_name, password_hash, role) VALUES (?1, ?2, ?3, ?4)",
         params![email_lower, req.display_name, password_hash, role],
     ).map_err(|e| {
         eprintln!("[register] Failed to insert user '{}': {}", email_lower, e);
-        // Unclaim the invite since user creation failed
-        let _ = conn.execute("UPDATE invites SET used_by = NULL WHERE id = ?1 AND used_by = -1", params![invite_id]);
         AppError::Database(e.to_string())
     })?;
 
     let user_id = conn.last_insert_rowid();
 
-    // Update invite with actual user id
-    conn.execute(
-        "UPDATE invites SET used_by = ?1 WHERE id = ?2",
+    // Atomically claim the invite with the real user ID (prevents race condition)
+    let claimed = conn.execute(
+        "UPDATE invites SET used_by = ?1 WHERE id = ?2 AND used_by IS NULL",
         params![user_id, invite_id],
     ).map_err(|e| {
-        eprintln!("[register] Failed to finalize invite {} for user {}: {}", invite_id, user_id, e);
+        eprintln!("[register] Failed to claim invite {} for user {}: {}", invite_id, user_id, e);
+        // Roll back user creation since invite claim failed
+        let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);
         AppError::Database(e.to_string())
     })?;
+    if claimed == 0 {
+        // Another registration used this invite concurrently — roll back user creation
+        let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);
+        return Err(AppError::BadRequest("This invite link has already been used. Please contact the co-op admin for a new invitation.".to_string()));
+    }
 
     let user = crate::models::User {
         id: user_id,
