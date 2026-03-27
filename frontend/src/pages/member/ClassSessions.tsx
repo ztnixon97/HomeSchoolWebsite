@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import Pagination from '../../components/Pagination';
 
 interface Session {
   id: number;
@@ -40,7 +41,7 @@ interface SessionType {
 export default function ClassSessions() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [view, setView] = useState<'list' | 'calendar'>('list');
+  const [view, setView] = useState<'list' | 'calendar'>('calendar');
   const [showCreate, setShowCreate] = useState(false);
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [title, setTitle] = useState('');
@@ -95,6 +96,15 @@ export default function ClassSessions() {
             >
               {showCreate ? 'Cancel' : 'Create Session'}
             </button>
+          )}
+          {user && (
+            <a
+              href="/api/my-calendar.ics"
+              className="px-3 py-1.5 rounded-md text-sm font-medium text-emerald-700 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 transition-colors"
+              title="Download .ics file or paste this URL into Google Calendar / Apple Calendar"
+            >
+              Add to Calendar
+            </a>
           )}
           <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
           <button
@@ -248,63 +258,71 @@ export default function ClassSessions() {
           {upcoming.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Upcoming</h2>
-              <div className="space-y-3">
-                {upcoming.map(s => (
-                  <Link
-                    key={s.id}
-                    to={`/sessions/${s.id}`}
-                    className={`block bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-all no-underline ${
-                      s.status === 'open' ? 'border-amber-200 hover:border-amber-300' : 'border-gray-100 hover:border-gray-200'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="font-semibold text-gray-900">{s.title}</h3>
-                      {statusBadge(s)}
-                    </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
-                      {s.end_date && s.end_date !== s.session_date && ` - ${new Date(s.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`}
-                      {s.start_time && ` at ${s.start_time}`}
-                      {s.end_time && ` - ${s.end_time}`}
-                    </div>
-                    {s.theme && (
-                      <div className="mt-2">
-                        <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
-                          {s.theme}
-                        </span>
-                      </div>
-                    )}
-                    {s.session_type_label && (
-                      <div className="mt-2">
-                        <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
-                          {s.session_type_label}
-                        </span>
-                      </div>
-                    )}
-                    {s.status === 'open' && user && s.session_type_name !== 'holiday' && (
-                      <div className="text-xs text-emerald-700 mt-2 font-medium">Sign up to host this session &rarr;</div>
-                    )}
-                  </Link>
-                ))}
-              </div>
+              <Pagination items={upcoming} pageSize={12}>
+                {(pageItems) => (
+                  <div className="space-y-3">
+                    {pageItems.map(s => (
+                      <Link
+                        key={s.id}
+                        to={`/sessions/${s.id}`}
+                        className={`block bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-all no-underline ${
+                          s.status === 'open' ? 'border-amber-200 hover:border-amber-300' : 'border-gray-100 hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-gray-900">{s.title}</h3>
+                          {statusBadge(s)}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
+                          {s.end_date && s.end_date !== s.session_date && ` - ${new Date(s.end_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`}
+                          {s.start_time && ` at ${s.start_time}`}
+                          {s.end_time && ` - ${s.end_time}`}
+                        </div>
+                        {s.theme && (
+                          <div className="mt-2">
+                            <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full">
+                              {s.theme}
+                            </span>
+                          </div>
+                        )}
+                        {s.session_type_label && s.session_type_name !== 'holiday' && (
+                          <div className="mt-2">
+                            <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                              {s.session_type_label}
+                            </span>
+                          </div>
+                        )}
+                        {s.status === 'open' && user && s.session_type_name !== 'holiday' && (
+                          <div className="text-xs text-emerald-700 mt-2 font-medium">Sign up to host this session &rarr;</div>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </Pagination>
             </div>
           )}
 
           {past.length > 0 && (
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Past Sessions</h2>
-              <div className="space-y-2">
-                {past.map(s => (
-                  <Link key={s.id} to={`/sessions/${s.id}`} className="block bg-white rounded-xl border border-gray-100 p-4 opacity-60 hover:opacity-100 transition-opacity no-underline">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-700">{s.title}</span>
-                      <span className="text-xs text-gray-400">
-                        {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              <Pagination items={past} pageSize={12}>
+                {(pageItems) => (
+                  <div className="space-y-2">
+                    {pageItems.map(s => (
+                      <Link key={s.id} to={`/sessions/${s.id}`} className="block bg-white rounded-xl border border-gray-100 p-4 opacity-60 hover:opacity-100 transition-opacity no-underline">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-gray-700">{s.title}</span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </Pagination>
             </div>
           )}
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
+import Pagination from '../../components/Pagination';
 
 interface Member {
   id: number;
@@ -44,8 +45,10 @@ export default function Members() {
         </div>
       </div>
 
+      <Pagination items={filtered} pageSize={12}>
+        {(pageItems) => (
       <div className="grid md:grid-cols-2 gap-4">
-        {filtered.map(m => (
+        {pageItems.map(m => (
           <div key={m.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -95,6 +98,8 @@ export default function Members() {
           </div>
         ))}
       </div>
+        )}
+      </Pagination>
     </div>
   );
 }

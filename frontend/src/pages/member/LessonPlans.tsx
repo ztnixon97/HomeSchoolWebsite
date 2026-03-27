@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import Pagination from '../../components/Pagination';
 
 interface LessonPlan {
   id: number;
@@ -101,36 +102,40 @@ export default function LessonPlans() {
           <p className="text-gray-500">No lesson plans yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {filtered.map(plan => (
-            <Link
-              key={plan.id}
-              to={`/lesson-plans/${plan.id}`}
-              className="block bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-gray-200 transition-all no-underline"
-            >
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
-                <h2 className="text-lg font-semibold text-gray-900 flex-1">{plan.title}</h2>
-                {plan.category && (
-                  <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap ${categoryColors[plan.category] || 'bg-gray-100 text-gray-700'}`}>
-                    {plan.category}
-                  </span>
-                )}
-              </div>
-              <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed">
-                {plan.description.replace(/<[^>]*>/g, '').replace(/[#*`]/g, '').slice(0, 150)}
-              </p>
-              <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-400">
-                {plan.author_name && (
-                  <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{plan.author_name}</span>
-                )}
-                {plan.age_group && <span>Ages {plan.age_group}</span>}
-                {user && (user.id === plan.author_id || user.role === 'admin') && (
-                  <span className="sm:ml-auto text-xs text-emerald-700">Editable</span>
-                )}
-              </div>
-            </Link>
-          ))}
-        </div>
+        <Pagination items={filtered} pageSize={12}>
+          {(pageItems) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {pageItems.map(plan => (
+                <Link
+                  key={plan.id}
+                  to={`/lesson-plans/${plan.id}`}
+                  className="block bg-white rounded-xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-gray-200 transition-all no-underline"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                    <h2 className="text-lg font-semibold text-gray-900 flex-1">{plan.title}</h2>
+                    {plan.category && (
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium whitespace-nowrap ${categoryColors[plan.category] || 'bg-gray-100 text-gray-700'}`}>
+                        {plan.category}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed">
+                    {plan.description.replace(/<[^>]*>/g, '').replace(/[#*`]/g, '').slice(0, 150)}
+                  </p>
+                  <div className="mt-3 flex flex-col sm:flex-row sm:items-center gap-2 text-xs text-gray-400">
+                    {plan.author_name && (
+                      <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{plan.author_name}</span>
+                    )}
+                    {plan.age_group && <span>Ages {plan.age_group}</span>}
+                    {user && (user.id === plan.author_id || user.role === 'admin') && (
+                      <span className="sm:ml-auto text-xs text-emerald-700">Editable</span>
+                    )}
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Pagination>
       )}
     </div>
   );

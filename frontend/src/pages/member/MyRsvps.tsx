@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import Pagination from '../../components/Pagination';
 
 interface RsvpEntry {
   id: number;
@@ -82,22 +83,26 @@ export default function MyRsvps() {
       {past.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold text-ink/60 mb-3">Past</h2>
-          <div className="space-y-2">
-            {past.map(r => (
-              <div key={r.id} className="panel-quiet p-4 flex items-center justify-between opacity-70">
-                <div>
-                  <Link to={`/sessions/${r.session_id}`} className="font-medium text-ink/70 hover:text-ink">
-                    {r.session_title}
-                  </Link>
-                  <div className="text-sm text-ink/50 mt-0.5">
-                    {new Date(r.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
-                    {' \u2014 '}{r.student_name}
+          <Pagination items={past} pageSize={10}>
+            {(pageItems) => (
+              <div className="space-y-2">
+                {pageItems.map(r => (
+                  <div key={r.id} className="panel-quiet p-4 flex items-center justify-between opacity-70">
+                    <div>
+                      <Link to={`/sessions/${r.session_id}`} className="font-medium text-ink/70 hover:text-ink">
+                        {r.session_title}
+                      </Link>
+                      <div className="text-sm text-ink/50 mt-0.5">
+                        {new Date(r.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                        {' \u2014 '}{r.student_name}
+                      </div>
+                    </div>
+                    <span className="text-xs text-ink/40">{r.status}</span>
                   </div>
-                </div>
-                <span className="text-xs text-ink/40">{r.status}</span>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+          </Pagination>
         </div>
       )}
     </div>
