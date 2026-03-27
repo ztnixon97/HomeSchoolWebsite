@@ -6,7 +6,12 @@ use aws_sdk_s3::Client as S3Client;
 pub trait StorageBackend: Send + Sync {
     async fn save(&self, filename: &str, data: &[u8]) -> Result<String, StorageError>;
     async fn delete(&self, storage_path: &str) -> Result<(), StorageError>;
+    /// Get the file bytes and content type. For local storage, reads from disk.
+    /// For R2, fetches from the bucket.
+    async fn get_bytes(&self, storage_path: &str) -> Result<(Vec<u8>, String), StorageError>;
     fn public_url(&self, storage_path: &str) -> String;
+    /// Whether downloads should be proxied through our API (true) or can redirect to a public URL (false)
+    fn requires_proxy(&self) -> bool { true }
 }
 
 #[derive(Debug)]
@@ -62,6 +67,24 @@ impl StorageBackend for LocalStorage {
         Ok(())
     }
 
+    async fn get_bytes(&self, storage_path: &str) -> Result<(Vec<u8>, String), StorageError> {
+        let file_path = self.base_dir.join(storage_path);
+        let data = tokio::fs::read(&file_path)
+            .await
+            .map_err(|e| StorageError(e.to_string()))?;
+        // Guess content type from extension
+        let ext = Path::new(storage_path).extension().and_then(|e| e.to_str()).unwrap_or("");
+        let ct = match ext {
+            "jpg" | "jpeg" => "image/jpeg",
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            "pdf" => "application/pdf",
+            _ => "application/octet-stream",
+        };
+        Ok((data, ct.to_string()))
+    }
+
     fn public_url(&self, storage_path: &str) -> String {
         format!("{}/{}", self.url_prefix, storage_path)
     }
@@ -71,7 +94,6 @@ impl StorageBackend for LocalStorage {
 pub struct R2Storage {
     client: S3Client,
     bucket: String,
-    public_url_base: String,
 }
 
 impl R2Storage {
@@ -80,7 +102,6 @@ impl R2Storage {
         let access_key = std::env::var("R2_ACCESS_KEY_ID").expect("R2_ACCESS_KEY_ID required");
         let secret_key = std::env::var("R2_SECRET_ACCESS_KEY").expect("R2_SECRET_ACCESS_KEY required");
         let bucket = std::env::var("R2_BUCKET").unwrap_or_else(|_| "wlpc-uploads".into());
-        let public_url_base = std::env::var("R2_PUBLIC_URL").unwrap_or_else(|_| format!("https://{}.r2.dev", bucket));
 
         let endpoint = format!("https://{}.r2.cloudflarestorage.com", account_id);
 
@@ -100,7 +121,7 @@ impl R2Storage {
 
         let client = S3Client::from_conf(config);
 
-        Self { client, bucket, public_url_base }
+        Self { client, bucket }
     }
 }
 
@@ -145,7 +166,27 @@ impl StorageBackend for R2Storage {
         Ok(())
     }
 
+    async fn get_bytes(&self, storage_path: &str) -> Result<(Vec<u8>, String), StorageError> {
+        let resp = self.client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(storage_path)
+            .send()
+            .await
+            .map_err(|e| StorageError(format!("R2 get failed: {}", e)))?;
+
+        let content_type = resp.content_type().unwrap_or("application/octet-stream").to_string();
+        let bytes = resp.body.collect()
+            .await
+            .map_err(|e| StorageError(format!("R2 read failed: {}", e)))?
+            .into_bytes()
+            .to_vec();
+
+        Ok((bytes, content_type))
+    }
+
     fn public_url(&self, storage_path: &str) -> String {
-        format!("{}/{}", self.public_url_base, storage_path)
+        // Private bucket — serve through our API, not direct R2 URLs
+        format!("/uploads/{}", storage_path)
     }
 }

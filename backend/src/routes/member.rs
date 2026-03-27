@@ -6,7 +6,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use tokio_util::io::ReaderStream;
+// tokio_util::io::ReaderStream removed — downloads now use storage.get_bytes()
 
 use crate::auth::{RequireAuth, RequireTeacher};
 use crate::errors::AppError;
@@ -611,7 +611,7 @@ pub async fn download_file(
     Path(id): Path<i64>,
 ) -> Result<Response, AppError> {
     let conn = state.db.get()?;
-    let (filename, storage_path, mime_type, size_bytes): (String, String, String, i64) = conn
+    let (filename, storage_path, mime_type, _size_bytes): (String, String, String, i64) = conn
         .query_row(
             "SELECT filename, storage_path, mime_type, size_bytes FROM files WHERE id = ?1",
             params![id],
@@ -619,42 +619,27 @@ pub async fn download_file(
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
 
-    // If using R2 (public URL available), redirect to it
-    let public_url = state.storage.public_url(&storage_path);
-    if public_url.starts_with("http") {
-        return Ok(Response::builder()
-            .status(StatusCode::FOUND)
-            .header(header::LOCATION, &public_url)
-            .body(Body::empty())
-            .unwrap());
-    }
-
-    // Local storage: stream from disk
-    let full_path = std::path::Path::new(&state.uploads_dir).join(&storage_path);
-    let file = tokio::fs::File::open(&full_path)
+    // Fetch file bytes from storage backend (works for both local and R2)
+    let (data, content_type) = state.storage.get_bytes(&storage_path)
         .await
-        .map_err(|_| AppError::NotFound("File not found".to_string()))?;
+        .map_err(|_| AppError::NotFound("File not found on storage".to_string()))?;
 
-    let stream = ReaderStream::new(file);
-    let body = Body::from_stream(stream);
-    let mut resp = Response::new(body);
-    *resp.status_mut() = StatusCode::OK;
+    let ct = if !mime_type.is_empty() && mime_type != "application/octet-stream" {
+        mime_type
+    } else {
+        content_type
+    };
 
-    let headers = resp.headers_mut();
-    if let Ok(ct) = mime_type.parse() {
-        headers.insert(header::CONTENT_TYPE, ct);
-    }
     let disposition = format!("inline; filename=\"{}\"", filename.replace('"', ""));
-    headers.insert(
-        header::CONTENT_DISPOSITION,
-        HeaderValue::from_str(&disposition).unwrap_or_else(|_| HeaderValue::from_static("inline")),
-    );
-    headers.insert(
-        header::CONTENT_LENGTH,
-        HeaderValue::from_str(&size_bytes.to_string()).unwrap_or_else(|_| HeaderValue::from_static("0")),
-    );
 
-    Ok(resp)
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, &ct)
+        .header(header::CONTENT_DISPOSITION, &disposition)
+        .header(header::CONTENT_LENGTH, data.len().to_string())
+        .header(header::CACHE_CONTROL, "private, max-age=3600")
+        .body(Body::from(data))
+        .unwrap())
 }
 
 // ── My Children (Parent view) ──
