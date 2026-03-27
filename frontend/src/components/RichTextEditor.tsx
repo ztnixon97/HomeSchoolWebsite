@@ -19,6 +19,7 @@ import { HorizontalRule } from '@tiptap/extension-horizontal-rule';
 import { Youtube } from '@tiptap/extension-youtube';
 import { ExcalidrawExtension } from './ExcalidrawExtension';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '../api';
 
 interface Props {
   content: string;
@@ -127,17 +128,27 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
           if (item.type.startsWith('image/')) {
             const file = item.getAsFile();
             if (!file) continue;
-            const reader = new FileReader();
-            reader.onload = () => {
-              const src = reader.result as string;
+            event.preventDefault();
+            // Upload to server, then insert with server URL
+            api.upload(file).then((res: any) => {
+              const src = `/api/files/${res.id}/download`;
               view.dispatch(
                 view.state.tr.replaceSelectionWith(
                   view.state.schema.nodes.image.create({ src })
                 )
               );
-            };
-            reader.readAsDataURL(file);
-            event.preventDefault();
+            }).catch(() => {
+              // Fallback to data URL if upload fails
+              const reader = new FileReader();
+              reader.onload = () => {
+                view.dispatch(
+                  view.state.tr.replaceSelectionWith(
+                    view.state.schema.nodes.image.create({ src: reader.result as string })
+                  )
+                );
+              };
+              reader.readAsDataURL(file);
+            });
             return true;
           }
         }
@@ -146,17 +157,26 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
       handleDrop(view, event) {
         const file = event.dataTransfer?.files?.[0];
         if (!file || !file.type.startsWith('image/')) return false;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const src = reader.result as string;
-          view.dispatch(
-            view.state.tr.replaceSelectionWith(
-              view.state.schema.nodes.image.create({ src })
-            )
-          );
-        };
-        reader.readAsDataURL(file);
         event.preventDefault();
+        // Upload to server, then insert with server URL
+        api.upload(file).then((res: any) => {
+          const src = `/api/files/${res.id}/download`;
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
+          view.dispatch(
+            view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src }))
+          );
+        }).catch(() => {
+          // Fallback to data URL if upload fails
+          const reader = new FileReader();
+          reader.onload = () => {
+            view.dispatch(
+              view.state.tr.replaceSelectionWith(
+                view.state.schema.nodes.image.create({ src: reader.result as string })
+              )
+            );
+          };
+          reader.readAsDataURL(file);
+        });
         return true;
       },
     },
