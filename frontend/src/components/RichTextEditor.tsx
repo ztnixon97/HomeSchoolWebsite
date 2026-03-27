@@ -263,136 +263,81 @@ function ImageInlineToolbar({ editor }: { editor: ReturnType<typeof useEditor> }
 function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
   if (!editor) return null;
 
-  const btn = (active: boolean) =>
-    `px-2 py-1 text-xs rounded border ${active ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'}`;
+  const btn = (active: boolean, title?: string) =>
+    `px-2 py-1.5 text-xs rounded transition-colors ${active ? 'bg-gray-800 text-white' : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900'}`;
+  const sep = <span className="w-px h-5 bg-gray-200 mx-0.5 flex-shrink-0" />;
 
-  const addImage = () => {
-    const url = window.prompt('Image URL:');
-    if (url) editor.chain().focus().setImage({ src: url }).run();
-  };
-
-  const addLink = () => {
-    const url = window.prompt('Link URL:');
-    if (url) {
-      editor.chain().focus().setLink({ href: url }).run();
-    } else {
-      editor.chain().focus().unsetLink().run();
-    }
-  };
+  const inTable = editor.isActive('table');
 
   return (
-    <div className="flex flex-wrap gap-1 p-2 border-b border-gray-200 bg-gray-50 items-center">
-      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive('bold'))}>
-        <strong>B</strong>
+    <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5 border-b border-gray-200 bg-white">
+      {/* Undo/Redo */}
+      <button type="button" onClick={() => editor.chain().focus().undo().run()} className={btn(false)} title="Undo">&#8630;</button>
+      <button type="button" onClick={() => editor.chain().focus().redo().run()} className={btn(false)} title="Redo">&#8631;</button>
+      {sep}
+
+      {/* Text style */}
+      <button type="button" onClick={() => editor.chain().focus().toggleBold().run()} className={btn(editor.isActive('bold'))} title="Bold"><strong>B</strong></button>
+      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive('italic'))} title="Italic"><em>I</em></button>
+      <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={btn(editor.isActive('underline'))} title="Underline"><u>U</u></button>
+      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btn(editor.isActive('strike'))} title="Strikethrough"><s>S</s></button>
+      <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={btn(editor.isActive('highlight'))} title="Highlight">
+        <span className="bg-yellow-200 px-0.5 rounded">H</span>
       </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleUnderline().run()} className={btn(editor.isActive('underline'))}>
-        <u>U</u>
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleItalic().run()} className={btn(editor.isActive('italic'))}>
-        <em>I</em>
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleStrike().run()} className={btn(editor.isActive('strike'))}>
-        <s>S</s>
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleHighlight().run()} className={btn(editor.isActive('highlight'))} title="Highlight (Ctrl/Cmd+Shift+H)">
-        Highlight
-      </button>
-      <input
-        type="color"
-        aria-label="Text color"
-        className="w-7 h-7 border border-gray-300 rounded"
-        onChange={e => editor.chain().focus().setColor(e.target.value).run()}
-        title="Text color"
-      />
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btn(editor.isActive({ textAlign: 'left' }))}>
-        Left
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btn(editor.isActive({ textAlign: 'center' }))}>
-        Center
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={btn(editor.isActive({ textAlign: 'right' }))}>
-        Right
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} className={btn(false)}>
-        Table
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} className={btn(false)}>
-        +Col
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().addRowAfter().run()} className={btn(false)}>
-        +Row
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().deleteColumn().run()} className={btn(false)}>
-        -Col
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().deleteRow().run()} className={btn(false)}>
-        -Row
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().deleteTable().run()} className={btn(false)}>
-        Del Table
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive('heading', { level: 2 }))}>
-        H2
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btn(editor.isActive('heading', { level: 3 }))}>
-        H3
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))}>
-        List
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={btn(editor.isActive('taskList'))}>
-        Checklist
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))}>
-        1. List
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive('blockquote'))}>
-        Quote
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={btn(editor.isActive('codeBlock'))}>
-        Code
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()} className={btn(false)}>
-        Page Break
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={addLink} className={btn(editor.isActive('link'))} title="Link (Ctrl/Cmd+K)">
-        Link
-      </button>
-      <button type="button" onClick={addImage} className={btn(false)}>
-        Image
-      </button>
+      <input type="color" className="w-6 h-6 border border-gray-200 rounded cursor-pointer" onChange={e => editor.chain().focus().setColor(e.target.value).run()} title="Text color" />
+      {sep}
+
+      {/* Headings */}
+      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} className={btn(editor.isActive('heading', { level: 2 }))} title="Heading 2">H2</button>
+      <button type="button" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} className={btn(editor.isActive('heading', { level: 3 }))} title="Heading 3">H3</button>
+      {sep}
+
+      {/* Lists */}
+      <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))} title="Bullet list">&#8226; List</button>
+      <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))} title="Numbered list">1. List</button>
+      <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={btn(editor.isActive('taskList'))} title="Checklist">&#9745;</button>
+      {sep}
+
+      {/* Alignment */}
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('left').run()} className={btn(editor.isActive({ textAlign: 'left' }))} title="Align left">&#8676;</button>
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('center').run()} className={btn(editor.isActive({ textAlign: 'center' }))} title="Center">&#8596;</button>
+      <button type="button" onClick={() => editor.chain().focus().setTextAlign('right').run()} className={btn(editor.isActive({ textAlign: 'right' }))} title="Align right">&#8677;</button>
+      {sep}
+
+      {/* Block elements */}
+      <button type="button" onClick={() => editor.chain().focus().toggleBlockquote().run()} className={btn(editor.isActive('blockquote'))} title="Quote">&#10077;</button>
+      <button type="button" onClick={() => editor.chain().focus().toggleCodeBlock().run()} className={btn(editor.isActive('codeBlock'))} title="Code block">&lt;/&gt;</button>
+      <button type="button" onClick={() => editor.chain().focus().setHorizontalRule().run()} className={btn(false)} title="Divider">&#8212;</button>
+      {sep}
+
+      {/* Insert */}
+      <button type="button" onClick={() => {
+        const url = window.prompt('Link URL:');
+        if (url) editor.chain().focus().setLink({ href: url }).run();
+        else editor.chain().focus().unsetLink().run();
+      }} className={btn(editor.isActive('link'))} title="Link (Ctrl+K)">&#128279;</button>
+      <button type="button" onClick={() => {
+        const url = window.prompt('Image URL:');
+        if (url) editor.chain().focus().setImage({ src: url }).run();
+      }} className={btn(false)} title="Insert image from URL">&#128247;</button>
       <button type="button" onClick={() => {
         const url = window.prompt('YouTube URL:');
         if (url) editor.chain().focus().setYoutubeVideo({ src: url }).run();
-      }} className={btn(false)}>
-        YouTube
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().insertExcalidraw().run()} className={btn(false)}>
-        Draw
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          const text = window.prompt('Comment:');
-          if (text) editor.chain().focus().setMark('comment', { text }).run();
-        }}
-        className={btn(false)}
-      >
-        Comment
-      </button>
-      <span className="w-px bg-gray-300 mx-1" />
-      <button type="button" onClick={() => editor.chain().focus().undo().run()} className={btn(false)}>
-        Undo
-      </button>
-      <button type="button" onClick={() => editor.chain().focus().redo().run()} className={btn(false)}>
-        Redo
-      </button>
+      }} className={btn(false)} title="YouTube video">&#9654;</button>
+      <button type="button" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} className={btn(false)} title="Insert table">&#9638;</button>
+      <button type="button" onClick={() => editor.chain().focus().insertExcalidraw().run()} className={btn(false)} title="Insert drawing">&#9998;</button>
+
+      {/* Table controls — only show when cursor is inside a table */}
+      {inTable && (
+        <>
+          {sep}
+          <button type="button" onClick={() => editor.chain().focus().addColumnAfter().run()} className={btn(false)} title="Add column">+Col</button>
+          <button type="button" onClick={() => editor.chain().focus().addRowAfter().run()} className={btn(false)} title="Add row">+Row</button>
+          <button type="button" onClick={() => editor.chain().focus().deleteColumn().run()} className={btn(false)} title="Delete column">-Col</button>
+          <button type="button" onClick={() => editor.chain().focus().deleteRow().run()} className={btn(false)} title="Delete row">-Row</button>
+          <button type="button" onClick={() => editor.chain().focus().deleteTable().run()} className="px-2 py-1.5 text-xs rounded text-red-500 hover:bg-red-50" title="Delete table">&#10005; Table</button>
+        </>
+      )}
     </div>
   );
 }

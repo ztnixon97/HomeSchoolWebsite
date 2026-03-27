@@ -1,9 +1,23 @@
 import { Node, mergeAttributes } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react';
-import { Excalidraw } from '@excalidraw/excalidraw';
+import { lazy, Suspense, useEffect, useMemo, useRef, Component, type ReactNode } from 'react';
 import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types';
-import '@excalidraw/excalidraw/index.css';
-import { useEffect, useMemo, useRef } from 'react';
+
+// Lazy load Excalidraw to avoid blocking initial render and handle import errors
+const ExcalidrawLazy = lazy(() =>
+  import('@excalidraw/excalidraw').then(mod => ({ default: mod.Excalidraw }))
+);
+
+class ExcalidrawErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {
+  state = { error: false };
+  static getDerivedStateFromError() { return { error: true }; }
+  render() {
+    if (this.state.error) {
+      return <div className="p-4 text-center text-gray-400 text-sm border border-gray-200 rounded bg-gray-50">Drawing tool failed to load. Try refreshing the page.</div>;
+    }
+    return this.props.children;
+  }
+}
 
 type ExcalidrawData = {
   elements: unknown[];
@@ -79,8 +93,10 @@ function ExcalidrawNodeView({
 
   return (
     <NodeViewWrapper className="excalidraw-node border border-gray-200 rounded bg-white">
+      <ExcalidrawErrorBoundary>
+      <Suspense fallback={<div className="h-[420px] flex items-center justify-center text-gray-400 text-sm">Loading drawing tool...</div>}>
       <div className={`h-[420px]${readOnly ? ' pointer-events-none' : ''}`}>
-        <Excalidraw
+        <ExcalidrawLazy
           excalidrawAPI={api => {
             apiRef.current = api;
           }}
@@ -115,6 +131,8 @@ function ExcalidrawNodeView({
           }}
         />
       </div>
+      </Suspense>
+      </ExcalidrawErrorBoundary>
     </NodeViewWrapper>
   );
 }

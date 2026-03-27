@@ -33,7 +33,7 @@ export default function RichTextDisplay({ content }: Props) {
         underline: false,
         horizontalRule: false,
       }),
-      RichImage,
+      RichImage.configure({ readOnly: true }),
       Link.configure({ openOnClick: false }),
       Underline,
       TextStyle,
