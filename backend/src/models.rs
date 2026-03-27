@@ -94,6 +94,8 @@ pub struct Student {
     pub notes: Option<String>,
     pub allergies: String,
     pub dietary_restrictions: String,
+    pub emergency_contact_name: Option<String>,
+    pub emergency_contact_phone: Option<String>,
     pub enrolled: bool,
     pub created_at: String,
 }
@@ -106,6 +108,8 @@ pub struct CreateStudentRequest {
     pub notes: Option<String>,
     pub allergies: Option<String>,
     pub dietary_restrictions: Option<String>,
+    pub emergency_contact_name: Option<String>,
+    pub emergency_contact_phone: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -116,6 +120,8 @@ pub struct UpdateStudentRequest {
     pub notes: Option<String>,
     pub allergies: Option<String>,
     pub dietary_restrictions: Option<String>,
+    pub emergency_contact_name: Option<String>,
+    pub emergency_contact_phone: Option<String>,
     pub enrolled: Option<bool>,
 }
 
@@ -127,6 +133,8 @@ pub struct UpdateMyChildRequest {
     pub notes: Option<String>,
     pub allergies: Option<String>,
     pub dietary_restrictions: Option<String>,
+    pub emergency_contact_name: Option<String>,
+    pub emergency_contact_phone: Option<String>,
 }
 
 // ── Events ──

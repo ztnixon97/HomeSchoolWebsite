@@ -164,7 +164,7 @@ async fn main() {
         )
         .route("/api/users", get(routes::member::list_users))
         .route("/api/members", get(routes::member::list_members))
-        .route("/api/files/{id}", get(routes::member::get_file_info))
+        .route("/api/files/{id}", get(routes::member::get_file_info).delete(routes::member::delete_file))
         .route(
             "/api/files/{id}/download",
             get(routes::member::download_file),
@@ -203,7 +203,7 @@ async fn main() {
         )
         .route(
             "/api/lesson-plans/{id}",
-            put(routes::member::update_lesson_plan),
+            put(routes::member::update_lesson_plan).delete(routes::member::delete_lesson_plan),
         )
         .route(
             "/api/lesson-plans/{id}/collaborators",

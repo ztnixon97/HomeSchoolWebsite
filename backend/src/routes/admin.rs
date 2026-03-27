@@ -235,8 +235,8 @@ pub async fn create_student(
     let allergies = req.allergies.clone().unwrap_or_default();
     let dietary = req.dietary_restrictions.clone().unwrap_or_default();
     conn.execute(
-        "INSERT INTO students (first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![first_name, last_name, req.date_of_birth, req.notes, allergies, dietary],
+        "INSERT INTO students (first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions, emergency_contact_name, emergency_contact_phone) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![first_name, last_name, req.date_of_birth, req.notes, allergies, dietary, req.emergency_contact_name, req.emergency_contact_phone],
     )?;
 
     let id = conn.last_insert_rowid();
@@ -250,6 +250,8 @@ pub async fn create_student(
         notes: req.notes,
         allergies,
         dietary_restrictions: dietary,
+        emergency_contact_name: req.emergency_contact_name,
+        emergency_contact_phone: req.emergency_contact_phone,
         enrolled: true,
         created_at: now,
     }))
@@ -283,6 +285,12 @@ pub async fn update_student(
     }
     if let Some(enrolled) = req.enrolled {
         conn.execute("UPDATE students SET enrolled = ?1 WHERE id = ?2", params![enrolled, id])?;
+    }
+    if let Some(name) = req.emergency_contact_name {
+        conn.execute("UPDATE students SET emergency_contact_name = ?1 WHERE id = ?2", params![name, id])?;
+    }
+    if let Some(phone) = req.emergency_contact_phone {
+        conn.execute("UPDATE students SET emergency_contact_phone = ?1 WHERE id = ?2", params![phone, id])?;
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))

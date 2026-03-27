@@ -150,6 +150,53 @@ pub async fn update_lesson_plan(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+pub async fn delete_lesson_plan(
+    RequireTeacher(user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let author_id: i64 = conn
+        .query_row("SELECT author_id FROM lesson_plans WHERE id = ?1", params![id], |row| row.get(0))
+        .map_err(|_| AppError::NotFound("Lesson plan not found".to_string()))?;
+
+    if author_id != user.id && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    // Unlink from any sessions referencing this plan
+    conn.execute("UPDATE class_sessions SET lesson_plan_id = NULL WHERE lesson_plan_id = ?1", params![id])?;
+    // Delete associated files
+    conn.execute("DELETE FROM files WHERE linked_type = 'lesson_plan' AND linked_id = ?1", params![id])?;
+    // Delete collaborators (cascaded) and the plan itself
+    conn.execute("DELETE FROM lesson_plans WHERE id = ?1", params![id])?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_file(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let (uploader_id, storage_path): (i64, String) = conn
+        .query_row("SELECT uploader_id, storage_path FROM files WHERE id = ?1", params![id], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })
+        .map_err(|_| AppError::NotFound("File not found".to_string()))?;
+
+    if uploader_id != user.id && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute("DELETE FROM files WHERE id = ?1", params![id])?;
+    // Best-effort delete from disk
+    let _ = std::fs::remove_file(&storage_path);
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Blog Posts (Teacher+) ──
 
 pub async fn create_post(
@@ -573,7 +620,7 @@ pub async fn my_children(
 ) -> Result<Json<Vec<Student>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT s.id, s.first_name, s.last_name, s.date_of_birth, s.notes, s.allergies, s.dietary_restrictions, s.enrolled, s.created_at
+        "SELECT s.id, s.first_name, s.last_name, s.date_of_birth, s.notes, s.allergies, s.dietary_restrictions, s.emergency_contact_name, s.emergency_contact_phone, s.enrolled, s.created_at
          FROM students s
          JOIN student_parents sp ON s.id = sp.student_id
          WHERE sp.user_id = ?1",
@@ -589,8 +636,10 @@ pub async fn my_children(
                 notes: row.get(4)?,
                 allergies: row.get(5)?,
                 dietary_restrictions: row.get(6)?,
-                enrolled: row.get(7)?,
-                created_at: row.get(8)?,
+                emergency_contact_name: row.get(7)?,
+                emergency_contact_phone: row.get(8)?,
+                enrolled: row.get(9)?,
+                created_at: row.get(10)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -612,15 +661,17 @@ pub async fn create_my_child(
 
     let tx = conn.transaction()?;
     tx.execute(
-        "INSERT INTO students (first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        "INSERT INTO students (first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions, emergency_contact_name, emergency_contact_phone)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             first_name,
             last_name,
             req.date_of_birth,
             req.notes,
             req.allergies.unwrap_or_default(),
-            req.dietary_restrictions.unwrap_or_default()
+            req.dietary_restrictions.unwrap_or_default(),
+            req.emergency_contact_name,
+            req.emergency_contact_phone
         ],
     )?;
     let student_id = tx.last_insert_rowid();
@@ -677,6 +728,12 @@ pub async fn update_my_child(
     if let Some(dietary) = req.dietary_restrictions {
         conn.execute("UPDATE students SET dietary_restrictions = ?1 WHERE id = ?2", params![dietary, id])?;
     }
+    if let Some(name) = req.emergency_contact_name {
+        conn.execute("UPDATE students SET emergency_contact_name = ?1 WHERE id = ?2", params![name, id])?;
+    }
+    if let Some(phone) = req.emergency_contact_phone {
+        conn.execute("UPDATE students SET emergency_contact_phone = ?1 WHERE id = ?2", params![phone, id])?;
+    }
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -725,7 +782,7 @@ pub async fn list_students(
 ) -> Result<Json<Vec<Student>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions, enrolled, created_at FROM students ORDER BY last_name, first_name",
+        "SELECT id, first_name, last_name, date_of_birth, notes, allergies, dietary_restrictions, emergency_contact_name, emergency_contact_phone, enrolled, created_at FROM students ORDER BY last_name, first_name",
     )?;
 
     let students: Vec<Student> = stmt
@@ -738,8 +795,10 @@ pub async fn list_students(
                 notes: row.get(4)?,
                 allergies: row.get(5)?,
                 dietary_restrictions: row.get(6)?,
-                enrolled: row.get(7)?,
-                created_at: row.get(8)?,
+                emergency_contact_name: row.get(7)?,
+                emergency_contact_phone: row.get(8)?,
+                enrolled: row.get(9)?,
+                created_at: row.get(10)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1710,7 +1769,7 @@ pub async fn get_my_family(
 
     // Children: all students linked to any family member
     let mut stmt = conn.prepare(
-        "SELECT DISTINCT s.id, s.first_name, s.last_name, s.date_of_birth, s.notes, s.allergies, s.dietary_restrictions, s.enrolled, s.created_at
+        "SELECT DISTINCT s.id, s.first_name, s.last_name, s.date_of_birth, s.notes, s.allergies, s.dietary_restrictions, s.emergency_contact_name, s.emergency_contact_phone, s.enrolled, s.created_at
          FROM students s
          JOIN student_parents sp ON s.id = sp.student_id
          JOIN users u ON sp.user_id = u.id
@@ -1725,8 +1784,10 @@ pub async fn get_my_family(
             notes: row.get(4)?,
             allergies: row.get(5)?,
             dietary_restrictions: row.get(6)?,
-            enrolled: row.get(7)?,
-            created_at: row.get(8)?,
+            emergency_contact_name: row.get(7)?,
+            emergency_contact_phone: row.get(8)?,
+            enrolled: row.get(9)?,
+            created_at: row.get(10)?,
         })
     })?.filter_map(|r| r.ok()).collect();
 

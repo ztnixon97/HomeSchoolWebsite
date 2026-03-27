@@ -10,6 +10,8 @@ interface Student {
   notes: string | null;
   allergies: string;
   dietary_restrictions: string;
+  emergency_contact_name: string | null;
+  emergency_contact_phone: string | null;
   enrolled: boolean;
 }
 
@@ -93,6 +95,8 @@ export default function MyChildren() {
       notes: form.notes || null,
       allergies: form.allergies || null,
       dietary_restrictions: form.dietary_restrictions || null,
+      emergency_contact_name: form.emergency_contact_name || null,
+      emergency_contact_phone: form.emergency_contact_phone || null,
     });
     setEditingId(null);
     refresh();
@@ -116,6 +120,8 @@ export default function MyChildren() {
         notes: createForm.notes || null,
         allergies: createForm.allergies || null,
         dietary_restrictions: createForm.dietary_restrictions || null,
+        emergency_contact_name: createForm.emergency_contact_name || null,
+        emergency_contact_phone: createForm.emergency_contact_phone || null,
       });
       setCreateForm({});
       refresh();
@@ -331,6 +337,19 @@ export default function MyChildren() {
               onChange={e => setCreateForm(f => ({ ...f, dietary_restrictions: e.target.value }))}
               placeholder="Dietary restrictions"
             />
+            <input
+              className="px-3 py-2 border border-ink/20 rounded"
+              value={createForm.emergency_contact_name || ''}
+              onChange={e => setCreateForm(f => ({ ...f, emergency_contact_name: e.target.value }))}
+              placeholder="Emergency contact name"
+            />
+            <input
+              type="tel"
+              className="px-3 py-2 border border-ink/20 rounded"
+              value={createForm.emergency_contact_phone || ''}
+              onChange={e => setCreateForm(f => ({ ...f, emergency_contact_phone: e.target.value }))}
+              placeholder="Emergency contact phone"
+            />
           </div>
           <textarea
             className="w-full px-3 py-2 border border-ink/20 rounded"
@@ -368,6 +387,8 @@ export default function MyChildren() {
                   <input type="date" className="px-3 py-2 border border-ink/20 rounded" value={form.date_of_birth || ''} onChange={e => setForm(f => ({ ...f, date_of_birth: e.target.value }))} />
                   <input className="px-3 py-2 border border-ink/20 rounded" value={form.allergies || ''} onChange={e => setForm(f => ({ ...f, allergies: e.target.value }))} placeholder="Allergies" />
                   <input className="px-3 py-2 border border-ink/20 rounded" value={form.dietary_restrictions || ''} onChange={e => setForm(f => ({ ...f, dietary_restrictions: e.target.value }))} placeholder="Dietary restrictions" />
+                  <input className="px-3 py-2 border border-ink/20 rounded" value={form.emergency_contact_name || ''} onChange={e => setForm(f => ({ ...f, emergency_contact_name: e.target.value }))} placeholder="Emergency contact name" />
+                  <input type="tel" className="px-3 py-2 border border-ink/20 rounded" value={form.emergency_contact_phone || ''} onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))} placeholder="Emergency contact phone" />
                   <textarea className="px-3 py-2 border border-ink/20 rounded" value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes" rows={2} />
                   <div className="flex gap-2">
                     <button onClick={save} className="btn-primary text-sm">Save</button>
@@ -388,6 +409,9 @@ export default function MyChildren() {
                   {c.date_of_birth && <div className="text-sm text-ink/60">Born {formatDOB(c.date_of_birth)} (age {calculateAge(c.date_of_birth)})</div>}
                   {c.allergies && <div className="text-sm text-ink/70">Allergies: {c.allergies}</div>}
                   {c.dietary_restrictions && <div className="text-sm text-ink/70">Dietary: {c.dietary_restrictions}</div>}
+                  {(c.emergency_contact_name || c.emergency_contact_phone) && (
+                    <div className="text-sm text-ink/70">Emergency Contact: {[c.emergency_contact_name, c.emergency_contact_phone].filter(Boolean).join(' - ')}</div>
+                  )}
                   {c.notes && <div className="text-sm text-ink/60">Notes: {c.notes}</div>}
                 </div>
               )}
