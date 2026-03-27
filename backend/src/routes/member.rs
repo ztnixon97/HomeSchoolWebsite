@@ -1975,8 +1975,10 @@ pub async fn calendar_ics_by_token(
                 date_clean.clone()
             };
 
+            let dtstamp = chrono::Utc::now().format("%Y%m%dT%H%M%SZ").to_string();
             ics.push_str("BEGIN:VEVENT\r\n");
-            ics.push_str(&format!("UID:session-{}@wlpc\r\n", id));
+            ics.push_str(&format!("UID:session-{}@westernloudouncoop.org\r\n", id));
+            ics.push_str(&format!("DTSTAMP:{}\r\n", dtstamp));
             if start_time.is_some() {
                 ics.push_str(&format!("DTSTART:{}\r\n", dtstart));
                 ics.push_str(&format!("DTEND:{}\r\n", dtend));
