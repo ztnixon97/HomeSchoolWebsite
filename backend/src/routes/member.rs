@@ -490,7 +490,7 @@ pub async fn delete_post_comment(
 // ── File Upload ──
 
 pub async fn upload_file(
-    RequireTeacher(user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     mut multipart: Multipart,
 ) -> Result<Json<FileRecord>, AppError> {

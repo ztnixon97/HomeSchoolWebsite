@@ -103,6 +103,16 @@ export default function PhotoGallery({ photos, canDelete, onDelete }: LightboxPr
             </button>
           )}
 
+          {/* Download */}
+          <a
+            href={current.url}
+            download={current.filename}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute top-4 right-32 text-white/70 hover:text-white text-sm font-medium z-10"
+          >
+            Download
+          </a>
+
           {/* Previous */}
           {viewIndex > 0 && (
             <button

@@ -71,6 +71,9 @@ async fn main() {
         Arc::new(LocalStorage::new(&uploads_dir, "/uploads"))
     };
 
+    // Start daily photo cleanup (30-day retention for session files)
+    backup::start_photo_cleanup_task(pool.clone(), storage.clone());
+
     // Initialize email config
     let email_config = EmailConfig::from_env();
 

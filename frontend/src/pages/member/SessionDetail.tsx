@@ -757,11 +757,32 @@ export default function SessionDetail() {
       )}
 
       {/* Session Photos */}
-      {(sessionPhotos.length > 0 || canEdit) && (
+      {(sessionPhotos.length > 0 || user) && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          {/* Expiry warning for sessions with photos approaching 30-day cleanup */}
+          {sessionPhotos.length > 0 && session.session_date && (() => {
+            const sessionDate = new Date(session.session_date + 'T00:00:00');
+            const expiryDate = new Date(sessionDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+            const daysLeft = Math.ceil((expiryDate.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+            if (daysLeft <= 7 && daysLeft > 0) {
+              return (
+                <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-800">
+                  Photos will be automatically removed in <strong>{daysLeft} day{daysLeft !== 1 ? 's' : ''}</strong>. Download any photos you want to keep.
+                </div>
+              );
+            }
+            if (daysLeft <= 0) {
+              return (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-800">
+                  These photos are scheduled for cleanup. Download any you want to keep.
+                </div>
+              );
+            }
+            return null;
+          })()}
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Session Photos ({sessionPhotos.length})</h2>
-            {canEdit && (
+            {user && (
               <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
                 Upload Photos
                 <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {

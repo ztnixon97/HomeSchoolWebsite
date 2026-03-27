@@ -1,4 +1,6 @@
 use crate::db::DbPool;
+use crate::storage::StorageBackend;
+use std::sync::Arc;
 
 /// Spawn a background task that backs up the SQLite database to R2 every 6 hours.
 /// Only runs if R2 is configured (R2_ACCOUNT_ID env var set).
@@ -89,4 +91,66 @@ async fn run_backup(pool: &DbPool) -> Result<String, String> {
     }
 
     Ok(key)
+}
+
+/// Spawn a background task that deletes session files older than 30 days.
+/// Runs daily.
+pub fn start_photo_cleanup_task(pool: DbPool, storage: Arc<dyn StorageBackend>) {
+    tracing::info!("Starting session photo cleanup task (daily, 30-day retention)");
+
+    tokio::spawn(async move {
+        // First run after 5 minutes
+        tokio::time::sleep(std::time::Duration::from_secs(300)).await;
+
+        loop {
+            match cleanup_old_session_files(&pool, &storage).await {
+                Ok(count) => {
+                    if count > 0 {
+                        tracing::info!(deleted = count, "Cleaned up expired session files");
+                    }
+                }
+                Err(e) => tracing::error!(error = %e, "Session file cleanup failed"),
+            }
+
+            // Run daily
+            tokio::time::sleep(std::time::Duration::from_secs(24 * 60 * 60)).await;
+        }
+    });
+}
+
+async fn cleanup_old_session_files(pool: &DbPool, storage: &Arc<dyn StorageBackend>) -> Result<usize, String> {
+    // Gather expired files (drop connection before any .await)
+    let expired: Vec<(i64, String)> = {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        let mut stmt = conn.prepare(
+            "SELECT f.id, f.storage_path
+             FROM files f
+             JOIN class_sessions cs ON f.linked_type = 'session' AND f.linked_id = cs.id
+             WHERE cs.session_date < date('now', '-30 days')"
+        ).map_err(|e| e.to_string())?;
+
+        let results: Vec<(i64, String)> = stmt.query_map([], |row| {
+            Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+        }).map_err(|e| e.to_string())?
+        .filter_map(|r| r.ok())
+        .collect();
+        drop(stmt);
+        results
+    };
+    // conn dropped here
+
+    let count = expired.len();
+    for (file_id, storage_path) in &expired {
+        let _ = storage.delete(storage_path).await;
+    }
+
+    // Delete DB records in a separate connection scope
+    if !expired.is_empty() {
+        let conn = pool.get().map_err(|e| e.to_string())?;
+        for (file_id, _) in &expired {
+            let _ = conn.execute("DELETE FROM files WHERE id = ?1", rusqlite::params![file_id]);
+        }
+    }
+
+    Ok(count)
 }
