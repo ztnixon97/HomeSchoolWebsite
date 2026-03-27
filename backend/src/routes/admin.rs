@@ -994,6 +994,7 @@ pub async fn admin_reset_user_password(
 ) -> Result<Json<serde_json::Value>, AppError> {
     use crate::auth::hash_password;
 
+    crate::sanitize::validate_password(&req.new_password)?;
     let hashed = hash_password(&req.new_password)?;
     let conn = state.db.get()?;
     conn.execute(
