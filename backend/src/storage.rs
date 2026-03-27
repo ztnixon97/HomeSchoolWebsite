@@ -6,12 +6,14 @@ use aws_sdk_s3::Client as S3Client;
 pub trait StorageBackend: Send + Sync {
     async fn save(&self, filename: &str, data: &[u8]) -> Result<String, StorageError>;
     async fn delete(&self, storage_path: &str) -> Result<(), StorageError>;
-    /// Get the file bytes and content type. For local storage, reads from disk.
-    /// For R2, fetches from the bucket.
+    /// Get the file bytes and content type (for local storage).
     async fn get_bytes(&self, storage_path: &str) -> Result<(Vec<u8>, String), StorageError>;
+    /// Get a URL to serve the file. For local storage, returns a relative path.
+    /// For R2, returns a presigned URL (time-limited, direct from CDN).
+    async fn serve_url(&self, storage_path: &str) -> Result<String, StorageError>;
     fn public_url(&self, storage_path: &str) -> String;
-    /// Whether downloads should be proxied through our API (true) or can redirect to a public URL (false)
-    fn requires_proxy(&self) -> bool { true }
+    /// Whether this backend supports direct redirect (presigned URL) for downloads
+    fn supports_redirect(&self) -> bool { false }
 }
 
 #[derive(Debug)]
@@ -72,7 +74,6 @@ impl StorageBackend for LocalStorage {
         let data = tokio::fs::read(&file_path)
             .await
             .map_err(|e| StorageError(e.to_string()))?;
-        // Guess content type from extension
         let ext = Path::new(storage_path).extension().and_then(|e| e.to_str()).unwrap_or("");
         let ct = match ext {
             "jpg" | "jpeg" => "image/jpeg",
@@ -83,6 +84,10 @@ impl StorageBackend for LocalStorage {
             _ => "application/octet-stream",
         };
         Ok((data, ct.to_string()))
+    }
+
+    async fn serve_url(&self, _storage_path: &str) -> Result<String, StorageError> {
+        Err(StorageError("Local storage does not support redirect URLs".into()))
     }
 
     fn public_url(&self, storage_path: &str) -> String {
@@ -167,6 +172,7 @@ impl StorageBackend for R2Storage {
     }
 
     async fn get_bytes(&self, storage_path: &str) -> Result<(Vec<u8>, String), StorageError> {
+        // Fallback: fetch from R2 if needed (shouldn't normally be called — use serve_url instead)
         let resp = self.client
             .get_object()
             .bucket(&self.bucket)
@@ -185,8 +191,26 @@ impl StorageBackend for R2Storage {
         Ok((bytes, content_type))
     }
 
+    async fn serve_url(&self, storage_path: &str) -> Result<String, StorageError> {
+        // Generate a presigned URL valid for 1 hour
+        let presigned = self.client
+            .get_object()
+            .bucket(&self.bucket)
+            .key(storage_path)
+            .presigned(
+                aws_sdk_s3::presigning::PresigningConfig::expires_in(std::time::Duration::from_secs(3600))
+                    .map_err(|e| StorageError(format!("Presign config error: {}", e)))?
+            )
+            .await
+            .map_err(|e| StorageError(format!("Presign failed: {}", e)))?;
+
+        Ok(presigned.uri().to_string())
+    }
+
     fn public_url(&self, storage_path: &str) -> String {
-        // Private bucket — serve through our API, not direct R2 URLs
+        // Not truly public — downloads go through our API which generates presigned URLs
         format!("/uploads/{}", storage_path)
     }
+
+    fn supports_redirect(&self) -> bool { true }
 }

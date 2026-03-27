@@ -619,17 +619,25 @@ pub async fn download_file(
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
 
-    // Fetch file bytes from storage backend (works for both local and R2)
+    // If storage supports presigned URLs (R2), redirect directly — zero bandwidth through our server
+    if state.storage.supports_redirect() {
+        let presigned_url = state.storage.serve_url(&storage_path)
+            .await
+            .map_err(|e| AppError::Internal(format!("Failed to generate download URL: {}", e)))?;
+        return Ok(Response::builder()
+            .status(StatusCode::FOUND)
+            .header(header::LOCATION, &presigned_url)
+            .header(header::CACHE_CONTROL, "private, max-age=3600")
+            .body(Body::empty())
+            .unwrap());
+    }
+
+    // Local storage: read and serve bytes
     let (data, content_type) = state.storage.get_bytes(&storage_path)
         .await
         .map_err(|_| AppError::NotFound("File not found on storage".to_string()))?;
 
-    let ct = if !mime_type.is_empty() && mime_type != "application/octet-stream" {
-        mime_type
-    } else {
-        content_type
-    };
-
+    let ct = if !mime_type.is_empty() && mime_type != "application/octet-stream" { mime_type } else { content_type };
     let disposition = format!("inline; filename=\"{}\"", filename.replace('"', ""));
 
     Ok(Response::builder()
@@ -637,7 +645,6 @@ pub async fn download_file(
         .header(header::CONTENT_TYPE, &ct)
         .header(header::CONTENT_DISPOSITION, &disposition)
         .header(header::CONTENT_LENGTH, data.len().to_string())
-        .header(header::CACHE_CONTROL, "private, max-age=3600")
         .body(Body::from(data))
         .unwrap())
 }
