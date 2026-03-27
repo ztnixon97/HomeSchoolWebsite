@@ -17,21 +17,12 @@ impl SqliteSessionStore {
         Self { pool }
     }
 
-    fn cleanup_expired(&self) {
-        if let Ok(conn) = self.pool.get() {
-            let now = OffsetDateTime::now_utc()
-                .format(&time::format_description::well_known::Rfc3339)
-                .unwrap_or_default();
-            let _ = conn.execute("DELETE FROM sessions_store WHERE expiry_date < ?1", rusqlite::params![now]);
-        }
-    }
 }
 
 #[async_trait]
 impl SessionStore for SqliteSessionStore {
     async fn create(&self, record: &mut Record) -> session_store::Result<()> {
-        self.cleanup_expired();
-
+        // Expired session cleanup handled by background task in backup.rs
         let conn = self.pool.get().map_err(|e| session_store::Error::Backend(e.to_string()))?;
 
         let id_str = record.id.to_string();

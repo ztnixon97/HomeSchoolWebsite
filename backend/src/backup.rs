@@ -93,6 +93,31 @@ async fn run_backup(pool: &DbPool) -> Result<String, String> {
     Ok(key)
 }
 
+/// Spawn a background task that cleans up expired sessions from the sessions_store table.
+/// Runs hourly.
+pub fn start_session_cleanup_task(pool: DbPool) {
+    tracing::info!("Starting session cleanup task (hourly)");
+
+    tokio::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(120)).await;
+
+        loop {
+            if let Ok(conn) = pool.get() {
+                let now = time::OffsetDateTime::now_utc()
+                    .format(&time::format_description::well_known::Rfc3339)
+                    .unwrap_or_default();
+                match conn.execute("DELETE FROM sessions_store WHERE expiry_date < ?1", rusqlite::params![now]) {
+                    Ok(count) if count > 0 => tracing::info!(deleted = count, "Cleaned up expired sessions"),
+                    Err(e) => tracing::error!(error = %e, "Session cleanup failed"),
+                    _ => {}
+                }
+            }
+
+            tokio::time::sleep(std::time::Duration::from_secs(60 * 60)).await;
+        }
+    });
+}
+
 /// Spawn a background task that deletes session files older than 30 days.
 /// Runs daily.
 pub fn start_photo_cleanup_task(pool: DbPool, storage: Arc<dyn StorageBackend>) {
@@ -172,7 +197,7 @@ async fn cleanup_old_session_files(pool: &DbPool, storage: &Arc<dyn StorageBacke
     // conn dropped here
 
     let count = expired.len();
-    for (file_id, storage_path) in &expired {
+    for (_file_id, storage_path) in &expired {
         let _ = storage.delete(storage_path).await;
     }
 

@@ -1,4 +1,10 @@
 pub mod admin;
 pub mod auth;
-pub mod member;
+pub mod blog;
+pub mod calendar;
+pub mod children;
+pub mod families;
+pub mod files;
+pub mod lesson_plans;
 pub mod public;
+pub mod sessions;

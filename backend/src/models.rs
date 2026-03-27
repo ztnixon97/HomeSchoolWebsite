@@ -317,16 +317,7 @@ pub struct UpdateMilestoneRequest {
     pub achieved_date: Option<String>,
 }
 
-// ── Attendance ──
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Attendance {
-    pub id: i64,
-    pub student_id: i64,
-    pub event_id: i64,
-    pub present: bool,
-    pub note: Option<String>,
-}
+// ── Attendance (legacy — use SessionAttendance for class_sessions) ──
 
 #[derive(Debug, Deserialize)]
 pub struct RecordAttendanceRequest {
@@ -646,10 +637,7 @@ pub struct AdminResetPasswordRequest {
     pub new_password: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct EmailParentsResponse {
-    pub sent_count: usize,
-}
+// EmailParentsResponse removed — unused
 
 // ── Account Management ──
 
@@ -750,13 +738,7 @@ pub struct InviteFamilyMemberRequest {
 
 // ── Pagination ──
 
-#[derive(Debug, Serialize)]
-pub struct PaginatedResponse<T: serde::Serialize> {
-    pub items: Vec<T>,
-    pub total: i64,
-    pub page: i64,
-    pub page_size: i64,
-}
+// PaginatedResponse removed — using serde_json::json! directly
 
 #[derive(Debug, Deserialize)]
 pub struct SessionsQuery {
@@ -794,12 +776,7 @@ pub struct AdminUsersQuery {
     pub active: Option<bool>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RsvpsQuery {
-    pub page: Option<i64>,
-    pub page_size: Option<i64>,
-    pub upcoming: Option<bool>,
-}
+// RsvpsQuery removed — unused
 
 // ── Session Attendance ──
 
@@ -844,8 +821,4 @@ pub struct CreateSupplyRequest {
     pub quantity: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct UpdateSupplyRequest {
-    pub item_name: Option<String>,
-    pub quantity: Option<String>,
-}
+// UpdateSupplyRequest removed — unused

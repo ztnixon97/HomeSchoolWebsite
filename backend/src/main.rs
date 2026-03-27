@@ -71,6 +71,8 @@ async fn main() {
         Arc::new(LocalStorage::new(&uploads_dir, "/uploads"))
     };
 
+    // Start hourly session cleanup (expired sessions from sessions_store table)
+    backup::start_session_cleanup_task(pool.clone());
     // Start daily photo cleanup (30-day retention for session files)
     backup::start_photo_cleanup_task(pool.clone(), storage.clone());
 
@@ -168,7 +170,7 @@ async fn main() {
         .route("/api/announcements", get(routes::public::list_active_announcements))
         .route("/health", get(health_check))
         // Public calendar feed (token-based auth, no session needed)
-        .route("/api/calendar/{token}", get(routes::member::calendar_ics_by_token))
+        .route("/api/calendar/{token}", get(routes::calendar::calendar_ics_by_token))
         // Auth routes
         .route("/api/auth/login", post(routes::auth::login))
         .route("/api/auth/register", post(routes::auth::register))
@@ -183,142 +185,142 @@ async fn main() {
         // Member routes (any authenticated user)
         .route(
             "/api/lesson-plans",
-            get(routes::member::list_lesson_plans),
+            get(routes::lesson_plans::list_lesson_plans),
         )
         .route(
             "/api/lesson-plans/{id}",
-            get(routes::member::get_lesson_plan),
+            get(routes::lesson_plans::get_lesson_plan),
         )
         .route(
             "/api/my-children",
-            get(routes::member::my_children).post(routes::member::create_my_child),
+            get(routes::children::my_children).post(routes::children::create_my_child),
         )
         .route(
             "/api/my-children/{id}",
-            put(routes::member::update_my_child).delete(routes::member::delete_my_child),
+            put(routes::children::update_my_child).delete(routes::children::delete_my_child),
         )
-        .route("/api/users", get(routes::member::list_users))
-        .route("/api/members", get(routes::member::list_members))
-        .route("/api/files/{id}", get(routes::member::get_file_info).delete(routes::member::delete_file))
+        .route("/api/users", get(routes::sessions::list_users))
+        .route("/api/members", get(routes::sessions::list_members))
+        .route("/api/files/{id}", get(routes::files::get_file_info).delete(routes::files::delete_file))
         .route(
             "/api/files/{id}/download",
-            get(routes::member::download_file),
+            get(routes::files::download_file),
         )
         .route(
             "/api/files/{linked_type}/{linked_id}",
-            get(routes::member::list_files_for_entity),
+            get(routes::files::list_files_for_entity),
         )
         // Teacher+ routes
-        .route("/api/posts", post(routes::member::create_post))
-        .route("/api/posts/{id}", put(routes::member::update_post))
-        .route("/api/posts/drafts", get(routes::member::list_draft_posts))
+        .route("/api/posts", post(routes::blog::create_post))
+        .route("/api/posts/{id}", put(routes::blog::update_post))
+        .route("/api/posts/drafts", get(routes::blog::list_draft_posts))
         .route(
             "/api/posts/{id}/internal",
-            get(routes::member::get_post_internal),
+            get(routes::blog::get_post_internal),
         )
         .route(
             "/api/posts/{id}/comments",
-            get(routes::member::list_post_comments),
+            get(routes::blog::list_post_comments),
         )
         .route(
             "/api/posts/{id}/comments",
-            post(routes::member::create_post_comment),
+            post(routes::blog::create_post_comment),
         )
         .route(
             "/api/comments/{id}",
-            put(routes::member::update_post_comment),
+            put(routes::blog::update_post_comment),
         )
         .route(
             "/api/comments/{id}",
-            delete(routes::member::delete_post_comment),
+            delete(routes::blog::delete_post_comment),
         )
         .route(
             "/api/lesson-plans",
-            post(routes::member::create_lesson_plan),
+            post(routes::lesson_plans::create_lesson_plan),
         )
         .route(
             "/api/lesson-plans/{id}",
-            put(routes::member::update_lesson_plan).delete(routes::member::delete_lesson_plan),
+            put(routes::lesson_plans::update_lesson_plan).delete(routes::lesson_plans::delete_lesson_plan),
         )
         .route(
             "/api/lesson-plans/{id}/collaborators",
-            get(routes::member::list_lesson_plan_collaborators),
+            get(routes::sessions::list_lesson_plan_collaborators),
         )
         .route(
             "/api/lesson-plans/{id}/collaborators",
-            post(routes::member::add_lesson_plan_collaborator),
+            post(routes::sessions::add_lesson_plan_collaborator),
         )
         .route(
             "/api/lesson-plans/{id}/collaborators/{user_id}",
-            delete(routes::member::remove_lesson_plan_collaborator),
+            delete(routes::sessions::remove_lesson_plan_collaborator),
         )
-        .route("/api/uploads", post(routes::member::upload_file))
-        .route("/api/students", get(routes::member::list_students))
+        .route("/api/uploads", post(routes::files::upload_file))
+        .route("/api/students", get(routes::children::list_students))
         .route(
             "/api/students/{id}/milestones",
-            get(routes::member::get_student_milestones),
+            get(routes::children::get_student_milestones),
         )
-        .route("/api/milestones", post(routes::member::create_milestone))
+        .route("/api/milestones", post(routes::children::create_milestone))
         .route(
             "/api/milestones/{id}",
-            put(routes::member::update_milestone),
+            put(routes::children::update_milestone),
         )
         .route(
             "/api/milestones/{id}",
-            delete(routes::member::delete_milestone),
+            delete(routes::children::delete_milestone),
         )
-        .route("/api/attendance", post(routes::member::record_attendance))
-        .route("/api/sessions/{id}/attendance", get(routes::member::get_session_attendance))
-        .route("/api/session-attendance", post(routes::member::save_session_attendance))
-        .route("/api/sessions/{id}/supplies", get(routes::member::list_session_supplies).post(routes::member::add_session_supply))
-        .route("/api/supplies/{id}/claim", post(routes::member::claim_supply))
-        .route("/api/supplies/{id}/unclaim", post(routes::member::unclaim_supply))
-        .route("/api/supplies/{id}", delete(routes::member::delete_supply))
+        .route("/api/attendance", post(routes::children::record_attendance))
+        .route("/api/sessions/{id}/attendance", get(routes::sessions::get_session_attendance))
+        .route("/api/session-attendance", post(routes::sessions::save_session_attendance))
+        .route("/api/sessions/{id}/supplies", get(routes::sessions::list_session_supplies).post(routes::sessions::add_session_supply))
+        .route("/api/supplies/{id}/claim", post(routes::sessions::claim_supply))
+        .route("/api/supplies/{id}/unclaim", post(routes::sessions::unclaim_supply))
+        .route("/api/supplies/{id}", delete(routes::sessions::delete_supply))
         // Family routes (authenticated)
-        .route("/api/my-family", post(routes::member::create_family).get(routes::member::get_my_family).put(routes::member::update_my_family).delete(routes::member::leave_family))
-        .route("/api/my-family/invite", post(routes::member::invite_family_member))
-        .route("/api/my-family/invites", get(routes::member::list_family_invites))
-        .route("/api/my-invites", get(routes::member::list_my_invites))
-        .route("/api/my-invites/{id}/accept", post(routes::member::accept_family_invite))
-        .route("/api/my-invites/{id}/decline", post(routes::member::decline_family_invite))
+        .route("/api/my-family", post(routes::families::create_family).get(routes::families::get_my_family).put(routes::families::update_my_family).delete(routes::families::leave_family))
+        .route("/api/my-family/invite", post(routes::families::invite_family_member))
+        .route("/api/my-family/invites", get(routes::families::list_family_invites))
+        .route("/api/my-invites", get(routes::families::list_my_invites))
+        .route("/api/my-invites/{id}/accept", post(routes::families::accept_family_invite))
+        .route("/api/my-invites/{id}/decline", post(routes::families::decline_family_invite))
         // Session & RSVP routes (authenticated)
-        .route("/api/sessions", get(routes::member::list_sessions))
-        .route("/api/sessions", post(routes::member::create_session))
+        .route("/api/sessions", get(routes::sessions::list_sessions))
+        .route("/api/sessions", post(routes::sessions::create_session))
         .route(
             "/api/session-types",
-            get(routes::member::list_active_session_types),
+            get(routes::sessions::list_active_session_types),
         )
-        .route("/api/sessions/{id}", get(routes::member::get_session))
+        .route("/api/sessions/{id}", get(routes::sessions::get_session))
         .route(
             "/api/sessions/{id}/claim",
-            post(routes::member::claim_session),
+            post(routes::sessions::claim_session),
         )
         .route(
             "/api/sessions/{id}/complete",
-            post(routes::member::complete_session),
+            post(routes::sessions::complete_session),
         )
-        .route("/api/my-rsvps", get(routes::member::my_rsvps))
-        .route("/api/my-calendar-url", get(routes::member::get_calendar_url))
+        .route("/api/my-rsvps", get(routes::sessions::my_rsvps))
+        .route("/api/my-calendar-url", get(routes::calendar::get_calendar_url))
         .route(
             "/api/sessions/{id}/unclaim",
-            post(routes::member::unclaim_session),
+            post(routes::sessions::unclaim_session),
         )
         .route(
             "/api/sessions/{id}/host",
-            put(routes::member::update_host_session),
+            put(routes::sessions::update_host_session),
         )
         .route(
             "/api/sessions/{id}/rsvps",
-            get(routes::member::list_session_rsvps),
+            get(routes::sessions::list_session_rsvps),
         )
         .route(
             "/api/sessions/{id}/health",
-            get(routes::member::get_session_health_summary),
+            get(routes::sessions::get_session_health_summary),
         )
-        .route("/api/rsvps", post(routes::member::create_rsvp))
+        .route("/api/rsvps", post(routes::sessions::create_rsvp))
         .route(
             "/api/rsvps/{id}",
-            put(routes::member::update_rsvp_status).delete(routes::member::delete_rsvp),
+            put(routes::sessions::update_rsvp_status).delete(routes::sessions::delete_rsvp),
         )
         // Admin routes
         .route("/api/admin/invites", post(routes::admin::create_invite))
