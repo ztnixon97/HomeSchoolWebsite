@@ -958,8 +958,44 @@ pub async fn email_parents(
 
     eprintln!("[admin] Found {} recipients", recipients.len());
 
+    // Replace relative /api/files/*/download URLs with absolute URLs for email clients
+    let mut email_body = req.body.clone();
+    let site_url = state.email_config.site_url.trim_end_matches('/').to_string();
+
+    // Collect file IDs and their storage paths (DB work, sync)
+    let file_mappings: Vec<(i64, String)> = {
+        let conn = state.db.get()?;
+        let mut mappings = Vec::new();
+        let pattern = "/api/files/";
+        let mut search_from = 0;
+        while let Some(pos) = email_body[search_from..].find(pattern) {
+            let abs_pos = search_from + pos;
+            let after = &email_body[abs_pos + pattern.len()..];
+            if let Some(id_end) = after.find('/') {
+                if let Ok(file_id) = after[..id_end].parse::<i64>() {
+                    if let Ok(sp) = conn.query_row("SELECT storage_path FROM files WHERE id = ?1", params![file_id], |row| row.get::<_, String>(0)) {
+                        mappings.push((file_id, sp));
+                    }
+                }
+            }
+            search_from = abs_pos + 1;
+            if search_from >= email_body.len() { break; }
+        }
+        mappings
+    };
+    // conn dropped — now do async presigned URL generation
+    for (file_id, storage_path) in &file_mappings {
+        let old_url = format!("/api/files/{}/download", file_id);
+        if let Ok(presigned) = state.storage.serve_url(storage_path).await {
+            email_body = email_body.replace(&old_url, &presigned);
+        } else {
+            let abs_url = format!("{}{}", site_url, old_url);
+            email_body = email_body.replace(&old_url, &abs_url);
+        }
+    }
+
     let config = &state.email_config;
-    let sent_count = crate::email::send_bulk_email(config, recipients, &req.subject, &req.body)
+    let sent_count = crate::email::send_bulk_email(config, recipients, &req.subject, &email_body)
         .await
         .map_err(|e| {
             eprintln!("[admin] email_parents error: {}", e);

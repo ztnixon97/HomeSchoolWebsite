@@ -128,27 +128,32 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
           if (item.type.startsWith('image/')) {
             const file = item.getAsFile();
             if (!file) continue;
-            event.preventDefault();
-            // Upload to server, then insert with server URL
-            api.upload(file).then((res: any) => {
-              const src = `/api/files/${res.id}/download`;
-              view.dispatch(
-                view.state.tr.replaceSelectionWith(
-                  view.state.schema.nodes.image.create({ src })
-                )
-              );
-            }).catch(() => {
-              // Fallback to data URL if upload fails
+            // Images under 2MB: use data URL (simple, works everywhere including emails)
+            // Images over 2MB: upload to server to avoid bloating the document
+            const MAX_DATA_URL_SIZE = 2 * 1024 * 1024;
+            if (file.size <= MAX_DATA_URL_SIZE) {
               const reader = new FileReader();
               reader.onload = () => {
+                const src = reader.result as string;
                 view.dispatch(
                   view.state.tr.replaceSelectionWith(
-                    view.state.schema.nodes.image.create({ src: reader.result as string })
+                    view.state.schema.nodes.image.create({ src })
                   )
                 );
               };
               reader.readAsDataURL(file);
-            });
+            } else {
+              // Large image: upload to server
+              api.upload(file).then((res: any) => {
+                const src = `/api/files/${res.id}/download`;
+                view.dispatch(
+                  view.state.tr.replaceSelectionWith(
+                    view.state.schema.nodes.image.create({ src })
+                  )
+                );
+              }).catch(e => console.error('Image upload failed:', e));
+            }
+            event.preventDefault();
             return true;
           }
         }
@@ -157,26 +162,29 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
       handleDrop(view, event) {
         const file = event.dataTransfer?.files?.[0];
         if (!file || !file.type.startsWith('image/')) return false;
-        event.preventDefault();
-        // Upload to server, then insert with server URL
-        api.upload(file).then((res: any) => {
-          const src = `/api/files/${res.id}/download`;
-          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
-          view.dispatch(
-            view.state.tr.insert(pos, view.state.schema.nodes.image.create({ src }))
-          );
-        }).catch(() => {
-          // Fallback to data URL if upload fails
+        const MAX_DATA_URL_SIZE = 2 * 1024 * 1024;
+        if (file.size <= MAX_DATA_URL_SIZE) {
           const reader = new FileReader();
           reader.onload = () => {
+            const src = reader.result as string;
             view.dispatch(
               view.state.tr.replaceSelectionWith(
-                view.state.schema.nodes.image.create({ src: reader.result as string })
+                view.state.schema.nodes.image.create({ src })
               )
             );
           };
           reader.readAsDataURL(file);
-        });
+        } else {
+          api.upload(file).then((res: any) => {
+            const src = `/api/files/${res.id}/download`;
+            view.dispatch(
+              view.state.tr.replaceSelectionWith(
+                view.state.schema.nodes.image.create({ src })
+              )
+            );
+          }).catch(e => console.error('Image upload failed:', e));
+        }
+        event.preventDefault();
         return true;
       },
     },
