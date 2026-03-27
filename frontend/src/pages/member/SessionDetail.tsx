@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import PhotoGallery from '../../components/Lightbox';
 
 interface Session {
   id: number;
@@ -758,29 +759,33 @@ export default function SessionDetail() {
       {/* Session Photos */}
       {(sessionPhotos.length > 0 || canEdit) && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Session Photos</h2>
-          {sessionPhotos.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
-              {sessionPhotos.map(p => (
-                <a key={p.id} href={`/api/files/${p.id}/download`} target="_blank" rel="noopener noreferrer">
-                  <img src={`/api/files/${p.id}/download`} alt={p.filename} className="rounded-lg border border-gray-200 w-full h-40 object-cover hover:opacity-90 transition-opacity" />
-                </a>
-              ))}
-            </div>
-          )}
-          {canEdit && (
-            <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
-              Upload Photos
-              <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
-                const files = e.target.files;
-                if (!files) return;
-                for (const file of Array.from(files)) {
-                  await api.upload(file, 'session', Number(id));
-                }
-                refresh();
-                e.target.value = '';
-              }} />
-            </label>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-gray-900">Session Photos ({sessionPhotos.length})</h2>
+            {canEdit && (
+              <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
+                Upload Photos
+                <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                  const files = e.target.files;
+                  if (!files) return;
+                  for (const file of Array.from(files)) {
+                    await api.upload(file, 'session', Number(id));
+                  }
+                  refresh();
+                  e.target.value = '';
+                }} />
+              </label>
+            )}
+          </div>
+          <PhotoGallery
+            photos={sessionPhotos.map(p => ({ id: p.id, filename: p.filename, url: `/api/files/${p.id}/download` }))}
+            canDelete={!!canEdit}
+            onDelete={async (photoId) => {
+              await api.del(`/api/files/${photoId}`);
+              refresh();
+            }}
+          />
+          {sessionPhotos.length === 0 && (
+            <p className="text-gray-400 text-sm">No photos yet.</p>
           )}
         </div>
       )}
