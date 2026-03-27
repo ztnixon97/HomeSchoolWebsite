@@ -1,0 +1,30 @@
+# fly.toml — Fly.io configuration for WLPC
+# See https://fly.io/docs/reference/configuration/
+
+app = "westernloudouncoop"
+primary_region = "iad"  # US East (Ashburn, VA — closest to Loudoun County)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PRODUCTION = "1"
+  PORT = "8080"
+  DATABASE_PATH = "/data/preschool.db"
+  UPLOADS_DIR = "/data/uploads"
+  STATIC_DIR = "./static"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
+
+[mounts]
+  source = "wlpc_data"
+  destination = "/data"
