@@ -253,6 +253,12 @@ async fn main() {
             post(routes::member::claim_session),
         )
         .route(
+            "/api/sessions/{id}/complete",
+            post(routes::member::complete_session),
+        )
+        .route("/api/my-rsvps", get(routes::member::my_rsvps))
+        .route("/api/my-calendar.ics", get(routes::member::my_calendar_ics))
+        .route(
             "/api/sessions/{id}/unclaim",
             post(routes::member::unclaim_session),
         )

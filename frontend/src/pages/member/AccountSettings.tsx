@@ -4,7 +4,7 @@ import { api } from '../../api';
 import { useToast } from '../../components/Toast';
 
 export default function AccountSettings() {
-  const { user, login } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { showToast } = useToast();
 
   // Profile
@@ -36,8 +36,7 @@ export default function AccountSettings() {
         preferred_contact: preferredContact || null,
       });
       showToast('Profile updated', 'success');
-      // Refresh session
-      window.location.reload();
+      await refreshUser();
     } catch (err: any) {
       showToast(err.message || 'Failed to update profile', 'error');
     } finally {
@@ -60,7 +59,7 @@ export default function AccountSettings() {
       showToast('Email updated successfully', 'success');
       setNewEmail('');
       setEmailPassword('');
-      window.location.reload();
+      await refreshUser();
     } catch (err: any) {
       showToast(err.message || 'Failed to update email', 'error');
     } finally {

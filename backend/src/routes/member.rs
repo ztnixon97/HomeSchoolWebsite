@@ -490,6 +490,10 @@ pub async fn upload_file(
                     .await
                     .map_err(|e| AppError::BadRequest(e.to_string()))?
                     .to_vec();
+                // 10MB file size limit
+                if data.len() > 10 * 1024 * 1024 {
+                    return Err(AppError::BadRequest("File size must be under 10MB".to_string()));
+                }
             }
             "linked_type" => {
                 linked_type = Some(
@@ -1409,6 +1413,55 @@ pub async fn unclaim_session(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+pub async fn complete_session(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let host_id: Option<i64> = conn
+        .query_row("SELECT host_id FROM class_sessions WHERE id = ?1", params![id], |row| row.get(0))
+        .map_err(|_| AppError::NotFound("Session not found".to_string()))?;
+
+    if host_id != Some(user.id) && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute("UPDATE class_sessions SET status = 'completed' WHERE id = ?1", params![id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn my_rsvps(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT r.id, r.session_id, r.student_id, s.first_name || ' ' || s.last_name as student_name,
+                r.status, r.note, cs.title as session_title, cs.session_date, cs.start_time
+         FROM rsvps r
+         JOIN students s ON r.student_id = s.id
+         JOIN class_sessions cs ON r.session_id = cs.id
+         WHERE r.parent_id = ?1
+         ORDER BY cs.session_date ASC",
+    )?;
+    let rsvps: Vec<serde_json::Value> = stmt.query_map(params![user.id], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "session_id": row.get::<_, i64>(1)?,
+            "student_id": row.get::<_, i64>(2)?,
+            "student_name": row.get::<_, String>(3)?,
+            "status": row.get::<_, String>(4)?,
+            "note": row.get::<_, Option<String>>(5)?,
+            "session_title": row.get::<_, String>(6)?,
+            "session_date": row.get::<_, String>(7)?,
+            "start_time": row.get::<_, Option<String>>(8)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+
+    Ok(Json(rsvps))
+}
+
 pub async fn update_host_session(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
@@ -1586,16 +1639,18 @@ pub async fn create_rsvp(
         .map_err(|_| AppError::NotFound("Session not found".to_string()))?;
     if let Some(cutoff) = cutoff {
         use chrono::NaiveDateTime;
-        let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
-        let now_dt = NaiveDateTime::parse_from_str(&now, "%Y-%m-%d %H:%M:%S")
-            .or_else(|_| NaiveDateTime::parse_from_str(&now, "%Y-%m-%dT%H:%M:%S"))
-            .map_err(|_| AppError::Internal("Failed to parse current time".into()))?;
-        let cutoff_dt = NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%d %H:%M:%S")
-            .or_else(|_| NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%dT%H:%M:%S"))
-            .map_err(|_| AppError::BadRequest("Invalid RSVP cutoff date format".into()))?;
-        if now_dt > cutoff_dt {
-            return Err(AppError::BadRequest("RSVP cutoff has passed".to_string()));
+        let now = chrono::Utc::now().naive_utc();
+        // Try multiple formats since cutoff may come from datetime-local input (no seconds) or ISO format
+        let cutoff_dt = NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%dT%H:%M:%S")
+            .or_else(|_| NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%dT%H:%M"))
+            .or_else(|_| NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%d %H:%M:%S"))
+            .or_else(|_| NaiveDateTime::parse_from_str(&cutoff, "%Y-%m-%d %H:%M"));
+        if let Ok(cutoff_dt) = cutoff_dt {
+            if now > cutoff_dt {
+                return Err(AppError::BadRequest("RSVP cutoff has passed".to_string()));
+            }
         }
+        // If cutoff can't be parsed, skip the check rather than blocking the RSVP
     }
 
     // Verify this parent is linked to the student
@@ -1703,6 +1758,90 @@ pub async fn delete_rsvp(
 
     conn.execute("DELETE FROM rsvps WHERE id = ?1", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Calendar (iCal) ──
+
+pub async fn my_calendar_ics(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+) -> Result<Response, AppError> {
+    let conn = state.db.get()?;
+
+    // Get all sessions the user is involved in (hosting or has RSVP'd children)
+    let mut stmt = conn.prepare(
+        "SELECT DISTINCT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
+                COALESCE(cs.location_name, cs.host_address, '') as location, cs.notes
+         FROM class_sessions cs
+         LEFT JOIN rsvps r ON r.session_id = cs.id
+         LEFT JOIN student_parents sp ON r.student_id = sp.student_id AND sp.user_id = ?1
+         WHERE cs.host_id = ?1 OR sp.user_id = ?1
+         ORDER BY cs.session_date ASC",
+    )?;
+
+    let mut ics = String::from("BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WLPC//Preschool Co-op//EN\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nX-WR-CALNAME:WLPC Sessions\r\n");
+
+    let rows = stmt.query_map(params![user.id], |row| {
+        Ok((
+            row.get::<_, i64>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, Option<String>>(3)?,
+            row.get::<_, Option<String>>(4)?,
+            row.get::<_, String>(5)?,
+            row.get::<_, Option<String>>(6)?,
+        ))
+    })?;
+
+    for row in rows {
+        if let Ok((id, title, date, start_time, end_time, location, notes)) = row {
+            let date_clean = date.replace('-', "");
+            let dtstart = if let Some(ref st) = start_time {
+                format!("{}T{}00", date_clean, st.replace(':', ""))
+            } else {
+                date_clean.clone()
+            };
+            let dtend = if let Some(ref et) = end_time {
+                format!("{}T{}00", date_clean, et.replace(':', ""))
+            } else if start_time.is_some() {
+                // Default 1 hour duration
+                format!("{}T{}00", date_clean, start_time.as_ref().map(|s| {
+                    let parts: Vec<&str> = s.split(':').collect();
+                    let h: u32 = parts.first().and_then(|p| p.parse().ok()).unwrap_or(9) + 1;
+                    let m = parts.get(1).unwrap_or(&"00");
+                    format!("{:02}{}", h, m)
+                }).unwrap_or_else(|| "1000".to_string()))
+            } else {
+                date_clean.clone()
+            };
+
+            ics.push_str("BEGIN:VEVENT\r\n");
+            ics.push_str(&format!("UID:session-{}@wlpc\r\n", id));
+            if start_time.is_some() {
+                ics.push_str(&format!("DTSTART:{}\r\n", dtstart));
+                ics.push_str(&format!("DTEND:{}\r\n", dtend));
+            } else {
+                ics.push_str(&format!("DTSTART;VALUE=DATE:{}\r\n", dtstart));
+            }
+            ics.push_str(&format!("SUMMARY:{}\r\n", title.replace(',', "\\,")));
+            if !location.is_empty() {
+                ics.push_str(&format!("LOCATION:{}\r\n", location.replace(',', "\\,")));
+            }
+            if let Some(n) = notes {
+                ics.push_str(&format!("DESCRIPTION:{}\r\n", n.replace('\n', "\\n").replace(',', "\\,")));
+            }
+            ics.push_str("END:VEVENT\r\n");
+        }
+    }
+
+    ics.push_str("END:VCALENDAR\r\n");
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"))
+        .header(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment; filename=\"wlpc-sessions.ics\""))
+        .body(Body::from(ics))
+        .unwrap())
 }
 
 // ── Families ──

@@ -18,6 +18,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (inviteCode: string, email: string, password: string, displayName: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isTeacher: boolean;
   isAdmin: boolean;
 }
@@ -66,11 +67,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    try {
+      const u = await api.get<User>('/api/auth/me');
+      setUser(u);
+    } catch {
+      // silently ignore - user may have been logged out
+    }
+  };
+
   const isTeacher = user?.role === 'teacher' || user?.role === 'parent' || user?.role === 'admin';
   const isAdmin = user?.role === 'admin';
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, isTeacher, isAdmin }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, isTeacher, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
