@@ -5,7 +5,11 @@ import type { ExcalidrawImperativeAPI } from '@excalidraw/excalidraw/types/types
 
 // Lazy load Excalidraw to avoid blocking initial render and handle import errors
 const ExcalidrawLazy = lazy(() =>
-  import('@excalidraw/excalidraw').then(mod => ({ default: mod.Excalidraw }))
+  import('@excalidraw/excalidraw').then(async mod => {
+    // Load CSS alongside the component
+    await import('@excalidraw/excalidraw/index.css');
+    return { default: mod.Excalidraw };
+  })
 );
 
 class ExcalidrawErrorBoundary extends Component<{ children: ReactNode }, { error: boolean }> {

@@ -201,14 +201,16 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
   if (!editor) return null;
 
   return (
-    <div className="border border-gray-300 rounded overflow-hidden bg-gray-50">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 bg-white text-xs text-gray-500">
-        <div>Editing</div>
-        <div>{savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : 'Not saved yet'}</div>
+    <div className="border border-gray-300 rounded bg-gray-50">
+      <div className="sticky top-0 z-10 bg-white border-b border-gray-200">
+        <div className="flex items-center justify-between px-3 py-1.5 text-xs text-gray-400 border-b border-gray-100">
+          <div>Editing</div>
+          <div>{savedAt ? `Saved ${savedAt.toLocaleTimeString()}` : ''}</div>
+        </div>
+        <Toolbar editor={editor} />
+        <ImageInlineToolbar editor={editor} />
       </div>
-      <ImageInlineToolbar editor={editor} />
-      <Toolbar editor={editor} />
-      <div className="p-4 bg-gray-50">
+      <div className="bg-white">
         <EditorContent
           editor={editor}
           className="doc-page prose prose-sm max-w-none p-6 min-h-[300px] focus:outline-none [&_.ProseMirror]:outline-none [&_.ProseMirror]:min-h-[300px] [&_.tiptap.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.tiptap.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.tiptap.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.tiptap.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.tiptap.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none"
@@ -295,7 +297,7 @@ function Toolbar({ editor }: { editor: ReturnType<typeof useEditor> }) {
       {/* Lists */}
       <button type="button" onClick={() => editor.chain().focus().toggleBulletList().run()} className={btn(editor.isActive('bulletList'))} title="Bullet list">&#8226; List</button>
       <button type="button" onClick={() => editor.chain().focus().toggleOrderedList().run()} className={btn(editor.isActive('orderedList'))} title="Numbered list">1. List</button>
-      <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={btn(editor.isActive('taskList'))} title="Checklist">&#9745;</button>
+      <button type="button" onClick={() => editor.chain().focus().toggleTaskList().run()} className={btn(editor.isActive('taskList'))} title="Checklist">Todo</button>
       {sep}
 
       {/* Alignment */}
