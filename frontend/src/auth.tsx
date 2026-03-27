@@ -100,17 +100,14 @@ export function useAuth() {
 export function SessionGuard() {
   const { user } = useAuth();
   const location = useLocation();
-  const isFirstRender = useRef(true);
+  const lastCheck = useRef<number>(Date.now());
 
   useEffect(() => {
-    // Skip the very first render (AuthProvider already checks on mount)
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-    // Only re-check if the user is currently logged in
     if (!user) return;
-    // Quick silent check — errors are handled by the 401 interceptor
+    // Only re-validate if more than 5 minutes since last check
+    const now = Date.now();
+    if (now - lastCheck.current < 5 * 60 * 1000) return;
+    lastCheck.current = now;
     api.get('/api/auth/me').catch(() => {});
   }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
