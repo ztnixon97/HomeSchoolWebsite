@@ -289,6 +289,12 @@ fn run_migrations(pool: &DbPool) {
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(session_id, student_id)
         );
+
+        CREATE TABLE IF NOT EXISTS sessions_store (
+            id TEXT PRIMARY KEY,
+            data BLOB NOT NULL,
+            expiry_date TEXT NOT NULL
+        );
         ",
     )
     .expect("Failed to run migrations");

@@ -14,7 +14,7 @@ r2d2_sqlite = "0.25"
 argon2 = "0.5"
 tower-http = { version = "0.6", features = ["cors", "fs"] }
 tower-sessions = "0.14"
-tower-sessions-memory-store = "0.14"
+# tower-sessions-memory-store removed — using SQLite-backed sessions
 uuid = { version = "1", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tower = "0.5"
@@ -24,3 +24,6 @@ tokio-util = { version = "0.7", features = ["io"] }
 lettre = { version = "0.11", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
 aws-sdk-s3 = "1"
 aws-config = { version = "1", features = ["behavior-version-latest"] }
+time = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }

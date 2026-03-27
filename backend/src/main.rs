@@ -1,7 +1,8 @@
 use axum::{
     extract::{Request, State},
+    http::StatusCode,
     middleware::{self, Next},
-    response::Response,
+    response::{IntoResponse, Response},
     routing::{delete, get, post, put},
     Router,
 };
@@ -9,9 +10,9 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_sessions::{cookie::SameSite, Expiry, SessionManagerLayer};
-use tower_sessions_memory_store::MemoryStore;
 
 mod auth;
+mod backup;
 mod db;
 mod email;
 mod errors;
@@ -19,6 +20,8 @@ mod models;
 mod reminders;
 mod routes;
 mod sanitize;
+mod rate_limit;
+mod session_store;
 mod storage;
 
 use db::DbPool;
@@ -35,6 +38,14 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() {
+    // Initialize structured logging
+    let is_prod = std::env::var("PRODUCTION").is_ok();
+    if is_prod {
+        tracing_subscriber::fmt().json().with_env_filter("info").init();
+    } else {
+        tracing_subscriber::fmt().pretty().with_env_filter("info,preschool_backend=debug").init();
+    }
+
     // Config from environment with sensible defaults
     let port: u16 = std::env::var("PORT")
         .ok()
@@ -47,6 +58,9 @@ async fn main() {
 
     // Initialize database
     let pool = db::init_pool(&db_path);
+
+    // Start automated backup task (only if R2 configured)
+    backup::start_backup_task(pool.clone());
 
     // Initialize storage — use R2 if configured, otherwise local disk
     let storage: Arc<dyn StorageBackend> = if std::env::var("R2_ACCOUNT_ID").is_ok() {
@@ -67,8 +81,8 @@ async fn main() {
         email_config,
     };
 
-    // Session store (in-memory — sessions lost on restart)
-    let session_store = MemoryStore::default();
+    // Session store (SQLite-backed — sessions persist across restarts)
+    let session_store = session_store::SqliteSessionStore::new(pool.clone());
 
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(is_production) // HTTPS in production
@@ -77,12 +91,22 @@ async fn main() {
             tower_sessions::cookie::time::Duration::days(7),
         ));
 
-    // CORS — permissive in dev, restrictive in production
+    // CORS — restrictive in production, permissive in dev
     let cors = if is_production {
-        // In production, frontend is served from same origin — no CORS needed.
-        // But we still set up a permissive same-origin policy just in case.
+        let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://westernloudouncoop.org".into());
+        let mut origins: Vec<axum::http::HeaderValue> = vec![
+            site_url.parse().unwrap(),
+        ];
+        // Also allow fly.dev domain
+        if let Ok(fly_url) = "https://westernloudouncoop.fly.dev".parse() {
+            origins.push(fly_url);
+        }
+        // Add www variant
+        if let Ok(www_url) = format!("https://www.westernloudouncoop.org").parse() {
+            origins.push(www_url);
+        }
         CorsLayer::new()
-            .allow_origin(tower_http::cors::Any)
+            .allow_origin(origins)
             .allow_methods([
                 axum::http::Method::GET,
                 axum::http::Method::POST,
@@ -94,7 +118,7 @@ async fn main() {
                 axum::http::header::AUTHORIZATION,
                 axum::http::header::COOKIE,
             ])
-            .allow_credentials(false)
+            .allow_credentials(true)
     } else {
         CorsLayer::new()
             .allow_origin([
@@ -139,6 +163,7 @@ async fn main() {
         )
         .route("/api/pages/{slug}", get(routes::public::get_site_page))
         .route("/api/announcements", get(routes::public::list_active_announcements))
+        .route("/health", get(health_check))
         // Public calendar feed (token-based auth, no session needed)
         .route("/api/calendar/{token}", get(routes::member::calendar_ics_by_token))
         // Auth routes
@@ -404,14 +429,15 @@ async fn main() {
             request_logger,
         ))
         .layer(session_layer)
-        .layer(cors)
+        .layer(cors);
+
+    // Rate limiter: 10 requests per 60 seconds on auth endpoints
+    let rate_limiter = rate_limit::RateLimiter::new(10, 60);
+    let app = app
+        .layer(middleware::from_fn_with_state(rate_limiter, rate_limit::rate_limit_auth))
         .with_state(state);
 
-    println!(
-        "Server starting on port {} ({})",
-        port,
-        if is_production { "production" } else { "development" }
-    );
+    tracing::info!(port = port, mode = if is_production { "production" } else { "development" }, "server starting");
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port))
         .await
         .expect("Failed to bind");
@@ -430,7 +456,7 @@ async fn request_logger(
 
     // Only log API requests, not static file requests
     if path.starts_with("/api/") {
-        eprintln!("[req] {} {}", method, path);
+        tracing::info!(method = %method, path = %path, "request");
 
         // Check if we need to send reminders (on first request of the day)
         reminders::check_reminders_if_needed(state.db.clone(), state.email_config.clone());
@@ -441,8 +467,22 @@ async fn request_logger(
     let elapsed = start.elapsed();
 
     if path.starts_with("/api/") {
-        eprintln!("[req] {} {} -> {} ({:.1?})", method, path, response.status(), elapsed);
+        tracing::info!(method = %method, path = %path, status = %response.status(), duration_ms = elapsed.as_millis() as u64, "response");
     }
 
     response
 }
+
+async fn health_check(State(state): State<AppState>) -> axum::response::Response {
+    let ok = match state.db.get() {
+        Ok(conn) => conn.query_row("SELECT 1", [], |_| Ok(())).is_ok(),
+        Err(_) => false,
+    };
+
+    if ok {
+        (StatusCode::OK, axum::Json(serde_json::json!({"status": "ok"}))).into_response()
+    } else {
+        (StatusCode::SERVICE_UNAVAILABLE, axum::Json(serde_json::json!({"status": "error", "message": "database unavailable"}))).into_response()
+    }
+}
+
