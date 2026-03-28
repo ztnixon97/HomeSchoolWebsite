@@ -168,6 +168,7 @@ async fn main() {
         )
         .route("/api/pages/{slug}", get(routes::public::get_site_page))
         .route("/api/announcements", get(routes::public::list_active_announcements))
+        .route("/api/features", get(routes::public::get_feature_flags))
         .route("/health", get(health_check))
         // Public calendar feed (token-based auth, no session needed)
         .route("/api/calendar/{token}", get(routes::calendar::calendar_ics_by_token))
@@ -414,6 +415,7 @@ async fn main() {
         .route("/api/admin/announcements/{id}", put(routes::admin::update_announcement))
         .route("/api/admin/announcements/{id}", delete(routes::admin::delete_announcement))
         .route("/api/admin/recent-activity", get(routes::admin::recent_activity))
+        .route("/api/admin/features", put(routes::admin::update_feature_flags))
         .route("/api/admin/files", get(routes::admin::list_all_files))
         .route("/api/admin/files/{id}", delete(routes::admin::admin_delete_file));
 

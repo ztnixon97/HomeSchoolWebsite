@@ -382,3 +382,19 @@ pub async fn list_active_announcements(
 
     Ok(Json(announcements))
 }
+
+pub async fn get_feature_flags(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare("SELECT key, value FROM app_settings WHERE key LIKE 'feature_%'")?;
+    let flags: std::collections::HashMap<String, bool> = stmt
+        .query_map([], |row| {
+            let key: String = row.get(0)?;
+            let val: String = row.get(1)?;
+            Ok((key.strip_prefix("feature_").unwrap_or(&key).to_string(), val == "1"))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(serde_json::json!(flags)))
+}

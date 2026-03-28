@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
+import { useFeatures } from '../features';
 
 export default function Layout() {
   const { user, logout, isAdmin } = useAuth();
@@ -136,14 +137,15 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
   onClick?: () => void;
   mobile?: boolean;
 }) {
+  const features = useFeatures();
   const base = mobile
     ? "block px-3 py-1.5 rounded-lg text-ink/70 hover:text-ink hover:bg-ink/5 no-underline transition-colors"
     : "px-3 py-1.5 rounded-lg text-ink/70 hover:text-ink hover:bg-ink/5 no-underline transition-colors";
   return (
     <>
       <Link to="/schedule" className={base} onClick={onClick}>Schedule</Link>
-      <Link to="/blog" className={base} onClick={onClick}>Blog</Link>
-      <Link to="/resources" className={base} onClick={onClick}>Resources</Link>
+      {features.blog && <Link to="/blog" className={base} onClick={onClick}>Blog</Link>}
+      {features.resources && <Link to="/resources" className={base} onClick={onClick}>Resources</Link>}
       <Link to="/about" className={base} onClick={onClick}>About</Link>
       <Link to="/contact" className={base} onClick={onClick}>Contact</Link>
       {user && (
@@ -153,8 +155,8 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
           <Link to="/dashboard" className={base} onClick={onClick}>Dashboard</Link>
           <Link to="/my-children" className={base} onClick={onClick}>My Children</Link>
           <Link to="/my-rsvps" className={base} onClick={onClick}>My RSVPs</Link>
-          <Link to="/members" className={base} onClick={onClick}>Members</Link>
-          <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>
+          {features.member_directory && <Link to="/members" className={base} onClick={onClick}>Members</Link>}
+          {features.lesson_plans && <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>}
         </>
       )}
       {isAdmin && (

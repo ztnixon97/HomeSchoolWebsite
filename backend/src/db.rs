@@ -353,7 +353,13 @@ fn run_migrations(pool: &DbPool) {
         "INSERT OR IGNORE INTO app_settings (key, value) VALUES
          ('default_start_time', '09:00'),
          ('default_capacity', '10'),
-         ('default_rsvp_cutoff_days', '1')",
+         ('default_rsvp_cutoff_days', '1'),
+         ('feature_blog', '1'),
+         ('feature_resources', '1'),
+         ('feature_lesson_plans', '1'),
+         ('feature_member_directory', '1'),
+         ('feature_student_progress', '1'),
+         ('feature_families', '1')",
         [],
     );
 

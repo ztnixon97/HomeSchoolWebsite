@@ -1324,6 +1324,26 @@ pub async fn recent_activity(
     Ok(Json(activity))
 }
 
+// ── Feature Flags ──
+
+pub async fn update_feature_flags(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(flags): Json<std::collections::HashMap<String, bool>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let valid_features = ["blog", "resources", "lesson_plans", "member_directory", "student_progress", "families"];
+    for (key, enabled) in &flags {
+        if valid_features.contains(&key.as_str()) {
+            conn.execute(
+                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?1, ?2)",
+                params![format!("feature_{}", key), if *enabled { "1" } else { "0" }],
+            )?;
+        }
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── File Management ──
 
 pub async fn list_all_files(
