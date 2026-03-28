@@ -424,6 +424,8 @@ async fn main() {
         .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
         .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))
         .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member))
+        .route("/api/admin/class-group-teachers", get(routes::admin::list_class_group_teachers).post(routes::admin::add_group_teacher))
+        .route("/api/admin/class-group-teachers/{group_id}/{user_id}", delete(routes::admin::remove_group_teacher))
         .route("/api/admin/class-group-announcements", post(routes::admin::create_class_group_announcement))
         .route("/api/admin/class-group-announcements/{id}", put(routes::admin::update_class_group_announcement).delete(routes::admin::delete_class_group_announcement))
         // Member-facing class group routes
@@ -434,6 +436,9 @@ async fn main() {
         .route("/api/class-groups/{id}/attendance", get(routes::class_groups::get_group_attendance))
         .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements))
         .route("/api/class-groups/{id}/grades", get(routes::class_groups::get_group_grades))
+        .route("/api/class-groups/{id}/home", put(routes::class_groups::update_class_home))
+        .route("/api/class-groups/{id}/sessions", post(routes::class_groups::create_class_session))
+        .route("/api/class-groups/{id}/sessions/{session_id}", put(routes::class_groups::update_class_session).delete(routes::class_groups::delete_class_session))
         // Class grade CRUD (teacher+)
         .route("/api/admin/class-grades", post(routes::admin::create_class_grade))
         .route("/api/admin/class-grades/{id}", put(routes::admin::update_class_grade).delete(routes::admin::delete_class_grade));

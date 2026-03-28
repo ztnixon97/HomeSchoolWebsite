@@ -870,6 +870,17 @@ pub struct AddGroupMemberRequest {
     pub student_id: i64,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AddGroupTeacherRequest {
+    pub group_id: i64,
+    pub user_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassHomeContentRequest {
+    pub home_content: Option<String>,
+}
+
 // ── Class Group Announcements ──
 
 #[derive(Debug, Serialize, Deserialize)]

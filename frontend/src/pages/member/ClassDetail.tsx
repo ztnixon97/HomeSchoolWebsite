@@ -9,6 +9,8 @@ interface ClassGroup {
   name: string;
   description: string | null;
   grading_enabled?: boolean;
+  home_content?: string | null;
+  is_class_teacher?: boolean;
 }
 
 interface GroupSession {
@@ -73,16 +75,16 @@ interface ClassGrade {
   created_at: string;
 }
 
-type Tab = 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
+type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
   const { isAdmin, isTeacher } = useAuth();
   const { addToast } = useToast();
-  const canManage = isAdmin || isTeacher;
+  // canManage is computed dynamically to include assigned class teachers
 
   const [group, setGroup] = useState<ClassGroup | null>(null);
-  const [tab, setTab] = useState<Tab>('sessions');
+  const [tab, setTab] = useState<Tab>('home');
   const [loading, setLoading] = useState(true);
 
   // Sessions
@@ -103,6 +105,20 @@ export default function ClassDetail() {
   const [gradeValue, setGradeValue] = useState('');
   const [gradeMax, setGradeMax] = useState('');
   const [gradeNotes, setGradeNotes] = useState('');
+  // Home content editing
+  const [editingHome, setEditingHome] = useState(false);
+  const [homeContent, setHomeContent] = useState('');
+  // Session creation (for class teachers)
+  const [showSessionForm, setShowSessionForm] = useState(false);
+  const [sessionTitle, setSessionTitle] = useState('');
+  const [sessionDate, setSessionDate] = useState('');
+  const [sessionStartTime, setSessionStartTime] = useState('');
+  const [sessionEndTime, setSessionEndTime] = useState('');
+  const [sessionMax, setSessionMax] = useState('');
+
+  const isClassTeacher = group?.is_class_teacher || false;
+  const canManageClass = isAdmin || isClassTeacher;
+  const canManage = isAdmin || isTeacher || isClassTeacher;
 
   useEffect(() => {
     if (!id) return;
@@ -197,6 +213,51 @@ export default function ClassDetail() {
     }
   };
 
+  const saveHomeContent = async () => {
+    try {
+      await api.put(`/api/class-groups/${id}/home`, { home_content: homeContent || null });
+      setGroup(prev => prev ? { ...prev, home_content: homeContent || null } : prev);
+      setEditingHome(false);
+      addToast('Home page updated', 'success');
+    } catch {
+      addToast('Failed to update home page', 'error');
+    }
+  };
+
+  const createClassSession = async () => {
+    if (!sessionTitle.trim() || !sessionDate) return;
+    try {
+      await api.post(`/api/class-groups/${id}/sessions`, {
+        title: sessionTitle,
+        session_date: sessionDate,
+        start_time: sessionStartTime || null,
+        end_time: sessionEndTime || null,
+        max_students: sessionMax ? parseInt(sessionMax) : null,
+      });
+      setSessionTitle('');
+      setSessionDate('');
+      setSessionStartTime('');
+      setSessionEndTime('');
+      setSessionMax('');
+      setShowSessionForm(false);
+      addToast('Session created', 'success');
+      api.get<GroupSession[]>(`/api/class-groups/${id}/sessions`).then(setSessions).catch(() => {});
+    } catch {
+      addToast('Failed to create session', 'error');
+    }
+  };
+
+  const deleteClassSession = async (sessionId: number) => {
+    if (!confirm('Delete this session?')) return;
+    try {
+      await api.del(`/api/class-groups/${id}/sessions/${sessionId}`);
+      setSessions(prev => prev.filter(s => s.id !== sessionId));
+      addToast('Session deleted', 'success');
+    } catch {
+      addToast('Failed to delete session', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -215,6 +276,7 @@ export default function ClassDetail() {
   }
 
   const tabs: { key: Tab; label: string }[] = [
+    { key: 'home', label: 'Home' },
     { key: 'sessions', label: 'Sessions' },
     { key: 'roster', label: 'Roster' },
     { key: 'attendance', label: 'Attendance' },
@@ -248,9 +310,72 @@ export default function ClassDetail() {
         ))}
       </div>
 
+      {/* Home Tab */}
+      {tab === 'home' && (
+        <div className="space-y-4">
+          {canManageClass && !editingHome && (
+            <button
+              onClick={() => { setHomeContent(group?.home_content || ''); setEditingHome(true); }}
+              className="text-sm text-emerald-700 hover:text-emerald-800 font-medium"
+            >
+              Edit Home Page
+            </button>
+          )}
+          {editingHome ? (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+              <textarea
+                value={homeContent}
+                onChange={e => setHomeContent(e.target.value)}
+                rows={10}
+                className={inputClass}
+                placeholder="Write your class home page content here... You can describe the class, schedule, expectations, etc."
+              />
+              <div className="flex gap-2">
+                <button onClick={saveHomeContent} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 transition-colors">Save</button>
+                <button onClick={() => setEditingHome(false)} className="px-4 py-2 text-gray-500 text-sm">Cancel</button>
+              </div>
+            </div>
+          ) : group?.home_content ? (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 prose prose-sm max-w-none">
+              <div className="whitespace-pre-wrap text-ink">{group.home_content}</div>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
+              <p className="text-gray-400 text-sm">
+                {canManageClass ? 'No home page content yet. Click "Edit Home Page" to add information about this class.' : 'Welcome to this class! Check the tabs above for sessions, roster, and more.'}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Sessions Tab */}
       {tab === 'sessions' && (
         <div className="space-y-3">
+          {canManageClass && (
+            <div className="mb-2">
+              {showSessionForm ? (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+                  <h3 className="text-sm font-medium text-ink">Create Session</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" placeholder="Title" value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} className={inputClass} />
+                    <input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} className={inputClass} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input type="time" value={sessionStartTime} onChange={e => setSessionStartTime(e.target.value)} className={inputClass} placeholder="Start time" />
+                    <input type="time" value={sessionEndTime} onChange={e => setSessionEndTime(e.target.value)} className={inputClass} placeholder="End time" />
+                    <input type="number" value={sessionMax} onChange={e => setSessionMax(e.target.value)} className={inputClass} placeholder="Max students" />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={createClassSession} disabled={!sessionTitle.trim() || !sessionDate} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition-colors">Create</button>
+                    <button onClick={() => setShowSessionForm(false)} className="px-4 py-2 text-gray-500 text-sm">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => setShowSessionForm(true)} className="text-sm text-emerald-700 hover:text-emerald-800 font-medium">+ Add Session</button>
+              )}
+            </div>
+          )}
           {sessions.length === 0 ? (
             <p className="text-gray-500 text-sm">No sessions assigned to this class yet.</p>
           ) : (
@@ -280,6 +405,14 @@ export default function ClassDetail() {
                       {s.rsvp_count}{s.max_students ? `/${s.max_students}` : ''} RSVP{s.rsvp_count !== 1 ? 's' : ''}
                     </p>
                   </div>
+                {canManageClass && (
+                  <button
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteClassSession(s.id); }}
+                    className="text-xs text-red-500 hover:text-red-700 mt-2"
+                  >
+                    Delete
+                  </button>
+                )}
                 </div>
               </Link>
             ))

@@ -1512,6 +1512,59 @@ pub async fn remove_group_member(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+// ── Class Group Teachers ──
+
+pub async fn list_class_group_teachers(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT cgt.group_id, cgt.user_id, u.display_name, u.email
+         FROM class_group_teachers cgt
+         JOIN users u ON cgt.user_id = u.id
+         ORDER BY cgt.group_id",
+    )?;
+    let teachers: Vec<serde_json::Value> = stmt
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "group_id": row.get::<_, i64>(0)?,
+                "user_id": row.get::<_, i64>(1)?,
+                "display_name": row.get::<_, String>(2)?,
+                "email": row.get::<_, String>(3)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(teachers))
+}
+
+pub async fn add_group_teacher(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(req): Json<AddGroupTeacherRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute(
+        "INSERT OR IGNORE INTO class_group_teachers (group_id, user_id) VALUES (?1, ?2)",
+        params![req.group_id, req.user_id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn remove_group_teacher(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path((group_id, user_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute(
+        "DELETE FROM class_group_teachers WHERE group_id = ?1 AND user_id = ?2",
+        params![group_id, user_id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Class Group Announcements ──
 
 pub async fn create_class_group_announcement(

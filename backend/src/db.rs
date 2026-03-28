@@ -299,6 +299,12 @@ fn run_migrations(pool: &DbPool) {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS class_group_teachers (
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            PRIMARY KEY (group_id, user_id)
+        );
+
         CREATE TABLE IF NOT EXISTS class_group_members (
             group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
             student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
@@ -372,6 +378,7 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_name TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_phone TEXT", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN grading_enabled INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN home_content TEXT", []);
 
     // Seed default session types if missing
     let _ = conn.execute(

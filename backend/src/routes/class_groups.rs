@@ -34,6 +34,19 @@ fn check_group_access(state: &AppState, user: &User, group_id: i64) -> Result<()
     }
 }
 
+/// Check if user is an assigned teacher for this class group
+fn is_class_teacher(state: &AppState, user_id: i64, group_id: i64) -> bool {
+    let conn = match state.db.get() {
+        Ok(c) => c,
+        Err(_) => return false,
+    };
+    conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_group_teachers WHERE group_id = ?1 AND user_id = ?2",
+        params![group_id, user_id],
+        |row| row.get(0),
+    ).unwrap_or(false)
+}
+
 /// GET /api/class-groups — list groups visible to the user
 pub async fn list_user_class_groups(
     RequireAuth(user): RequireAuth,
@@ -106,8 +119,10 @@ pub async fn get_class_group(
     check_group_access(&state, &user, id)?;
     let conn = state.db.get()?;
 
+    let is_assigned_teacher = is_class_teacher(&state, user.id, id);
+
     let group = conn.query_row(
-        "SELECT cg.id, cg.name, cg.description, cg.grading_enabled
+        "SELECT cg.id, cg.name, cg.description, cg.grading_enabled, cg.home_content
          FROM class_groups cg WHERE cg.id = ?1 AND cg.active = 1",
         [id],
         |row| {
@@ -116,11 +131,37 @@ pub async fn get_class_group(
                 "name": row.get::<_, String>(1)?,
                 "description": row.get::<_, Option<String>>(2)?,
                 "grading_enabled": row.get::<_, bool>(3)?,
+                "home_content": row.get::<_, Option<String>>(4)?,
+                "is_class_teacher": is_assigned_teacher,
             }))
         },
     )?;
 
     Ok(Json(group))
+}
+
+/// PUT /api/class-groups/{id}/home — update the class home page content
+/// Allowed for admin or assigned teachers
+pub async fn update_class_home(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateClassHomeContentRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+
+    let allowed = user.role == "admin" || is_class_teacher(&state, user.id, id);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
+
+    let conn = state.db.get()?;
+    conn.execute(
+        "UPDATE class_groups SET home_content = ?1 WHERE id = ?2",
+        params![req.home_content, id],
+    )?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
 
 /// GET /api/class-groups/{id}/sessions — sessions for this group
@@ -394,4 +435,126 @@ pub async fn get_group_grades(
     };
 
     Ok(Json(serde_json::json!({ "grading_enabled": true, "grades": grades })))
+}
+
+/// POST /api/class-groups/{id}/sessions — assigned teacher creates a session for this class
+pub async fn create_class_session(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<CreateSessionRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let allowed = user.role == "admin" || is_class_teacher(&state, user.id, group_id);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
+
+    let conn = state.db.get()?;
+    crate::sanitize::validate_date(&req.session_date, "session_date")?;
+
+    let session_type_id = if let Some(id) = req.session_type_id {
+        Some(id)
+    } else {
+        conn.query_row("SELECT id FROM session_types WHERE name = 'class'", [], |row| row.get(0)).ok()
+    };
+
+    conn.execute(
+        "INSERT INTO class_sessions (
+            title, theme, session_date, start_time, end_time,
+            max_students, notes, status, session_type_id, created_by
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9)",
+        params![
+            req.title, req.theme, req.session_date,
+            req.start_time, req.end_time, req.max_students,
+            req.notes, session_type_id, user.id
+        ],
+    )?;
+    let session_id = conn.last_insert_rowid();
+
+    // Auto-link to this class group
+    let _ = conn.execute(
+        "INSERT OR IGNORE INTO class_session_groups (session_id, group_id) VALUES (?1, ?2)",
+        params![session_id, group_id],
+    );
+
+    Ok(Json(serde_json::json!({ "ok": true, "id": session_id })))
+}
+
+/// PUT /api/class-groups/{group_id}/sessions/{session_id} — assigned teacher updates a session
+pub async fn update_class_session(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path((group_id, session_id)): Path<(i64, i64)>,
+    Json(req): Json<UpdateSessionRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let allowed = user.role == "admin" || is_class_teacher(&state, user.id, group_id);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
+
+    // Verify session belongs to this group
+    let conn = state.db.get()?;
+    let linked: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1 AND group_id = ?2",
+        params![session_id, group_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if !linked {
+        return Err(AppError::BadRequest("Session is not in this class".to_string()));
+    }
+
+    if let Some(title) = req.title {
+        conn.execute("UPDATE class_sessions SET title = ?1 WHERE id = ?2", params![title, session_id])?;
+    }
+    if let Some(theme) = req.theme {
+        conn.execute("UPDATE class_sessions SET theme = ?1 WHERE id = ?2", params![theme, session_id])?;
+    }
+    if let Some(session_date) = req.session_date {
+        conn.execute("UPDATE class_sessions SET session_date = ?1 WHERE id = ?2", params![session_date, session_id])?;
+    }
+    if let Some(start_time) = req.start_time {
+        conn.execute("UPDATE class_sessions SET start_time = ?1 WHERE id = ?2", params![start_time, session_id])?;
+    }
+    if let Some(end_time) = req.end_time {
+        conn.execute("UPDATE class_sessions SET end_time = ?1 WHERE id = ?2", params![end_time, session_id])?;
+    }
+    if let Some(max_students) = req.max_students {
+        conn.execute("UPDATE class_sessions SET max_students = ?1 WHERE id = ?2", params![max_students, session_id])?;
+    }
+    if let Some(notes) = req.notes {
+        conn.execute("UPDATE class_sessions SET notes = ?1 WHERE id = ?2", params![notes, session_id])?;
+    }
+    if let Some(status) = req.status {
+        conn.execute("UPDATE class_sessions SET status = ?1 WHERE id = ?2", params![status, session_id])?;
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// DELETE /api/class-groups/{group_id}/sessions/{session_id} — assigned teacher deletes a session
+pub async fn delete_class_session(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path((group_id, session_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let allowed = user.role == "admin" || is_class_teacher(&state, user.id, group_id);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
+
+    let conn = state.db.get()?;
+    let linked: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1 AND group_id = ?2",
+        params![session_id, group_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if !linked {
+        return Err(AppError::BadRequest("Session is not in this class".to_string()));
+    }
+
+    conn.execute("DELETE FROM class_sessions WHERE id = ?1", [session_id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
 }
