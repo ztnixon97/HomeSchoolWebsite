@@ -1742,15 +1742,22 @@ pub async fn save_assignment_grades(
         ).unwrap_or(false);
         if !in_group { continue; }
 
+        let status = match g.status.as_deref() {
+            Some("excused") => "excused",
+            Some("missing") => "missing",
+            _ => "graded",
+        };
+        let score = if status == "missing" { Some(0.0) } else { g.score };
         conn.execute(
-            "INSERT INTO class_grades (assignment_id, student_id, score, notes, graded_by, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+            "INSERT INTO class_grades (assignment_id, student_id, score, notes, graded_by, status, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))
              ON CONFLICT(assignment_id, student_id) DO UPDATE SET
                score = excluded.score,
                notes = excluded.notes,
                graded_by = excluded.graded_by,
+               status = excluded.status,
                updated_at = datetime('now')",
-            params![assignment_id, g.student_id, g.score, g.notes, user.id],
+            params![assignment_id, g.student_id, score, g.notes, user.id, status],
         )?;
     }
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -1781,8 +1788,8 @@ pub async fn save_category_weights(
     for w in &req.weights {
         if w.category.trim().is_empty() { continue; }
         conn.execute(
-            "INSERT INTO grade_category_weights (group_id, category, weight) VALUES (?1, ?2, ?3)",
-            params![group_id, w.category.trim(), w.weight],
+            "INSERT INTO grade_category_weights (group_id, category, weight, drop_lowest) VALUES (?1, ?2, ?3, ?4)",
+            params![group_id, w.category.trim(), w.weight, w.drop_lowest.unwrap_or(0)],
         )?;
     }
     Ok(Json(serde_json::json!({ "ok": true })))

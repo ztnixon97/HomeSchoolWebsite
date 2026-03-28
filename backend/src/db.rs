@@ -398,6 +398,8 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_phone TEXT", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN grading_enabled INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN home_content TEXT", []);
+    let _ = conn.execute("ALTER TABLE class_grades ADD COLUMN status TEXT NOT NULL DEFAULT 'graded'", []);
+    let _ = conn.execute("ALTER TABLE grade_category_weights ADD COLUMN drop_lowest INTEGER NOT NULL DEFAULT 0", []);
 
     // Seed default session types if missing
     let _ = conn.execute(

@@ -402,7 +402,7 @@ pub async fn get_group_grades(
     let grades: Vec<serde_json::Value> = if user.role == "admin" || user.role == "teacher" || is_class_teacher(&state, user.id, id) {
         let mut stmt2 = conn.prepare(
             "SELECT g.id, g.assignment_id, g.student_id, s.first_name || ' ' || s.last_name,
-                    g.score, g.notes, g.graded_by, u.display_name, g.updated_at
+                    g.score, g.notes, g.graded_by, u.display_name, g.updated_at, g.status
              FROM class_grades g
              JOIN students s ON g.student_id = s.id
              LEFT JOIN users u ON g.graded_by = u.id
@@ -421,6 +421,7 @@ pub async fn get_group_grades(
                 "graded_by": row.get::<_, i64>(6)?,
                 "graded_by_name": row.get::<_, Option<String>>(7)?,
                 "updated_at": row.get::<_, String>(8)?,
+                "status": row.get::<_, String>(9)?,
             }))
         })?
         .filter_map(|r| r.ok())
@@ -430,7 +431,7 @@ pub async fn get_group_grades(
         // Parents see only their children's grades
         let mut stmt2 = conn.prepare(
             "SELECT g.id, g.assignment_id, g.student_id, s.first_name || ' ' || s.last_name,
-                    g.score, g.notes, g.graded_by, u.display_name, g.updated_at
+                    g.score, g.notes, g.graded_by, u.display_name, g.updated_at, g.status
              FROM class_grades g
              JOIN students s ON g.student_id = s.id
              LEFT JOIN users u ON g.graded_by = u.id
@@ -450,6 +451,7 @@ pub async fn get_group_grades(
                 "graded_by": row.get::<_, i64>(6)?,
                 "graded_by_name": row.get::<_, Option<String>>(7)?,
                 "updated_at": row.get::<_, String>(8)?,
+                "status": row.get::<_, String>(9)?,
             }))
         })?
         .filter_map(|r| r.ok())
@@ -459,7 +461,7 @@ pub async fn get_group_grades(
 
     // Fetch category weights
     let mut wstmt = conn.prepare(
-        "SELECT id, group_id, category, weight FROM grade_category_weights WHERE group_id = ?1 ORDER BY category",
+        "SELECT id, group_id, category, weight, drop_lowest FROM grade_category_weights WHERE group_id = ?1 ORDER BY category",
     )?;
     let category_weights: Vec<serde_json::Value> = wstmt.query_map(params![id], |row| {
         Ok(serde_json::json!({
@@ -467,6 +469,7 @@ pub async fn get_group_grades(
             "group_id": row.get::<_, i64>(1)?,
             "category": row.get::<_, String>(2)?,
             "weight": row.get::<_, f64>(3)?,
+            "drop_lowest": row.get::<_, i64>(4)?,
         }))
     })?
     .filter_map(|r| r.ok())
