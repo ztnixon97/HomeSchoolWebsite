@@ -349,6 +349,14 @@ fn run_migrations(pool: &DbPool) {
             UNIQUE(assignment_id, student_id)
         );
 
+        CREATE TABLE IF NOT EXISTS grade_category_weights (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            category TEXT NOT NULL,
+            weight REAL NOT NULL,
+            UNIQUE(group_id, category)
+        );
+
         CREATE TABLE IF NOT EXISTS sessions_store (
             id TEXT PRIMARY KEY,
             data BLOB NOT NULL,

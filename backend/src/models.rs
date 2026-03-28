@@ -966,3 +966,22 @@ pub struct SaveGradeRequest {
 pub struct BulkSaveGradesRequest {
     pub grades: Vec<SaveGradeRequest>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CategoryWeight {
+    pub id: i64,
+    pub group_id: i64,
+    pub category: String,
+    pub weight: f64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveCategoryWeightsRequest {
+    pub weights: Vec<CategoryWeightEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CategoryWeightEntry {
+    pub category: String,
+    pub weight: f64,
+}

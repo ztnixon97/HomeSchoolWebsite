@@ -86,6 +86,13 @@ interface StudentGrade {
   updated_at: string;
 }
 
+interface CategoryWeight {
+  id: number;
+  group_id: number;
+  category: string;
+  weight: number;
+}
+
 type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
 
 export default function ClassDetail() {
@@ -119,6 +126,9 @@ export default function ClassDetail() {
   const [newAssignmentDue, setNewAssignmentDue] = useState('');
   const [gradingAssignmentId, setGradingAssignmentId] = useState<number | null>(null);
   const [gradeInputs, setGradeInputs] = useState<Record<number, { score: string; notes: string }>>({});
+  const [categoryWeights, setCategoryWeights] = useState<CategoryWeight[]>([]);
+  const [editingWeights, setEditingWeights] = useState(false);
+  const [weightInputs, setWeightInputs] = useState<{ category: string; weight: string }[]>([]);
   // Home content editing
   const [editingHome, setEditingHome] = useState(false);
   const [homeContent, setHomeContent] = useState('');
@@ -157,9 +167,10 @@ export default function ClassDetail() {
     } else if (tab === 'announcements') {
       api.get<Announcement[]>(`/api/class-groups/${id}/announcements`).then(setAnnouncements).catch(() => {});
     } else if (tab === 'grades') {
-      api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[] }>(`/api/class-groups/${id}/grades`).then(data => {
+      api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[]; category_weights: CategoryWeight[] }>(`/api/class-groups/${id}/grades`).then(data => {
         setAssignments(data.assignments);
         setGrades(data.grades);
+        setCategoryWeights(data.category_weights || []);
       }).catch(() => {});
       // Also fetch roster for the gradebook (teacher needs student list)
       if (canManage && roster.length === 0) {
@@ -254,13 +265,80 @@ export default function ClassDetail() {
       }));
       await api.put(`/api/admin/class-assignments/${gradingAssignmentId}/grades`, { grades: gradesList });
       // Refresh grades
-      const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[] }>(`/api/class-groups/${id}/grades`);
+      const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[]; category_weights: CategoryWeight[] }>(`/api/class-groups/${id}/grades`);
       setGrades(data.grades);
+      setCategoryWeights(data.category_weights || []);
       setGradingAssignmentId(null);
       addToast('Grades saved', 'success');
     } catch {
       addToast('Failed to save grades', 'error');
     }
+  };
+
+  const openWeightEditor = () => {
+    // Get all unique categories from assignments
+    const cats = [...new Set(assignments.map(a => a.category).filter(Boolean))] as string[];
+    const existing = Object.fromEntries(categoryWeights.map(w => [w.category, w.weight]));
+    setWeightInputs(cats.map(c => ({ category: c, weight: String(existing[c] ?? '') })));
+    setEditingWeights(true);
+  };
+
+  const saveCategoryWeights = async () => {
+    try {
+      const weights = weightInputs
+        .filter(w => w.category.trim() && w.weight.trim())
+        .map(w => ({ category: w.category.trim(), weight: parseFloat(w.weight) }));
+      await api.put(`/api/admin/class-groups/${id}/category-weights`, { weights });
+      const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[]; category_weights: CategoryWeight[] }>(`/api/class-groups/${id}/grades`);
+      setCategoryWeights(data.category_weights || []);
+      setEditingWeights(false);
+      addToast('Category weights saved', 'success');
+    } catch {
+      addToast('Failed to save weights', 'error');
+    }
+  };
+
+  // Calculate weighted average for a student
+  const calcStudentAverage = (studentId: number): { weighted: number | null; unweighted: number | null } => {
+    const studentGrades = grades.filter(g => g.student_id === studentId && g.score != null);
+    if (studentGrades.length === 0) return { weighted: null, unweighted: null };
+
+    // Unweighted: simple average of (score/max_points) percentages
+    let totalPct = 0, count = 0;
+    for (const g of studentGrades) {
+      const a = assignments.find(a => a.id === g.assignment_id);
+      if (a && a.max_points > 0) {
+        totalPct += ((g.score || 0) / a.max_points) * 100;
+        count++;
+      }
+    }
+    const unweighted = count > 0 ? totalPct / count : null;
+
+    // Weighted: if category weights are configured
+    if (categoryWeights.length === 0) return { weighted: null, unweighted };
+
+    const weightMap = Object.fromEntries(categoryWeights.map(w => [w.category, w.weight]));
+    let weightedSum = 0, weightTotal = 0;
+
+    // Group assignments by category
+    const catAssignments: Record<string, { totalScore: number; totalMax: number }> = {};
+    for (const g of studentGrades) {
+      const a = assignments.find(a => a.id === g.assignment_id);
+      if (!a || !a.category || !weightMap[a.category]) continue;
+      if (!catAssignments[a.category]) catAssignments[a.category] = { totalScore: 0, totalMax: 0 };
+      catAssignments[a.category].totalScore += g.score || 0;
+      catAssignments[a.category].totalMax += a.max_points;
+    }
+
+    for (const [cat, data] of Object.entries(catAssignments)) {
+      if (data.totalMax > 0 && weightMap[cat]) {
+        weightedSum += (data.totalScore / data.totalMax) * weightMap[cat];
+        weightTotal += weightMap[cat];
+      }
+    }
+
+    const weighted = weightTotal > 0 ? (weightedSum / weightTotal) * 100 : null;
+    return { weighted, unweighted };
   };
 
   const saveHomeContent = async () => {
@@ -613,8 +691,93 @@ export default function ClassDetail() {
       {/* Grades Tab */}
       {tab === 'grades' && (
         <div className="space-y-4">
+          {/* Category Weights Configuration (teachers) */}
+          {canManage && !gradingAssignmentId && !editingWeights && (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 flex-wrap">
+                {categoryWeights.length > 0 ? (
+                  categoryWeights.map(w => (
+                    <span key={w.category} className="text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full border border-purple-100">
+                      {w.category}: {w.weight}%
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-gray-400">No category weights configured (unweighted averaging)</span>
+                )}
+              </div>
+              <button
+                onClick={openWeightEditor}
+                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+              >
+                Configure Weights
+              </button>
+            </div>
+          )}
+
+          {/* Weight Editor */}
+          {editingWeights && (
+            <div className="bg-white rounded-xl border border-purple-100 shadow-sm p-4">
+              <h3 className="text-sm font-medium text-ink mb-3">Category Weights</h3>
+              <p className="text-xs text-gray-500 mb-3">Set the percentage weight for each assignment category. Weights should total 100%.</p>
+              <div className="space-y-2 mb-3">
+                {weightInputs.map((w, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={w.category}
+                      onChange={e => setWeightInputs(prev => prev.map((p, j) => j === i ? { ...p, category: e.target.value } : p))}
+                      placeholder="Category name"
+                      className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        step="1"
+                        value={w.weight}
+                        onChange={e => setWeightInputs(prev => prev.map((p, j) => j === i ? { ...p, weight: e.target.value } : p))}
+                        placeholder="0"
+                        className="w-20 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <span className="text-xs text-gray-400">%</span>
+                    </div>
+                    <button
+                      onClick={() => setWeightInputs(prev => prev.filter((_, j) => j !== i))}
+                      className="text-red-400 hover:text-red-600 text-sm font-bold"
+                    >&times;</button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWeightInputs(prev => [...prev, { category: '', weight: '' }])}
+                    className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                  >
+                    + Add Category
+                  </button>
+                  {(() => {
+                    const total = weightInputs.reduce((s, w) => s + (parseFloat(w.weight) || 0), 0);
+                    return (
+                      <span className={`text-xs font-medium ${Math.abs(total - 100) < 0.01 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        Total: {total}%{Math.abs(total - 100) >= 0.01 ? ' (should be 100%)' : ''}
+                      </span>
+                    );
+                  })()}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={saveCategoryWeights} className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors">
+                    Save Weights
+                  </button>
+                  <button onClick={() => setEditingWeights(false)} className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Create Assignment Form (teachers) */}
-          {canManage && !gradingAssignmentId && (
+          {canManage && !gradingAssignmentId && !editingWeights && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <h3 className="text-sm font-medium text-ink mb-3">Create Assignment</h3>
               <div className="grid grid-cols-2 gap-2 mb-2">
@@ -726,9 +889,94 @@ export default function ClassDetail() {
             );
           })()}
 
-          {/* Assignments List */}
-          {!gradingAssignmentId && (
+          {/* Assignments List & Student Averages */}
+          {!gradingAssignmentId && !editingWeights && (
             <>
+              {/* Student Averages Summary (teachers see all, parents see their children) */}
+              {grades.length > 0 && (
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                  <h3 className="text-sm font-medium text-ink mb-3">
+                    Student Averages
+                    {categoryWeights.length > 0 && <span className="text-xs text-purple-600 font-normal ml-2">(weighted)</span>}
+                  </h3>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="text-left px-4 py-2 font-medium text-gray-600">Student</th>
+                        {categoryWeights.length > 0 && (
+                          <th className="text-left px-4 py-2 font-medium text-gray-600">Weighted Avg</th>
+                        )}
+                        <th className="text-left px-4 py-2 font-medium text-gray-600">
+                          {categoryWeights.length > 0 ? 'Unweighted Avg' : 'Average'}
+                        </th>
+                        {canManage && categoryWeights.length > 0 && assignments.some(a => a.category) && (
+                          <>
+                            {[...new Set(categoryWeights.map(w => w.category))].map(cat => (
+                              <th key={cat} className="text-left px-4 py-2 font-medium text-gray-600 text-xs">{cat}</th>
+                            ))}
+                          </>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {(() => {
+                        const studentIds = [...new Set(grades.map(g => g.student_id))];
+                        return studentIds.map(sid => {
+                          const name = grades.find(g => g.student_id === sid)?.student_name || 'Unknown';
+                          const { weighted, unweighted } = calcStudentAverage(sid);
+                          const displayAvg = weighted ?? unweighted;
+                          const letterGrade = displayAvg != null
+                            ? displayAvg >= 93 ? 'A' : displayAvg >= 90 ? 'A-'
+                            : displayAvg >= 87 ? 'B+' : displayAvg >= 83 ? 'B' : displayAvg >= 80 ? 'B-'
+                            : displayAvg >= 77 ? 'C+' : displayAvg >= 73 ? 'C' : displayAvg >= 70 ? 'C-'
+                            : displayAvg >= 67 ? 'D+' : displayAvg >= 63 ? 'D' : displayAvg >= 60 ? 'D-' : 'F'
+                            : null;
+                          return (
+                            <tr key={sid}>
+                              <td className="px-4 py-2 text-ink">{name}</td>
+                              {categoryWeights.length > 0 && (
+                                <td className="px-4 py-2">
+                                  {weighted != null ? (
+                                    <span className="font-medium text-ink">
+                                      {weighted.toFixed(1)}%
+                                      {letterGrade && <span className="ml-1.5 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{letterGrade}</span>}
+                                    </span>
+                                  ) : <span className="text-gray-400">—</span>}
+                                </td>
+                              )}
+                              <td className="px-4 py-2">
+                                {unweighted != null ? (
+                                  <span className={categoryWeights.length > 0 ? 'text-gray-500' : 'font-medium text-ink'}>
+                                    {unweighted.toFixed(1)}%
+                                    {categoryWeights.length === 0 && letterGrade && (
+                                      <span className="ml-1.5 text-xs bg-gray-100 px-1.5 py-0.5 rounded">{letterGrade}</span>
+                                    )}
+                                  </span>
+                                ) : <span className="text-gray-400">—</span>}
+                              </td>
+                              {canManage && categoryWeights.length > 0 && assignments.some(a => a.category) && (
+                                <>
+                                  {[...new Set(categoryWeights.map(w => w.category))].map(cat => {
+                                    const catAssigns = assignments.filter(a => a.category === cat);
+                                    const catGrades = grades.filter(g => g.student_id === sid && g.score != null && catAssigns.some(a => a.id === g.assignment_id));
+                                    if (catGrades.length === 0) return <td key={cat} className="px-4 py-2 text-gray-400 text-xs">—</td>;
+                                    const totalScore = catGrades.reduce((s, g) => s + (g.score || 0), 0);
+                                    const totalMax = catGrades.reduce((s, g) => s + (catAssigns.find(a => a.id === g.assignment_id)?.max_points || 0), 0);
+                                    const pct = totalMax > 0 ? (totalScore / totalMax) * 100 : 0;
+                                    return <td key={cat} className="px-4 py-2 text-xs text-gray-600">{pct.toFixed(1)}%</td>;
+                                  })}
+                                </>
+                              )}
+                            </tr>
+                          );
+                        });
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Assignments */}
               {assignments.length === 0 ? (
                 <p className="text-gray-500 text-sm">No assignments yet.</p>
               ) : (
@@ -737,6 +985,7 @@ export default function ClassDetail() {
                     const assignmentGrades = grades.filter(g => g.assignment_id === a.id);
                     const scored = assignmentGrades.filter(g => g.score != null);
                     const avg = scored.length > 0 ? scored.reduce((sum, g) => sum + (g.score || 0), 0) / scored.length : null;
+                    const catWeight = a.category ? categoryWeights.find(w => w.category === a.category) : null;
                     return (
                       <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                         <div className="flex items-start justify-between">
@@ -744,7 +993,9 @@ export default function ClassDetail() {
                             <div className="flex items-center gap-2">
                               <h4 className="font-medium text-ink text-sm">{a.title}</h4>
                               {a.category && (
-                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{a.category}</span>
+                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
+                                  {a.category}{catWeight ? ` (${catWeight.weight}%)` : ''}
+                                </span>
                               )}
                               <span className="text-xs text-gray-400">{a.max_points} pts</span>
                             </div>
@@ -754,7 +1005,7 @@ export default function ClassDetail() {
                               {canManage && avg != null && (
                                 <span>Avg: {avg.toFixed(1)}/{a.max_points} ({Math.round((avg / a.max_points) * 100)}%)</span>
                               )}
-                              {canManage && <span>{scored.length} graded</span>}
+                              {canManage && <span>{scored.length}/{roster.length} graded</span>}
                             </div>
                             {/* Parent view: show their child's grades inline */}
                             {!canManage && assignmentGrades.length > 0 && (
