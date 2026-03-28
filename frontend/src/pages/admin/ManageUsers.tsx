@@ -22,6 +22,8 @@ export default function ManageUsers() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
+  const [newPassword, setNewPassword] = useState('');
   const { showToast } = useToast();
 
   const refresh = () => {
@@ -72,6 +74,21 @@ export default function ManageUsers() {
       refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to delete user', 'error');
+    }
+  };
+
+  const resetPassword = async (userId: number) => {
+    if (newPassword.length < 8) {
+      showToast('Password must be at least 8 characters', 'error');
+      return;
+    }
+    try {
+      await api.post(`/api/admin/users/${userId}/reset-password`, { new_password: newPassword });
+      showToast('Password has been reset', 'success');
+      setResetPasswordId(null);
+      setNewPassword('');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to reset password', 'error');
     }
   };
 
@@ -227,12 +244,31 @@ export default function ManageUsers() {
                         {u.active ? 'Deactivate' : 'Activate'}
                       </button>
                       <button
+                        onClick={() => { setResetPasswordId(resetPasswordId === u.id ? null : u.id); setNewPassword(''); }}
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                      >
+                        Reset Password
+                      </button>
+                      <button
                         onClick={() => deleteUser(u)}
                         className="text-xs text-red-500 hover:text-red-700 font-medium"
                       >
                         Delete
                       </button>
                     </div>
+                    {resetPasswordId === u.id && (
+                      <div className="flex items-center gap-2 mt-2">
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          placeholder="New password (min 8 chars)"
+                          className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 w-48"
+                        />
+                        <button onClick={() => resetPassword(u.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
+                        <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} className="text-xs text-gray-500">Cancel</button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

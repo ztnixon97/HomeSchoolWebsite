@@ -361,7 +361,7 @@ async fn main() {
         )
         .route(
             "/api/admin/student-parents",
-            post(routes::admin::link_parent),
+            get(routes::admin::list_student_parents).post(routes::admin::link_parent),
         )
         .route(
             "/api/admin/student-parents/{student_id}/{user_id}",

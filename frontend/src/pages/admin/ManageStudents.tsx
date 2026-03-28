@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import type { User } from '../../auth';
 import { useFeatures } from '../../features';
+import { useToast } from '../../components/Toast';
 
 interface Student {
   id: number;
@@ -12,14 +13,26 @@ interface Student {
   notes: string | null;
   allergies: string;
   dietary_restrictions: string;
+  emergency_contact_name?: string | null;
+  emergency_contact_phone?: string | null;
   enrolled: boolean;
+}
+
+interface StudentParentLink {
+  student_id: number;
+  user_id: number;
+  display_name: string;
+  email: string;
 }
 
 export default function ManageStudents() {
   const features = useFeatures();
+  const { showToast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [parentLinks, setParentLinks] = useState<StudentParentLink[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [dob, setDob] = useState('');
@@ -32,22 +45,12 @@ export default function ManageStudents() {
   const refresh = () => {
     api.get<Student[]>('/api/students').then(setStudents).catch(() => {});
     api.get<User[]>('/api/admin/users').then(setUsers).catch(() => {});
+    api.get<StudentParentLink[]>('/api/admin/student-parents').then(setParentLinks).catch(() => {});
   };
 
   useEffect(refresh, []);
 
-  const addStudent = async (e: React.FormEvent) => {
-    e.preventDefault();
-    await api.post('/api/admin/students', {
-      first_name: firstName,
-      last_name: lastName,
-      date_of_birth: dob || null,
-      allergies: allergies || null,
-      dietary_restrictions: dietary || null,
-      notes: notes || null,
-      emergency_contact_name: emergencyName || null,
-      emergency_contact_phone: emergencyPhone || null,
-    });
+  const clearForm = () => {
     setFirstName('');
     setLastName('');
     setDob('');
@@ -56,8 +59,48 @@ export default function ManageStudents() {
     setNotes('');
     setEmergencyName('');
     setEmergencyPhone('');
-    setShowForm(false);
-    refresh();
+  };
+
+  const startEdit = (s: Student) => {
+    setEditingId(s.id);
+    setFirstName(s.first_name);
+    setLastName(s.last_name);
+    setDob(s.date_of_birth || '');
+    setAllergies(s.allergies || '');
+    setDietary(s.dietary_restrictions || '');
+    setNotes(s.notes || '');
+    setEmergencyName(s.emergency_contact_name || '');
+    setEmergencyPhone(s.emergency_contact_phone || '');
+    setShowForm(true);
+  };
+
+  const addStudent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      first_name: firstName,
+      last_name: lastName,
+      date_of_birth: dob || null,
+      allergies: allergies || null,
+      dietary_restrictions: dietary || null,
+      notes: notes || null,
+      emergency_contact_name: emergencyName || null,
+      emergency_contact_phone: emergencyPhone || null,
+    };
+    try {
+      if (editingId) {
+        await api.put(`/api/admin/students/${editingId}`, payload);
+        showToast('Student updated', 'success');
+      } else {
+        await api.post('/api/admin/students', payload);
+        showToast('Student added', 'success');
+      }
+      clearForm();
+      setEditingId(null);
+      setShowForm(false);
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save student', 'error');
+    }
   };
 
   const deleteStudent = async (id: number) => {
@@ -68,6 +111,12 @@ export default function ManageStudents() {
 
   const linkParent = async (studentId: number, userId: number) => {
     await api.post('/api/admin/student-parents', { student_id: studentId, user_id: userId });
+    refresh();
+  };
+
+  const unlinkParent = async (studentId: number, userId: number, name: string) => {
+    if (!confirm(`Unlink ${name} from this student?`)) return;
+    await api.del(`/api/admin/student-parents/${studentId}/${userId}`);
     refresh();
   };
 
@@ -95,7 +144,7 @@ export default function ManageStudents() {
           <p className="text-gray-500 text-sm mt-1">Add students and link them to their parents.</p>
         </div>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => { if (showForm) { clearForm(); setEditingId(null); } setShowForm(!showForm); }}
           className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors"
         >
           {showForm ? 'Cancel' : 'Add Student'}
@@ -143,7 +192,7 @@ export default function ManageStudents() {
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional notes" className={`w-full ${inputClass}`} />
           </div>
           <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
-            Save Student
+            {editingId ? 'Update Student' : 'Save Student'}
           </button>
         </form>
       )}
@@ -186,12 +235,26 @@ export default function ManageStudents() {
                 >
                   View Progress
                 </Link>}
+                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                  Edit
+                </button>
                 <button onClick={() => deleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
                   Remove
                 </button>
               </div>
             </div>
 
+            {parentLinks.filter(pl => pl.student_id === s.id).length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-50 mb-1">
+                <span className="text-gray-400 text-xs">Linked parents:</span>
+                {parentLinks.filter(pl => pl.student_id === s.id).map(pl => (
+                  <span key={pl.user_id} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full border border-blue-100">
+                    {pl.display_name}
+                    <button onClick={() => unlinkParent(s.id, pl.user_id, pl.display_name)} className="text-blue-400 hover:text-red-500 font-bold ml-0.5">&times;</button>
+                  </span>
+                ))}
+              </div>
+            )}
             <div className="flex items-center gap-2 pt-2 border-t border-gray-50">
               <span className="text-gray-400 text-xs">Link parent:</span>
               <select

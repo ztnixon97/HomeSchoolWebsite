@@ -372,6 +372,28 @@ pub async fn delete_student(
 
 // ── Student-Parent Linking ──
 
+pub async fn list_student_parents(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT sp.student_id, sp.user_id, u.display_name, u.email
+         FROM student_parents sp
+         JOIN users u ON sp.user_id = u.id
+         ORDER BY sp.student_id",
+    )?;
+    let links: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "student_id": row.get::<_, i64>(0)?,
+            "user_id": row.get::<_, i64>(1)?,
+            "display_name": row.get::<_, String>(2)?,
+            "email": row.get::<_, String>(3)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(links))
+}
+
 pub async fn link_parent(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,

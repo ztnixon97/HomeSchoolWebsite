@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface SessionType {
   id: number;
@@ -20,8 +21,17 @@ interface SessionType {
   allow_photos: boolean;
 }
 
+interface SessionDefaults {
+  default_start_time: string;
+  default_capacity: number | null;
+  default_rsvp_cutoff_days: number | null;
+}
+
 export default function ManageSessionTypes() {
+  const { showToast } = useToast();
   const [types, setTypes] = useState<SessionType[]>([]);
+  const [defaults, setDefaults] = useState<SessionDefaults>({ default_start_time: '', default_capacity: null, default_rsvp_cutoff_days: null });
+  const [showDefaults, setShowDefaults] = useState(false);
   const [name, setName] = useState('');
   const [label, setLabel] = useState('');
   const [sortOrder, setSortOrder] = useState('');
@@ -40,7 +50,19 @@ export default function ManageSessionTypes() {
     api.get<SessionType[]>('/api/admin/session-types').then(setTypes).catch(() => {});
   };
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    refresh();
+    api.get<SessionDefaults>('/api/admin/session-defaults').then(setDefaults).catch(() => {});
+  }, []);
+
+  const saveDefaults = async () => {
+    try {
+      await api.put('/api/admin/session-defaults', defaults);
+      showToast('Session defaults saved', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save defaults', 'error');
+    }
+  };
 
   const create = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +115,33 @@ export default function ManageSessionTypes() {
       </Link>
 
       <h1 className="text-3xl font-bold">Session Types</h1>
+
+      {/* Session Defaults */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <button onClick={() => setShowDefaults(!showDefaults)} className="flex items-center justify-between w-full text-left">
+          <h2 className="text-lg font-semibold">Session Defaults</h2>
+          <span className="text-sm text-gray-400">{showDefaults ? 'Hide' : 'Show'}</span>
+        </button>
+        {showDefaults && (
+          <div className="mt-4 space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Default Start Time</label>
+                <input type="time" value={defaults.default_start_time || ''} onChange={e => setDefaults({ ...defaults, default_start_time: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Default Capacity</label>
+                <input type="number" value={defaults.default_capacity ?? ''} onChange={e => setDefaults({ ...defaults, default_capacity: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="No limit" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">RSVP Cutoff (days before)</label>
+                <input type="number" value={defaults.default_rsvp_cutoff_days ?? ''} onChange={e => setDefaults({ ...defaults, default_rsvp_cutoff_days: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="No cutoff" />
+              </div>
+            </div>
+            <button onClick={saveDefaults} className="bg-gray-900 text-white px-4 py-2 rounded text-sm hover:bg-gray-800">Save Defaults</button>
+          </div>
+        )}
+      </div>
 
       <form onSubmit={create} className="bg-white rounded-lg border border-gray-200 p-6 space-y-3">
         <h2 className="text-lg font-semibold">Add Type</h2>

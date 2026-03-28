@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface User {
   id: number;
@@ -35,6 +36,21 @@ interface Invite {
 }
 
 export default function AdminDashboard() {
+  const { showToast } = useToast();
+  const [sendingReminders, setSendingReminders] = useState(false);
+
+  const sendReminders = async () => {
+    setSendingReminders(true);
+    try {
+      const res = await api.post<{ reminders_sent: number }>('/api/admin/send-reminders', {});
+      showToast(`${res.reminders_sent} reminder(s) sent`, 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to send reminders', 'error');
+    } finally {
+      setSendingReminders(false);
+    }
+  };
+
   const [stats, setStats] = useState({
     totalMembers: 0,
     totalStudents: 0,
@@ -226,6 +242,15 @@ export default function AdminDashboard() {
             description="Enable or disable site features"
             href="/admin/features"
           />
+          <button
+            onClick={sendReminders}
+            disabled={sendingReminders}
+            className="block bg-white rounded-xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-gray-200 transition-all text-left disabled:opacity-50"
+          >
+            <div className="text-3xl mb-3">🔔</div>
+            <h3 className="text-lg font-semibold text-gray-900">{sendingReminders ? 'Sending...' : 'Send Reminders'}</h3>
+            <p className="text-gray-500 text-sm mt-2">Send session reminder emails to parents</p>
+          </button>
         </div>
       </section>
     </div>

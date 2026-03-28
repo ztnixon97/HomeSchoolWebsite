@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface Session {
   id: number;
@@ -36,8 +37,10 @@ interface SessionType {
 }
 
 export default function ManageSessions() {
+  const { showToast } = useToast();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
   const [title, setTitle] = useState('');
   const [theme, setTheme] = useState('');
@@ -73,44 +76,77 @@ export default function ManageSessions() {
 
   useEffect(refresh, []);
 
+  const clearForm = () => {
+    setTitle('');
+    setTheme('');
+    setDate('');
+    setEndDate('');
+    setStartTime('');
+    setEndTime('');
+    setLocationName('');
+    setLocationAddress('');
+    setCostAmount('');
+    setCostDetails('');
+    setMaxStudents('');
+    setNotes('');
+    setRsvpCutoff('');
+    setSessionTypeId('');
+  };
+
+  const startEdit = (s: Session) => {
+    setEditingId(s.id);
+    setTitle(s.title);
+    setTheme(s.theme || '');
+    setDate(s.session_date);
+    setEndDate(s.end_date || '');
+    setStartTime(s.start_time || '');
+    setEndTime(s.end_time || '');
+    setLocationName(s.location_name || '');
+    setLocationAddress(s.location_address || '');
+    setCostAmount(s.cost_amount != null ? String(s.cost_amount) : '');
+    setCostDetails(s.cost_details || '');
+    setMaxStudents(s.max_students != null ? String(s.max_students) : '');
+    setNotes('');
+    setRsvpCutoff(s.rsvp_cutoff || '');
+    const matchedType = sessionTypes.find(t => t.label === s.session_type_label || t.name === s.session_type_name);
+    setSessionTypeId(matchedType ? String(matchedType.id) : '');
+    setShowForm(true);
+    setShowHolidayForm(false);
+  };
+
   const addSession = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const payload = {
+      title,
+      theme: theme || null,
+      session_date: date,
+      end_date: endDate || null,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      location_name: locationName || null,
+      location_address: locationAddress || null,
+      cost_amount: costAmount ? parseFloat(costAmount) : null,
+      cost_details: costDetails || null,
+      max_students: maxStudents ? parseInt(maxStudents) : null,
+      notes: notes || null,
+      rsvp_cutoff: rsvpCutoff || null,
+      session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
+    };
     try {
-      await api.post('/api/admin/sessions', {
-        title,
-        theme: theme || null,
-        session_date: date,
-        end_date: endDate || null,
-        start_time: startTime || null,
-        end_time: endTime || null,
-        location_name: locationName || null,
-        location_address: locationAddress || null,
-        cost_amount: costAmount ? parseFloat(costAmount) : null,
-        cost_details: costDetails || null,
-        max_students: maxStudents ? parseInt(maxStudents) : null,
-        notes: notes || null,
-        rsvp_cutoff: rsvpCutoff || null,
-        session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
-      });
-      setTitle('');
-      setTheme('');
-      setDate('');
-      setEndDate('');
-      setStartTime('');
-      setEndTime('');
-      setLocationName('');
-      setLocationAddress('');
-      setCostAmount('');
-      setCostDetails('');
-      setMaxStudents('');
-      setNotes('');
-      setRsvpCutoff('');
-      setSessionTypeId('');
+      if (editingId) {
+        await api.put(`/api/admin/sessions/${editingId}`, payload);
+        showToast('Session updated', 'success');
+      } else {
+        await api.post('/api/admin/sessions', payload);
+        showToast('Session created', 'success');
+      }
+      clearForm();
+      setEditingId(null);
       setShowForm(false);
       refresh();
     } catch (err: any) {
-      setError(err.message || 'Failed to create session');
+      setError(err.message || (editingId ? 'Failed to update session' : 'Failed to create session'));
     }
   };
 
@@ -168,6 +204,7 @@ export default function ManageSessions() {
           <button
             onClick={() => {
               setShowHolidayForm(false);
+              if (showForm) { clearForm(); setEditingId(null); }
               setShowForm(!showForm);
             }}
             className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors"
@@ -267,7 +304,7 @@ export default function ManageSessions() {
             <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className={inputClass} />
           </div>
           <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
-            Create Session
+            {editingId ? 'Update Session' : 'Create Session'}
           </button>
         </form>
       )}
@@ -346,7 +383,10 @@ export default function ManageSessions() {
                   {s.status}
                 </span>
               </div>
-              <button onClick={() => deleteSession(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
+                <button onClick={() => deleteSession(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+              </div>
             </div>
             <div className="text-xs text-gray-500">
               {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}

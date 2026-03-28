@@ -27,6 +27,7 @@ export default function StudentProgress() {
   const [newCategory, setNewCategory] = useState('social');
   const [newTitle, setNewTitle] = useState('');
   const [newNotes, setNewNotes] = useState('');
+  const [newAchievedDate, setNewAchievedDate] = useState('');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -52,9 +53,11 @@ export default function StudentProgress() {
         category: newCategory,
         title: newTitle,
         notes: newNotes || null,
+        achieved_date: newAchievedDate || null,
       });
       setNewTitle('');
       setNewNotes('');
+      setNewAchievedDate('');
       // Refresh
       const ms = await api.get<Milestone[]>(`/api/students/${selected}/milestones`);
       setMilestones(ms);
@@ -68,6 +71,7 @@ export default function StudentProgress() {
   const [editTitle, setEditTitle] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editCategory, setEditCategory] = useState('');
+  const [editAchievedDate, setEditAchievedDate] = useState('');
 
   const refreshMilestones = () => {
     if (selected) {
@@ -80,6 +84,7 @@ export default function StudentProgress() {
     setEditTitle(m.title);
     setEditNotes(m.notes || '');
     setEditCategory(m.category);
+    setEditAchievedDate(m.achieved_date || '');
   };
 
   const saveEditMilestone = async () => {
@@ -88,6 +93,7 @@ export default function StudentProgress() {
       title: editTitle,
       notes: editNotes || null,
       category: editCategory,
+      achieved_date: editAchievedDate || null,
     });
     setEditingMilestone(null);
     refreshMilestones();
@@ -144,6 +150,7 @@ export default function StudentProgress() {
                           <option value="creative">Creative</option>
                         </select>
                         <textarea className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} />
+                        <input type="date" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editAchievedDate} onChange={e => setEditAchievedDate(e.target.value)} placeholder="Achieved date (optional)" />
                         <div className="flex gap-2">
                           <button onClick={saveEditMilestone} className="text-xs text-emerald-600 font-medium">Save</button>
                           <button onClick={() => setEditingMilestone(null)} className="text-xs text-gray-500">Cancel</button>
@@ -208,6 +215,16 @@ export default function StudentProgress() {
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Achieved Date</label>
+                <input
+                  type="date"
+                  value={newAchievedDate}
+                  onChange={e => setNewAchievedDate(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                />
+                <p className="text-xs text-gray-400 mt-1">Leave empty for "In progress"</p>
               </div>
               <button
                 type="submit"
