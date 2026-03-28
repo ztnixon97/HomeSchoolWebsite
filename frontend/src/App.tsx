@@ -38,6 +38,8 @@ import StudentProgress from './pages/member/StudentProgress';
 import Members from './pages/member/Members';
 import AccountSettings from './pages/member/AccountSettings';
 import MyRsvps from './pages/member/MyRsvps';
+import MyClasses from './pages/member/MyClasses';
+import ClassDetail from './pages/member/ClassDetail';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -88,6 +90,8 @@ export default function App() {
             <Route path="/members" element={<RoleGuard><FeatureGate feature="member_directory"><Members /></FeatureGate></RoleGuard>} />
             <Route path="/my-children" element={<RoleGuard><FeatureGate feature="my_children"><MyChildren /></FeatureGate></RoleGuard>} />
             <Route path="/my-rsvps" element={<RoleGuard><FeatureGate feature="my_rsvps"><MyRsvps /></FeatureGate></RoleGuard>} />
+            <Route path="/my-classes" element={<RoleGuard><FeatureGate feature="class_groups"><MyClasses /></FeatureGate></RoleGuard>} />
+            <Route path="/classes/:id" element={<RoleGuard><FeatureGate feature="class_groups"><ClassDetail /></FeatureGate></RoleGuard>} />
             <Route path="/account" element={<RoleGuard><AccountSettings /></RoleGuard>} />
 
             {/* Teacher+ */}

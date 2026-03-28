@@ -3,6 +3,7 @@ pub mod auth;
 pub mod blog;
 pub mod calendar;
 pub mod children;
+pub mod class_groups;
 pub mod families;
 pub mod files;
 pub mod lesson_plans;

@@ -72,6 +72,17 @@ pub async fn create_session(
     )?;
 
     let id = conn.last_insert_rowid();
+
+    // Link session to class groups if provided
+    if let Some(ref group_ids) = req.class_group_ids {
+        for gid in group_ids {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO class_session_groups (session_id, group_id) VALUES (?1, ?2)",
+                params![id, gid],
+            );
+        }
+    }
+
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     Ok(Json(ClassSession {
@@ -144,6 +155,13 @@ pub async fn list_sessions(
             params_vec.push(Box::new(dt.clone()));
             where_clauses.push(format!("cs.session_date <= ?{}", params_vec.len()));
         }
+    }
+    if let Some(group_id) = query.class_group_id {
+        params_vec.push(Box::new(group_id));
+        where_clauses.push(format!(
+            "cs.id IN (SELECT session_id FROM class_session_groups WHERE group_id = ?{})",
+            params_vec.len()
+        ));
     }
 
     let where_sql = if where_clauses.is_empty() {
@@ -812,6 +830,39 @@ pub async fn create_rsvp(
 
     if !linked && user.role != "admin" {
         return Err(AppError::BadRequest("You can only RSVP for your own children".to_string()));
+    }
+
+    // If class_groups feature is enabled, check group membership
+    if user.role != "admin" && user.role != "teacher" {
+        if crate::features::require_feature(&state.db, "class_groups").is_ok() {
+            let session_group_ids: Vec<i64> = {
+                let mut stmt = conn.prepare(
+                    "SELECT group_id FROM class_session_groups WHERE session_id = ?1",
+                )?;
+                let result = stmt.query_map(params![req.session_id], |row| row.get(0))?
+                    .filter_map(|r| r.ok())
+                    .collect();
+                result
+            };
+            if !session_group_ids.is_empty() {
+                let placeholders: Vec<String> = session_group_ids.iter().enumerate().map(|(i, _)| format!("?{}", i + 2)).collect();
+                let sql = format!(
+                    "SELECT COUNT(*) > 0 FROM class_group_members WHERE student_id = ?1 AND group_id IN ({})",
+                    placeholders.join(",")
+                );
+                let mut check_stmt = conn.prepare(&sql)?;
+                let mut param_values: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+                param_values.push(Box::new(req.student_id));
+                for gid in &session_group_ids {
+                    param_values.push(Box::new(*gid));
+                }
+                let refs: Vec<&dyn rusqlite::types::ToSql> = param_values.iter().map(|b| b.as_ref()).collect();
+                let in_group: bool = check_stmt.query_row(&*refs, |row| row.get(0)).unwrap_or(false);
+                if !in_group {
+                    return Err(AppError::BadRequest("Student is not in any of this session's class groups".to_string()));
+                }
+            }
+        }
     }
 
     let is_full = max_students.map(|max| confirmed_count >= max).unwrap_or(false);

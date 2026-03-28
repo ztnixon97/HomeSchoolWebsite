@@ -305,6 +305,21 @@ fn run_migrations(pool: &DbPool) {
             PRIMARY KEY (group_id, student_id)
         );
 
+        CREATE TABLE IF NOT EXISTS class_session_groups (
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            PRIMARY KEY (session_id, group_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS class_group_announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL DEFAULT '',
+            created_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS sessions_store (
             id TEXT PRIMARY KEY,
             data BLOB NOT NULL,

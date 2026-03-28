@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useFeatures } from '../../features';
 
 interface SessionType {
   id: number;
@@ -13,7 +14,13 @@ interface GeneratedSession {
   skipped: boolean;
 }
 
+interface ClassGroup {
+  id: number;
+  name: string;
+}
+
 export default function BulkSessions() {
+  const features = useFeatures();
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [selectedType, setSelectedType] = useState('');
   const [title, setTitle] = useState('');
@@ -28,6 +35,8 @@ export default function BulkSessions() {
   const [generatedSessions, setGeneratedSessions] = useState<GeneratedSession[]>([]);
   const [creating, setCreating] = useState(false);
   const [creationProgress, setCreationProgress] = useState('');
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
 
   const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
   const rsvpOptions = ['1 day before', '2 days before', '3 days before', '1 week before'];
@@ -46,6 +55,9 @@ export default function BulkSessions() {
     };
 
     fetchSessionTypes();
+    if (features.class_groups) {
+      api.get<ClassGroup[]>('/api/admin/class-groups').then(setClassGroups).catch(() => {});
+    }
   }, []);
 
   const getDayOfWeekNumber = (day: string): number => {
@@ -135,6 +147,7 @@ export default function BulkSessions() {
             end_time: endTime,
             max_students: parseInt(maxStudents),
             rsvp_cutoff: rsvpCutoff,
+            class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
           });
           successCount++;
         } catch (err) {
@@ -290,6 +303,30 @@ export default function BulkSessions() {
             </select>
           </div>
         </div>
+
+        {/* Class Groups */}
+        {features.class_groups && classGroups.length > 0 && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Assign to Class Groups</h3>
+            <div className="flex flex-wrap gap-3">
+              {classGroups.map(g => (
+                <label key={g.id} className="flex items-center gap-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIds.includes(g.id)}
+                    onChange={e => {
+                      if (e.target.checked) setSelectedGroupIds(prev => [...prev, g.id]);
+                      else setSelectedGroupIds(prev => prev.filter(id => id !== g.id));
+                    }}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  {g.name}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Leave unchecked to keep sessions open to all students.</p>
+          </div>
+        )}
 
         {/* Skip Dates */}
         <div className="mt-6 pt-6 border-t border-gray-200">

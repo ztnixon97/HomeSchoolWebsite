@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { useFeatures } from '../../features';
 
 interface Session {
   id: number;
@@ -36,8 +37,14 @@ interface SessionType {
   cost_label: string | null;
 }
 
+interface ClassGroup {
+  id: number;
+  name: string;
+}
+
 export default function ManageSessions() {
   const { showToast } = useToast();
+  const features = useFeatures();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -57,6 +64,8 @@ export default function ManageSessions() {
   const [rsvpCutoff, setRsvpCutoff] = useState('');
   const [sessionTypeId, setSessionTypeId] = useState('');
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -72,6 +81,9 @@ export default function ManageSessions() {
   const refresh = () => {
     api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
+    if (features.class_groups) {
+      api.get<ClassGroup[]>('/api/admin/class-groups').then(setClassGroups).catch(() => {});
+    }
   };
 
   useEffect(refresh, []);
@@ -91,6 +103,7 @@ export default function ManageSessions() {
     setNotes('');
     setRsvpCutoff('');
     setSessionTypeId('');
+    setSelectedGroupIds([]);
   };
 
   const startEdit = (s: Session) => {
@@ -132,6 +145,7 @@ export default function ManageSessions() {
       notes: notes || null,
       rsvp_cutoff: rsvpCutoff || null,
       session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
+      class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
     };
     try {
       if (editingId) {
@@ -303,6 +317,28 @@ export default function ManageSessions() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff</label>
             <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className={inputClass} />
           </div>
+          {features.class_groups && classGroups.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Class Groups</label>
+              <div className="flex flex-wrap gap-2">
+                {classGroups.map(g => (
+                  <label key={g.id} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedGroupIds.includes(g.id)}
+                      onChange={e => {
+                        if (e.target.checked) setSelectedGroupIds(prev => [...prev, g.id]);
+                        else setSelectedGroupIds(prev => prev.filter(id => id !== g.id));
+                      }}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    {g.name}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">Sessions with no groups are open to all students.</p>
+            </div>
+          )}
           <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
             {editingId ? 'Update Session' : 'Create Session'}
           </button>

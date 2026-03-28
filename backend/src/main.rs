@@ -422,7 +422,16 @@ async fn main() {
         .route("/api/admin/class-groups", get(routes::admin::list_class_groups).post(routes::admin::create_class_group))
         .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
         .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))
-        .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member));
+        .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member))
+        .route("/api/admin/class-group-announcements", post(routes::admin::create_class_group_announcement))
+        .route("/api/admin/class-group-announcements/{id}", put(routes::admin::update_class_group_announcement).delete(routes::admin::delete_class_group_announcement))
+        // Member-facing class group routes
+        .route("/api/class-groups", get(routes::class_groups::list_user_class_groups))
+        .route("/api/class-groups/{id}", get(routes::class_groups::get_class_group))
+        .route("/api/class-groups/{id}/sessions", get(routes::class_groups::get_group_sessions))
+        .route("/api/class-groups/{id}/roster", get(routes::class_groups::get_group_roster))
+        .route("/api/class-groups/{id}/attendance", get(routes::class_groups::get_group_attendance))
+        .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

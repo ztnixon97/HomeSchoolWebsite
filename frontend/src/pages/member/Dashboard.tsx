@@ -275,6 +275,7 @@ export default function Dashboard() {
             {features.my_children && <QuickLink to="/my-children" label="My Children" />}
             {features.my_rsvps && <QuickLink to="/my-rsvps" label="My RSVPs" />}
             {features.member_directory && <QuickLink to="/members" label="Member Directory" />}
+            {features.class_groups && <QuickLink to="/my-classes" label="My Classes" />}
             {(isTeacher || isAdmin) && (
               <>
                 {features.blog && <QuickLink to="/posts/new" label="Write a Blog Post" />}
