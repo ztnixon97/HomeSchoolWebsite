@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { useFeatures } from '../../features';
 
 interface User {
   id: number;
@@ -37,6 +38,7 @@ interface Invite {
 
 export default function AdminDashboard() {
   const { showToast } = useToast();
+  const features = useFeatures();
   const [sendingReminders, setSendingReminders] = useState(false);
 
   const sendReminders = async () => {
@@ -242,12 +244,12 @@ export default function AdminDashboard() {
             description="Enable or disable site features"
             href="/admin/features"
           />
-          <AdminLink
+          {features.class_groups && <AdminLink
             icon="🏫"
             title="Class Groups"
             description="Organize students into named groups"
             href="/admin/class-groups"
-          />
+          />}
           <button
             onClick={sendReminders}
             disabled={sendingReminders}

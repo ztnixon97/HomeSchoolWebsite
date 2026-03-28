@@ -112,7 +112,7 @@ export default function App() {
             <Route path="/admin/announcements" element={<RoleGuard requireRole="admin"><ManageAnnouncements /></RoleGuard>} />
             <Route path="/admin/files" element={<RoleGuard requireRole="admin"><ManageFiles /></RoleGuard>} />
             <Route path="/admin/features" element={<RoleGuard requireRole="admin"><ManageFeatures /></RoleGuard>} />
-            <Route path="/admin/class-groups" element={<RoleGuard requireRole="admin"><ManageClassGroups /></RoleGuard>} />
+            <Route path="/admin/class-groups" element={<RoleGuard requireRole="admin"><FeatureGate feature="class_groups"><ManageClassGroups /></FeatureGate></RoleGuard>} />
           </Route>
             </Routes>
           </AuthProvider>
