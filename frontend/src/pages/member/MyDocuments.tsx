@@ -113,7 +113,7 @@ export default function MyDocuments() {
 
       {templates.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-          <p className="text-gray-500">No documents are required at this time.</p>
+          <p className="text-ink/40">No documents are required at this time.</p>
         </div>
       ) : (
         categories.map(category => {

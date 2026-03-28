@@ -25,7 +25,7 @@ export default function MyClasses() {
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading classes...</p>
+        <p className="text-ink/40">Loading classes...</p>
       </div>
     );
   }
@@ -37,7 +37,7 @@ export default function MyClasses() {
 
       {groups.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-          <p className="text-gray-500">No classes found. Your children may not be assigned to any class groups yet.</p>
+          <p className="text-ink/40">No classes found. Your children may not be assigned to any class groups yet.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">

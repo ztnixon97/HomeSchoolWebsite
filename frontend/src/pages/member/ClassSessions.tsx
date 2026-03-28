@@ -350,7 +350,7 @@ export default function ClassSessions() {
             ))}
             {listSessions.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-500">{search || statusFilter ? 'No sessions match your filters.' : 'No class sessions scheduled yet.'}</p>
+                <p className="text-ink/40">{search || statusFilter ? 'No sessions match your filters.' : 'No class sessions scheduled yet.'}</p>
               </div>
             )}
           </div>

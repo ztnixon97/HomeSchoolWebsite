@@ -74,7 +74,7 @@ export default function BlogPost() {
 
   if (!post) return (
     <div className="text-center py-16">
-      <p className="text-gray-400">Loading post...</p>
+      <p className="text-ink/40">Loading post...</p>
     </div>
   );
 

@@ -24,7 +24,7 @@ export default function DraftPosts() {
       </div>
 
       {drafts.length === 0 ? (
-        <p className="text-gray-500 text-center py-8">No drafts yet.</p>
+        <p className="text-ink/40 text-center py-8">No drafts yet.</p>
       ) : (
         <div className="space-y-3">
           {drafts.map(p => (

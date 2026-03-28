@@ -67,7 +67,7 @@ export default function LessonPlanDetail() {
 
   if (loading) return (
     <div className="text-center py-16">
-      <p className="text-gray-400">Loading...</p>
+      <p className="text-ink/40">Loading...</p>
     </div>
   );
 
