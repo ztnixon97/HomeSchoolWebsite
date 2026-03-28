@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import RichTextEditor from '../../components/RichTextEditor';
 import { useToast } from '../../components/Toast';
@@ -74,6 +75,7 @@ export default function ManageSiteContent() {
 
   return (
     <div className="space-y-8">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block mb-4">&larr; Admin Dashboard</Link>
       <div>
         <h1 className="text-2xl font-bold text-ink">Site Content</h1>
         <p className="text-ink/60 text-sm mt-1">Edit public pages and content.</p>
@@ -95,7 +97,7 @@ export default function ManageSiteContent() {
                       type="text"
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
-                      className="w-full px-3 py-2 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(31,75,122,0.2)] bg-white"
+                      className="w-full px-3 py-2 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
                     />
                   </div>
                   <div>

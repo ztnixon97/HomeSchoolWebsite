@@ -444,7 +444,7 @@ export default function ClassDetail() {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading class...</p>
+        <p className="text-ink/40">Loading class...</p>
       </div>
     );
   }
@@ -560,7 +560,7 @@ export default function ClassDetail() {
             </div>
           )}
           {sessions.length === 0 ? (
-            <p className="text-gray-500 text-sm">No sessions assigned to this class yet.</p>
+            <p className="text-ink/40 text-sm">No sessions assigned to this class yet.</p>
           ) : (
             sessions.map(s => (
               <Link
@@ -607,7 +607,7 @@ export default function ClassDetail() {
       {tab === 'roster' && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
           {roster.length === 0 ? (
-            <p className="text-gray-500 text-sm p-6">No students in this class.</p>
+            <p className="text-ink/40 text-sm p-6">No students in this class.</p>
           ) : (
             <table className="w-full text-sm min-w-[500px]">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -637,7 +637,7 @@ export default function ClassDetail() {
       {tab === 'attendance' && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
           {attSessions.length === 0 ? (
-            <p className="text-gray-500 text-sm p-6">No attendance records yet.</p>
+            <p className="text-ink/40 text-sm p-6">No attendance records yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -715,7 +715,7 @@ export default function ClassDetail() {
             </div>
           )}
           {announcements.length === 0 ? (
-            <p className="text-gray-500 text-sm">No announcements for this class.</p>
+            <p className="text-ink/40 text-sm">No announcements for this class.</p>
           ) : (
             announcements.map(a => (
               <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
@@ -1115,7 +1115,7 @@ export default function ClassDetail() {
 
               {/* Assignments */}
               {assignments.length === 0 ? (
-                <p className="text-gray-500 text-sm">No assignments yet.</p>
+                <p className="text-ink/40 text-sm">No assignments yet.</p>
               ) : (
                 <div className="space-y-3">
                   {assignments.map(a => {

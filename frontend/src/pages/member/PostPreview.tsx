@@ -49,7 +49,7 @@ export default function PostPreview() {
     }
   };
 
-  if (!post) return <div className="text-center py-8 text-gray-500">Loading...</div>;
+  if (!post) return <div className="text-center py-8 text-ink/40">Loading...</div>;
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 px-4 sm:px-6">

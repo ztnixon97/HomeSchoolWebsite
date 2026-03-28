@@ -119,8 +119,8 @@ export default function AdminDashboard() {
     <div className="space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-[#1e3a5f]">Admin Dashboard</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage members, sessions, and co-op operations.</p>
+        <h1 className="text-2xl font-bold text-ink">Admin Dashboard</h1>
+        <p className="text-ink/60 text-sm mt-1">Manage members, sessions, and co-op operations.</p>
       </div>
 
       {/* Overview Stats */}
@@ -161,7 +161,7 @@ export default function AdminDashboard() {
               </Link>
             ))}
             {openSessions.length > 5 && (
-              <Link to="/admin/sessions" className="text-sm text-[#1e3a5f] hover:underline">
+              <Link to="/admin/sessions" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium">
                 View all {openSessions.length} sessions →
               </Link>
             )}
@@ -285,7 +285,7 @@ function RecentActivity() {
     <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
       <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h2>
       {activity.length === 0 ? (
-        <p className="text-gray-400 text-sm">No recent activity.</p>
+        <p className="text-ink/40 text-sm">No recent activity.</p>
       ) : (
         <div className="space-y-2">
           {activity.map((item, i) => (

@@ -39,15 +39,15 @@ export default function Members() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Members</h1>
-          <p className="text-gray-500 text-sm mt-1">Contact info and hosting history.</p>
+          <h1 className="text-2xl font-bold text-ink">Members</h1>
+          <p className="text-ink/60 text-sm mt-1">Contact info and hosting history.</p>
         </div>
         <div className="w-64">
           <input
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Search members..."
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
           />
         </div>
       </div>
@@ -78,7 +78,7 @@ export default function Members() {
               </div>
             )}
 
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-1">Upcoming Hosting</h3>
                 {m.upcoming_sessions.length === 0 ? (

@@ -35,14 +35,14 @@ export default function About() {
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6">
         {loading ? (
-          <div className="text-center text-gray-500">Loading...</div>
+          <div className="text-center text-ink/40">Loading...</div>
         ) : page?.content ? (
           <div
             className="site-prose"
             dangerouslySetInnerHTML={{ __html: page.content }}
           />
         ) : (
-          <div className="text-center text-gray-500">Content is being updated.</div>
+          <div className="text-center text-ink/40">Content is being updated.</div>
         )}
       </div>
     </div>

@@ -72,13 +72,13 @@ export default function MyPayments() {
 
   return (
     <div className="space-y-8">
-      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+      <Link to="/dashboard" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
         &larr; Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Payments</h1>
-        <p className="text-gray-500 text-sm mt-1">Your charges and payment history.</p>
+        <h1 className="text-2xl font-bold text-ink">My Payments</h1>
+        <p className="text-ink/60 text-sm mt-1">Your charges and payment history.</p>
       </div>
 
       {/* Balance summary */}
@@ -107,9 +107,9 @@ export default function MyPayments() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Transaction History</h2>
 
         {loading ? (
-          <p className="text-gray-400 text-sm">Loading...</p>
+          <p className="text-ink/40 text-sm">Loading...</p>
         ) : payments.length === 0 ? (
-          <p className="text-gray-400 text-sm">No transactions found.</p>
+          <p className="text-ink/40 text-sm">No transactions found.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

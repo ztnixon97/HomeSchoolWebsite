@@ -122,19 +122,19 @@ export default function Inbox() {
     'w-full px-3 py-2.5 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors text-sm';
 
   if (loading) {
-    return <div className="text-center py-16 text-gray-400">Loading inbox...</div>;
+    return <div className="text-center py-16 text-ink/40">Loading inbox...</div>;
   }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+      <Link to="/dashboard" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
         &larr; Dashboard
       </Link>
 
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-ink">Inbox</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <p className="text-ink/60 text-sm mt-1">
             {conversations.length > 0
               ? `${conversations.length} conversation${conversations.length !== 1 ? 's' : ''}`
               : 'No conversations yet'}

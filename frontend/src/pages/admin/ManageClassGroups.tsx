@@ -154,13 +154,13 @@ export default function ManageClassGroups() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         &larr; Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Class Groups</h1>
-        <p className="text-gray-500 text-sm mt-1">Organize students into named groups for scheduling and management.</p>
+        <h1 className="text-2xl font-bold text-ink">Class Groups</h1>
+        <p className="text-ink/60 text-sm mt-1">Organize students into named groups for scheduling and management.</p>
       </div>
 
       {/* Create Form */}
@@ -316,7 +316,7 @@ export default function ManageClassGroups() {
         })}
         {groups.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No class groups created yet.</p>
+            <p className="text-ink/40">No class groups created yet.</p>
           </div>
         )}
       </div>

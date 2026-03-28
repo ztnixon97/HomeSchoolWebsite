@@ -199,14 +199,14 @@ export default function ManagePayments() {
 
   return (
     <div className="space-y-8">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
         &larr; Admin Dashboard
       </Link>
 
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Payments</h1>
-          <p className="text-gray-500 text-sm mt-1">Track charges and payments for all members.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Payments</h1>
+          <p className="text-ink/60 text-sm mt-1">Track charges and payments for all members.</p>
         </div>
         <button
           onClick={() => setShowCreateForm(v => !v)}
@@ -220,7 +220,7 @@ export default function ManagePayments() {
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Member Balances</h2>
         {summary.length === 0 ? (
-          <p className="text-gray-400 text-sm">No data yet.</p>
+          <p className="text-ink/40 text-sm">No data yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -351,7 +351,7 @@ export default function ManagePayments() {
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">All Transactions ({payments.length})</h2>
         {payments.length === 0 ? (
-          <p className="text-gray-400 text-sm">No payment entries yet.</p>
+          <p className="text-ink/40 text-sm">No payment entries yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

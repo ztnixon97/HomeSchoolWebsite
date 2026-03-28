@@ -43,7 +43,7 @@ export default function Layout() {
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden p-2 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5"
+            className="md:hidden p-2.5 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -64,7 +64,7 @@ export default function Layout() {
                 {features.notifications && (
                   <Link
                     to="/notifications"
-                    className="relative p-1.5 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5 transition-colors no-underline"
+                    className="relative p-2 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5 transition-colors no-underline"
                     title="Notifications"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

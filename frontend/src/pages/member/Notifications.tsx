@@ -62,16 +62,16 @@ export default function Notifications() {
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  if (loading) return <div className="text-center py-16 text-gray-400">Loading notifications...</div>;
+  if (loading) return <div className="text-center py-16 text-ink/40">Loading notifications...</div>;
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Dashboard</Link>
+      <Link to="/dashboard" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">&larr; Dashboard</Link>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Notifications</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-ink">Notifications</h1>
+          <p className="text-ink/60 text-sm mt-1">
             {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
           </p>
         </div>
@@ -87,7 +87,7 @@ export default function Notifications() {
 
       {notifications.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-          <p className="text-gray-400 text-sm">No notifications yet.</p>
+          <p className="text-ink/40 text-sm">No notifications yet.</p>
         </div>
       ) : (
         <div className="space-y-2">

@@ -19,7 +19,7 @@ export default function DraftPosts() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Draft Posts</h1>
+        <h1 className="text-2xl font-bold text-ink">Draft Posts</h1>
         <Link to="/posts/new" className="text-sm text-blue-600 hover:text-blue-800">New Post</Link>
       </div>
 
@@ -31,7 +31,7 @@ export default function DraftPosts() {
             <Link
               key={p.id}
               to={`/posts/${p.id}/preview`}
-              className="block bg-white rounded-lg border border-gray-200 p-4 hover:border-gray-300"
+              className="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-gray-300"
             >
               <div className="font-medium text-gray-900">{p.title}</div>
               <div className="text-xs text-gray-500 mt-1">

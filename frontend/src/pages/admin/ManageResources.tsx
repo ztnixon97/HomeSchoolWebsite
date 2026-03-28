@@ -58,18 +58,18 @@ export default function ManageResources() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Manage Resources</h1>
-        <p className="text-gray-500 text-sm mt-1">Create and edit handbooks, guides, and info pages for families.</p>
+        <h1 className="text-2xl font-bold text-ink">Manage Resources</h1>
+        <p className="text-ink/60 text-sm mt-1">Create and edit handbooks, guides, and info pages for families.</p>
       </div>
 
       <form onSubmit={save} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
         <h2 className="text-lg font-semibold text-gray-900">{editing ? 'Edit Resource' : 'New Resource'}</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
             <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className={inputClass} />
@@ -137,7 +137,7 @@ export default function ManageResources() {
         ))}
         {resources.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No resources created yet.</p>
+            <p className="text-ink/40">No resources created yet.</p>
           </div>
         )}
       </div>

@@ -207,13 +207,13 @@ export default function ManageStandards() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         &larr; Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Manage Curriculum Standards</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-ink">Manage Curriculum Standards</h1>
+        <p className="text-ink/60 text-sm mt-1">
           Create and manage learning standards referenced across sessions and lesson plans.
         </p>
       </div>
@@ -341,14 +341,14 @@ export default function ManageStandards() {
 
       {/* Standards list */}
       {loading ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Loading standards...</div>
+        <div className="text-center py-12 text-ink/40 text-sm">Loading standards...</div>
       ) : standards.length === 0 ? (
         <div className="text-center py-12 bg-gray-50 rounded-xl">
-          <p className="text-gray-500 text-sm">No standards yet. Create one above.</p>
+          <p className="text-ink/40 text-sm">No standards yet. Create one above.</p>
         </div>
       ) : visibleStandards.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-xl">
-          <p className="text-gray-500 text-sm">No standards match the current filters.</p>
+          <p className="text-ink/40 text-sm">No standards match the current filters.</p>
         </div>
       ) : (
         <div className="space-y-6">

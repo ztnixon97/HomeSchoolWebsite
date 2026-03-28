@@ -98,13 +98,13 @@ export default function ConversationDetail() {
   };
 
   if (loading) {
-    return <div className="text-center py-16 text-gray-400">Loading conversation...</div>;
+    return <div className="text-center py-16 text-ink/40">Loading conversation...</div>;
   }
 
   if (!conversation) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <Link to="/inbox" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+        <Link to="/inbox" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
           &larr; Inbox
         </Link>
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
@@ -118,7 +118,7 @@ export default function ConversationDetail() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <Link to="/inbox" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+      <Link to="/inbox" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
         &larr; Inbox
       </Link>
 
@@ -148,7 +148,7 @@ export default function ConversationDetail() {
       <div className="space-y-3">
         {conversation.messages.length === 0 ? (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 text-center">
-            <p className="text-gray-400 text-sm">No messages yet. Send the first one below.</p>
+            <p className="text-ink/40 text-sm">No messages yet. Send the first one below.</p>
           </div>
         ) : (
           conversation.messages.map(msg => {

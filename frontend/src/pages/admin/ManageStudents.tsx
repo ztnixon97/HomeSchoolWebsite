@@ -150,14 +150,14 @@ export default function ManageStudents() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Students</h1>
-          <p className="text-gray-500 text-sm mt-1">Add students and link them to their parents.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Students</h1>
+          <p className="text-ink/60 text-sm mt-1">Add students and link them to their parents.</p>
         </div>
         <button
           onClick={() => { if (showForm) { clearForm(); setEditingId(null); } setShowForm(!showForm); }}
@@ -296,7 +296,7 @@ export default function ManageStudents() {
         ))}
         {filteredStudents.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">{search ? 'No students match your search.' : 'No students enrolled yet.'}</p>
+            <p className="text-ink/40">{search ? 'No students match your search.' : 'No students enrolled yet.'}</p>
           </div>
         )}
       </div>

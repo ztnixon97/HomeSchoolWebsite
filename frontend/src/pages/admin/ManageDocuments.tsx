@@ -176,13 +176,13 @@ export default function ManageDocuments() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         &larr; Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Manage Documents</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-ink">Manage Documents</h1>
+        <p className="text-ink/60 text-sm mt-1">
           Create document templates and review member submissions.
         </p>
       </div>
@@ -303,7 +303,7 @@ export default function ManageDocuments() {
           <div className="space-y-3">
             {templates.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-gray-500">No templates created yet.</p>
+                <p className="text-ink/40">No templates created yet.</p>
               </div>
             ) : (
               templates.map(t => (
@@ -390,7 +390,7 @@ export default function ManageDocuments() {
 
           {filteredSubmissions.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500">No submissions found.</p>
+              <p className="text-ink/40">No submissions found.</p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
 import RichTextEditor from '../../components/RichTextEditor';
@@ -46,6 +47,7 @@ export default function EmailParents() {
   if (sent) {
     return (
       <div className="space-y-8">
+        <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block mb-4">&larr; Admin Dashboard</Link>
         <div>
           <h1 className="text-2xl font-bold text-ink">Email Parents</h1>
           <p className="text-ink/60 text-sm mt-1">Send announcements to all co-op members.</p>
@@ -70,6 +72,7 @@ export default function EmailParents() {
 
   return (
     <div className="space-y-8">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block mb-4">&larr; Admin Dashboard</Link>
       <div>
         <h1 className="text-2xl font-bold text-ink">Email Parents</h1>
         <p className="text-ink/60 text-sm mt-1">Send announcements to all co-op members.</p>
@@ -83,7 +86,7 @@ export default function EmailParents() {
             value={subject}
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Email subject..."
-            className="w-full px-3 py-2.5 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(31,75,122,0.2)] bg-white"
+            className="w-full px-3 py-2.5 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white"
           />
         </div>
 

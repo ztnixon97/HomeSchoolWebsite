@@ -93,11 +93,11 @@ export default function ManageAnnouncements() {
     setExpiresAt('');
   };
 
-  const inputClass = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cobalt focus:border-cobalt transition-colors';
+  const inputClass = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors';
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-cobalt hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
@@ -132,7 +132,7 @@ export default function ManageAnnouncements() {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-ink mb-1.5">Type</label>
             <select value={type} onChange={e => setType(e.target.value)} className={inputClass}>

@@ -146,7 +146,7 @@ export default function ReportCard() {
     window.open(`/api/class-groups/${id}/report-card/${studentId}`, '_blank');
   };
 
-  if (loading) return <div className="text-center py-16 text-gray-400">Loading report card...</div>;
+  if (loading) return <div className="text-center py-16 text-ink/40">Loading report card...</div>;
 
   if (!student) {
     return (

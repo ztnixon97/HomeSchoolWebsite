@@ -110,7 +110,7 @@ export default function StudentProgress() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Student Progress</h1>
+        <h1 className="text-2xl font-bold text-ink">Student Progress</h1>
         <Link to="/admin/students" className="text-sm text-blue-600">Manage Students</Link>
       </div>
 
@@ -120,7 +120,7 @@ export default function StudentProgress() {
             key={s.id}
             onClick={() => setSelected(s.id)}
             className={`px-3 py-1.5 rounded text-sm ${
-              selected === s.id ? 'bg-gray-900 text-white' : 'bg-white border border-gray-300 hover:bg-gray-50'
+              selected === s.id ? 'bg-emerald-700 text-white' : 'bg-white border border-gray-200 hover:bg-gray-50'
             }`}
           >
             {s.first_name} {s.last_name}
@@ -131,26 +131,26 @@ export default function StudentProgress() {
       {selectedStudent && (
         <div className="grid md:grid-cols-2 gap-6">
           {/* Milestones list */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-semibold mb-4">{selectedStudent.first_name}'s Milestones</h2>
             {milestones.length === 0 ? (
-              <p className="text-gray-500 text-sm">No milestones yet.</p>
+              <p className="text-ink/40 text-sm">No milestones yet.</p>
             ) : (
               <div className="space-y-2">
                 {milestones.map(m => (
                   <div key={m.id} className="p-3 border border-gray-100 rounded text-sm">
                     {editingMilestone === m.id ? (
                       <div className="space-y-2">
-                        <input className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
-                        <select className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
+                        <input className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" value={editTitle} onChange={e => setEditTitle(e.target.value)} />
+                        <select className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" value={editCategory} onChange={e => setEditCategory(e.target.value)}>
                           <option value="social">Social</option>
                           <option value="motor">Motor</option>
                           <option value="language">Language</option>
                           <option value="cognitive">Cognitive</option>
                           <option value="creative">Creative</option>
                         </select>
-                        <textarea className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} />
-                        <input type="date" className="w-full px-2 py-1 border border-gray-300 rounded text-sm" value={editAchievedDate} onChange={e => setEditAchievedDate(e.target.value)} placeholder="Achieved date (optional)" />
+                        <textarea className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={2} />
+                        <input type="date" className="w-full px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" value={editAchievedDate} onChange={e => setEditAchievedDate(e.target.value)} placeholder="Achieved date (optional)" />
                         <div className="flex gap-2">
                           <button onClick={saveEditMilestone} className="text-xs text-emerald-600 font-medium">Save</button>
                           <button onClick={() => setEditingMilestone(null)} className="text-xs text-gray-500">Cancel</button>
@@ -179,7 +179,7 @@ export default function StudentProgress() {
           </div>
 
           {/* Add milestone form */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-semibold mb-4">Add Milestone</h2>
             <form onSubmit={addMilestone} className="space-y-3">
               <div>
@@ -187,7 +187,7 @@ export default function StudentProgress() {
                 <select
                   value={newCategory}
                   onChange={e => setNewCategory(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 >
                   <option value="social">Social</option>
                   <option value="motor">Motor</option>
@@ -204,7 +204,7 @@ export default function StudentProgress() {
                   onChange={e => setNewTitle(e.target.value)}
                   required
                   placeholder="e.g., Counts to 10"
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 />
               </div>
               <div>
@@ -213,7 +213,7 @@ export default function StudentProgress() {
                   value={newNotes}
                   onChange={e => setNewNotes(e.target.value)}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 />
               </div>
               <div>
@@ -222,14 +222,14 @@ export default function StudentProgress() {
                   type="date"
                   value={newAchievedDate}
                   onChange={e => setNewAchievedDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
                 />
                 <p className="text-xs text-gray-400 mt-1">Leave empty for "In progress"</p>
               </div>
               <button
                 type="submit"
                 disabled={saving}
-                className="bg-gray-900 text-white px-4 py-2 rounded text-sm hover:bg-gray-800 disabled:opacity-50"
+                className="bg-emerald-700 text-white px-4 py-2 rounded text-sm hover:bg-emerald-800 disabled:opacity-50"
               >
                 {saving ? 'Adding...' : 'Add Milestone'}
               </button>

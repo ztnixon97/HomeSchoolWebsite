@@ -109,13 +109,13 @@ export default function ManageUsers() {
 
   return (
     <div className="space-y-8">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Manage Users</h1>
-        <p className="text-gray-500 text-sm mt-1">Invite new members and manage existing accounts.</p>
+        <h1 className="text-2xl font-bold text-ink">Manage Users</h1>
+        <p className="text-ink/60 text-sm mt-1">Invite new members and manage existing accounts.</p>
       </div>
 
       {/* Invite by Email */}

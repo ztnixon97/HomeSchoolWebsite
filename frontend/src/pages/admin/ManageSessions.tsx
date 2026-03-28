@@ -205,14 +205,14 @@ export default function ManageSessions() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Manage Sessions</h1>
-          <p className="text-gray-500 text-sm mt-1">Create class sessions for parents to host.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Sessions</h1>
+          <p className="text-ink/60 text-sm mt-1">Create class sessions for parents to host.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -440,7 +440,7 @@ export default function ManageSessions() {
         ))}
         {sessions.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No sessions created yet.</p>
+            <p className="text-ink/40">No sessions created yet.</p>
           </div>
         )}
       </div>

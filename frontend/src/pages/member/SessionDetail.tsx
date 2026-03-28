@@ -204,7 +204,7 @@ export default function SessionDetail() {
 
   if (!session) return (
     <div className="text-center py-16">
-      <p className="text-gray-400">Loading session...</p>
+      <p className="text-ink/40">Loading session...</p>
     </div>
   );
 
@@ -252,7 +252,7 @@ export default function SessionDetail() {
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">{session.title}</h1>
+            <h1 className="text-2xl font-bold text-ink">{session.title}</h1>
             {session.theme && (
               <span className="inline-block mt-2 text-xs bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full font-medium">
                 {session.theme}
@@ -614,7 +614,7 @@ export default function SessionDetail() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-400 text-sm mb-4">No RSVPs yet.</p>
+            <p className="text-ink/40 text-sm mb-4">No RSVPs yet.</p>
           )}
 
           {canRsvpChildren.length > 0 && !cutoffPassed && (
@@ -816,7 +816,7 @@ export default function SessionDetail() {
             }}
           />
           {sessionPhotos.length === 0 && (
-            <p className="text-gray-400 text-sm">No photos yet.</p>
+            <p className="text-ink/40 text-sm">No photos yet.</p>
           )}
         </div>
       )}

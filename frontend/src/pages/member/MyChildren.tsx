@@ -228,7 +228,7 @@ export default function MyChildren() {
 
   return (
     <div className="space-y-6">
-      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Dashboard</Link>
+      <Link to="/dashboard" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">&larr; Dashboard</Link>
       <div>
         <h1 className="text-2xl font-bold text-ink">My Children</h1>
         <p className="text-sm text-ink/60 mt-1">Add and manage the child profiles tied to your family.</p>

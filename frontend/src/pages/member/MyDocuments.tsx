@@ -93,20 +93,20 @@ export default function MyDocuments() {
   if (loading) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading documents...</p>
+        <p className="text-ink/40">Loading documents...</p>
       </div>
     );
   }
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8 space-y-6">
-      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline inline-block">
+      <Link to="/dashboard" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block">
         &larr; Dashboard
       </Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">My Documents</h1>
-        <p className="text-gray-500 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-ink">My Documents</h1>
+        <p className="text-ink/60 text-sm mt-1">
           Submit required waivers and forms for your family.
         </p>
       </div>

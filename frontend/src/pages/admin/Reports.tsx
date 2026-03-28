@@ -44,15 +44,15 @@ export default function Reports() {
     ? attendance.reduce((sum, a) => sum + a.attendance_rate, 0) / attendance.length
     : 0;
 
-  if (loading) return <div className="text-center py-16 text-gray-400">Loading reports...</div>;
+  if (loading) return <div className="text-center py-16 text-ink/40">Loading reports...</div>;
 
   return (
     <div className="space-y-6 max-w-5xl">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Admin Dashboard</Link>
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">&larr; Admin Dashboard</Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Reports</h1>
-        <p className="text-gray-500 text-sm mt-1">Analytics dashboard for attendance and grades</p>
+        <h1 className="text-2xl font-bold text-ink">Reports</h1>
+        <p className="text-ink/60 text-sm mt-1">Analytics dashboard for attendance and grades</p>
       </div>
 
       <div className="flex gap-1 border-b border-gray-200">
@@ -94,7 +94,7 @@ export default function Reports() {
 
           {attendance.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-              <p className="text-gray-400 text-sm">No attendance data available.</p>
+              <p className="text-ink/40 text-sm">No attendance data available.</p>
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -141,7 +141,7 @@ export default function Reports() {
         <div className="space-y-4">
           {gradeData.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-              <p className="text-gray-400 text-sm">No grade data available.</p>
+              <p className="text-ink/40 text-sm">No grade data available.</p>
             </div>
           ) : (
             gradeData.map(g => (

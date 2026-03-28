@@ -98,7 +98,7 @@ function ExcalidrawNodeView({
   return (
     <NodeViewWrapper className="excalidraw-node border border-gray-200 rounded bg-white">
       <ExcalidrawErrorBoundary>
-      <Suspense fallback={<div className="h-[420px] flex items-center justify-center text-gray-400 text-sm">Loading drawing tool...</div>}>
+      <Suspense fallback={<div className="h-[420px] flex items-center justify-center text-ink/40 text-sm">Loading drawing tool...</div>}>
       <div className={`h-[420px]${readOnly ? ' pointer-events-none' : ''}`}>
         <ExcalidrawLazy
           excalidrawAPI={api => {

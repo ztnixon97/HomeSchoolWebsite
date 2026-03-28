@@ -89,7 +89,7 @@ export default function LessonPlanDetail() {
       <article className="panel p-8 md:p-10">
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">{plan.title}</h1>
+            <h1 className="text-3xl font-bold text-ink mb-2">{plan.title}</h1>
             <div className="flex items-center gap-3 text-sm text-gray-400">
               {plan.author_name && (
                 <span className="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-medium">{plan.author_name}</span>

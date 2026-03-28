@@ -58,15 +58,15 @@ export default function ManageFeatures() {
     }
   };
 
-  if (!flags) return <div className="text-center py-16 text-gray-400">Loading...</div>;
+  if (!flags) return <div className="text-center py-16 text-ink/40">Loading...</div>;
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Admin Dashboard</Link>
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">&larr; Admin Dashboard</Link>
 
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Feature Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">Enable or disable major site features. Disabled features hide from navigation.</p>
+        <h1 className="text-2xl font-bold text-ink">Feature Settings</h1>
+        <p className="text-ink/60 text-sm mt-1">Enable or disable major site features. Disabled features hide from navigation.</p>
       </div>
 
       <div className="space-y-3">
