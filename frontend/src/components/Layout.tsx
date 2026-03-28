@@ -157,6 +157,7 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
           {features.my_rsvps && <Link to="/my-rsvps" className={base} onClick={onClick}>My RSVPs</Link>}
           {features.member_directory && <Link to="/members" className={base} onClick={onClick}>Members</Link>}
           {features.lesson_plans && <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>}
+          {features.class_groups && <Link to="/my-classes" className={base} onClick={onClick}>My Classes</Link>}
         </>
       )}
       {isAdmin && (

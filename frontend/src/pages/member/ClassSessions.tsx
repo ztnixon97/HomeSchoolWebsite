@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import { useFeatures } from '../../features';
 import { ServerPagination } from '../../components/Pagination';
+
+interface ClassGroup {
+  id: number;
+  name: string;
+}
 
 interface Session {
   id: number;
@@ -40,7 +46,10 @@ interface SessionType {
 
 export default function ClassSessions() {
   const { user } = useAuth();
+  const features = useFeatures();
   const [view, setView] = useState<'list' | 'calendar'>('calendar');
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [groupFilter, setGroupFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [title, setTitle] = useState('');
@@ -67,6 +76,9 @@ export default function ClassSessions() {
   // Load all sessions for calendar view
   useEffect(() => {
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
+    if (features.class_groups) {
+      api.get<ClassGroup[]>('/api/class-groups').then(setClassGroups).catch(() => {});
+    }
   }, []);
 
   // Load paginated sessions for list view
@@ -79,14 +91,15 @@ export default function ClassSessions() {
     params.set('date_from', new Date().toISOString().split('T')[0]);
     if (search) params.set('q', search);
     if (statusFilter) params.set('status', statusFilter);
+    if (groupFilter) params.set('class_group_id', groupFilter);
     api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {
       setListSessions(res.items);
       setListTotal(res.total);
     }).catch(() => {});
-  }, [view, listPage, search, statusFilter]);
+  }, [view, listPage, search, statusFilter, groupFilter]);
 
   // Reset page when filters change
-  useEffect(() => { setListPage(1); }, [search, statusFilter]);
+  useEffect(() => { setListPage(1); }, [search, statusFilter, groupFilter]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -287,6 +300,18 @@ export default function ClassSessions() {
               <option value="claimed">Hosted</option>
               <option value="completed">Completed</option>
             </select>
+            {features.class_groups && classGroups.length > 0 && (
+              <select
+                value={groupFilter}
+                onChange={e => setGroupFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              >
+                <option value="">All Classes</option>
+                {classGroups.map(g => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="space-y-3">

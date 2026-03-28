@@ -9,6 +9,7 @@ interface ClassGroup {
   description: string | null;
   sort_order: number;
   active: boolean;
+  grading_enabled: boolean;
   created_at: string;
 }
 
@@ -25,12 +26,28 @@ interface Student {
   last_name: string;
 }
 
+interface GroupTeacher {
+  group_id: number;
+  user_id: number;
+  display_name: string;
+  email: string;
+}
+
+interface UserInfo {
+  id: number;
+  display_name: string;
+  email: string;
+  role: string;
+}
+
 export default function ManageClassGroups() {
   const { showToast } = useToast();
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [members, setMembers] = useState<GroupMember[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [teachers, setTeachers] = useState<GroupTeacher[]>([]);
+  const [allUsers, setAllUsers] = useState<UserInfo[]>([]);
 
   // Create form
   const [name, setName] = useState('');
@@ -42,11 +59,14 @@ export default function ManageClassGroups() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editSortOrder, setEditSortOrder] = useState('');
+  const [editGradingEnabled, setEditGradingEnabled] = useState(false);
 
   const refresh = () => {
     api.get<ClassGroup[]>('/api/admin/class-groups').then(setGroups).catch(() => {});
     api.get<GroupMember[]>('/api/admin/class-group-members').then(setMembers).catch(() => {});
     api.get<Student[]>('/api/students').then(setStudents).catch(() => {});
+    api.get<GroupTeacher[]>('/api/admin/class-group-teachers').then(setTeachers).catch(() => {});
+    api.get<UserInfo[]>('/api/admin/users').then(setAllUsers).catch(() => {});
   };
 
   useEffect(refresh, []);
@@ -74,6 +94,7 @@ export default function ManageClassGroups() {
     setEditName(g.name);
     setEditDescription(g.description || '');
     setEditSortOrder(String(g.sort_order));
+    setEditGradingEnabled(g.grading_enabled);
   };
 
   const saveEdit = async () => {
@@ -83,6 +104,7 @@ export default function ManageClassGroups() {
         name: editName,
         description: editDescription || null,
         sort_order: editSortOrder ? parseInt(editSortOrder) : 0,
+        grading_enabled: editGradingEnabled,
       });
       setEditingId(null);
       showToast('Group updated', 'success');
@@ -115,6 +137,16 @@ export default function ManageClassGroups() {
 
   const removeMember = async (groupId: number, studentId: number) => {
     await api.del(`/api/admin/class-group-members/${groupId}/${studentId}`);
+    refresh();
+  };
+
+  const addTeacher = async (groupId: number, userId: number) => {
+    await api.post('/api/admin/class-group-teachers', { group_id: groupId, user_id: userId });
+    refresh();
+  };
+
+  const removeTeacher = async (groupId: number, userId: number) => {
+    await api.del(`/api/admin/class-group-teachers/${groupId}/${userId}`);
     refresh();
   };
 
@@ -159,6 +191,9 @@ export default function ManageClassGroups() {
           const groupMembers = members.filter(m => m.group_id === g.id);
           const assignedIds = new Set(groupMembers.map(m => m.student_id));
           const availableStudents = students.filter(s => !assignedIds.has(s.id));
+          const groupTeachers = teachers.filter(t => t.group_id === g.id);
+          const assignedTeacherIds = new Set(groupTeachers.map(t => t.user_id));
+          const availableTeachers = allUsers.filter(u => (u.role === 'teacher' || u.role === 'admin') && !assignedTeacherIds.has(u.id));
           const isExpanded = expandedId === g.id;
 
           return (
@@ -170,6 +205,15 @@ export default function ManageClassGroups() {
                     <input value={editDescription} onChange={e => setEditDescription(e.target.value)} className={`w-full ${inputClass}`} placeholder="Description" />
                     <input type="number" value={editSortOrder} onChange={e => setEditSortOrder(e.target.value)} className={`w-full ${inputClass}`} placeholder="Sort Order" />
                   </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editGradingEnabled}
+                      onChange={e => setEditGradingEnabled(e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    Enable grading for this class
+                  </label>
                   <div className="flex gap-2">
                     <button onClick={saveEdit} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
                     <button onClick={() => setEditingId(null)} className="text-sm text-gray-500">Cancel</button>
@@ -185,6 +229,7 @@ export default function ManageClassGroups() {
                           {g.active ? 'Active' : 'Inactive'}
                         </span>
                         <span className="text-xs text-gray-400">{groupMembers.length} student{groupMembers.length !== 1 ? 's' : ''}</span>
+                        {g.grading_enabled && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">Grading</span>}
                       </div>
                       {g.description && <p className="text-sm text-gray-500 mt-0.5">{g.description}</p>}
                     </div>
@@ -229,6 +274,39 @@ export default function ManageClassGroups() {
                       ) : (
                         <p className="text-xs text-gray-400">All students are assigned to this group.</p>
                       )}
+
+                      {/* Teachers Section */}
+                      <div className="mt-4 pt-3 border-t border-gray-100">
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wide">Assigned Teachers</span>
+                        {groupTeachers.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2 mb-3">
+                            {groupTeachers.map(t => (
+                              <span key={t.user_id} className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-100">
+                                {t.display_name}
+                                <button onClick={() => removeTeacher(g.id, t.user_id)} className="text-blue-400 hover:text-red-500 font-bold ml-0.5">&times;</button>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {groupTeachers.length === 0 && (
+                          <p className="text-xs text-gray-400 mt-1 mb-2">No teachers assigned.</p>
+                        )}
+                        {availableTeachers.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-400 text-xs">Add teacher:</span>
+                            <select
+                              onChange={e => { if (e.target.value) addTeacher(g.id, parseInt(e.target.value)); e.target.value = ''; }}
+                              className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              defaultValue=""
+                            >
+                              <option value="" disabled>Select teacher...</option>
+                              {availableTeachers.map(u => (
+                                <option key={u.id} value={u.id}>{u.display_name} ({u.email})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </>

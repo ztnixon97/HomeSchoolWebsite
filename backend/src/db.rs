@@ -299,10 +299,43 @@ fn run_migrations(pool: &DbPool) {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS class_group_teachers (
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            PRIMARY KEY (group_id, user_id)
+        );
+
         CREATE TABLE IF NOT EXISTS class_group_members (
             group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
             student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
             PRIMARY KEY (group_id, student_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS class_session_groups (
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            PRIMARY KEY (session_id, group_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS class_group_announcements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL DEFAULT '',
+            created_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS class_grades (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+            assignment_title TEXT NOT NULL,
+            grade REAL,
+            max_grade REAL,
+            notes TEXT,
+            graded_by INTEGER NOT NULL REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS sessions_store (
@@ -344,6 +377,8 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE users ADD COLUMN calendar_token TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_name TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_phone TEXT", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN grading_enabled INTEGER NOT NULL DEFAULT 0", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN home_content TEXT", []);
 
     // Seed default session types if missing
     let _ = conn.execute(

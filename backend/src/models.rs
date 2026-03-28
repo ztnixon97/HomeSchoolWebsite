@@ -415,6 +415,7 @@ pub struct CreateSessionRequest {
     pub session_type_id: Option<i64>,
     pub rsvp_cutoff: Option<String>,
     pub require_approval: Option<bool>,
+    pub class_group_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -435,6 +436,7 @@ pub struct UpdateSessionRequest {
     pub session_type_id: Option<i64>,
     pub rsvp_cutoff: Option<String>,
     pub require_approval: Option<bool>,
+    pub class_group_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -758,6 +760,7 @@ pub struct SessionsQuery {
     pub session_type_id: Option<i64>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
+    pub class_group_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -841,6 +844,7 @@ pub struct ClassGroup {
     pub description: Option<String>,
     pub sort_order: i32,
     pub active: bool,
+    pub grading_enabled: bool,
     pub created_at: String,
 }
 
@@ -857,10 +861,83 @@ pub struct UpdateClassGroupRequest {
     pub description: Option<String>,
     pub sort_order: Option<i32>,
     pub active: Option<bool>,
+    pub grading_enabled: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct AddGroupMemberRequest {
     pub group_id: i64,
     pub student_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddGroupTeacherRequest {
+    pub group_id: i64,
+    pub user_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassHomeContentRequest {
+    pub home_content: Option<String>,
+}
+
+// ── Class Group Announcements ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassGroupAnnouncement {
+    pub id: i64,
+    pub group_id: i64,
+    pub title: String,
+    pub body: String,
+    pub created_by: Option<i64>,
+    pub created_by_name: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateClassGroupAnnouncementRequest {
+    pub group_id: i64,
+    pub title: String,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassGroupAnnouncementRequest {
+    pub title: Option<String>,
+    pub body: Option<String>,
+}
+
+// ── Class Grades ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassGrade {
+    pub id: i64,
+    pub group_id: i64,
+    pub student_id: i64,
+    pub student_name: Option<String>,
+    pub assignment_title: String,
+    pub grade: Option<f64>,
+    pub max_grade: Option<f64>,
+    pub notes: Option<String>,
+    pub graded_by: i64,
+    pub graded_by_name: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateClassGradeRequest {
+    pub group_id: i64,
+    pub student_id: i64,
+    pub assignment_title: String,
+    pub grade: Option<f64>,
+    pub max_grade: Option<f64>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassGradeRequest {
+    pub assignment_title: Option<String>,
+    pub grade: Option<f64>,
+    pub max_grade: Option<f64>,
+    pub notes: Option<String>,
 }

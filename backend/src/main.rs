@@ -201,6 +201,7 @@ async fn main() {
             "/api/my-children/{id}",
             put(routes::children::update_my_child).delete(routes::children::delete_my_child),
         )
+        .route("/api/my-children/{id}/milestones", get(routes::children::get_my_child_milestones))
         .route("/api/users", get(routes::sessions::list_users))
         .route("/api/members", get(routes::sessions::list_members))
         .route("/api/files/{id}", get(routes::files::get_file_info).delete(routes::files::delete_file))
@@ -422,7 +423,25 @@ async fn main() {
         .route("/api/admin/class-groups", get(routes::admin::list_class_groups).post(routes::admin::create_class_group))
         .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
         .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))
-        .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member));
+        .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member))
+        .route("/api/admin/class-group-teachers", get(routes::admin::list_class_group_teachers).post(routes::admin::add_group_teacher))
+        .route("/api/admin/class-group-teachers/{group_id}/{user_id}", delete(routes::admin::remove_group_teacher))
+        .route("/api/admin/class-group-announcements", post(routes::admin::create_class_group_announcement))
+        .route("/api/admin/class-group-announcements/{id}", put(routes::admin::update_class_group_announcement).delete(routes::admin::delete_class_group_announcement))
+        // Member-facing class group routes
+        .route("/api/class-groups", get(routes::class_groups::list_user_class_groups))
+        .route("/api/class-groups/{id}", get(routes::class_groups::get_class_group))
+        .route("/api/class-groups/{id}/sessions", get(routes::class_groups::get_group_sessions))
+        .route("/api/class-groups/{id}/roster", get(routes::class_groups::get_group_roster))
+        .route("/api/class-groups/{id}/attendance", get(routes::class_groups::get_group_attendance))
+        .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements))
+        .route("/api/class-groups/{id}/grades", get(routes::class_groups::get_group_grades))
+        .route("/api/class-groups/{id}/home", put(routes::class_groups::update_class_home))
+        .route("/api/class-groups/{id}/sessions", post(routes::class_groups::create_class_session))
+        .route("/api/class-groups/{id}/sessions/{session_id}", put(routes::class_groups::update_class_session).delete(routes::class_groups::delete_class_session))
+        // Class grade CRUD (teacher+)
+        .route("/api/admin/class-grades", post(routes::admin::create_class_grade))
+        .route("/api/admin/class-grades/{id}", put(routes::admin::update_class_grade).delete(routes::admin::delete_class_grade));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.
