@@ -15,6 +15,9 @@ interface SessionType {
   requires_location: boolean;
   supports_cost: boolean;
   cost_label?: string | null;
+  allow_supplies: boolean;
+  allow_attendance: boolean;
+  allow_photos: boolean;
 }
 
 export default function ManageSessionTypes() {
@@ -29,6 +32,9 @@ export default function ManageSessionTypes() {
   const [requiresLocation, setRequiresLocation] = useState(false);
   const [supportsCost, setSupportsCost] = useState(false);
   const [costLabel, setCostLabel] = useState('');
+  const [allowSupplies, setAllowSupplies] = useState(true);
+  const [allowAttendance, setAllowAttendance] = useState(true);
+  const [allowPhotos, setAllowPhotos] = useState(true);
 
   const refresh = () => {
     api.get<SessionType[]>('/api/admin/session-types').then(setTypes).catch(() => {});
@@ -50,6 +56,9 @@ export default function ManageSessionTypes() {
       requires_location: requiresLocation,
       supports_cost: supportsCost,
       cost_label: costLabel || null,
+      allow_supplies: allowSupplies,
+      allow_attendance: allowAttendance,
+      allow_photos: allowPhotos,
     });
     setName('');
     setLabel('');
@@ -61,6 +70,9 @@ export default function ManageSessionTypes() {
     setRequiresLocation(false);
     setSupportsCost(false);
     setCostLabel('');
+    setAllowSupplies(true);
+    setAllowAttendance(true);
+    setAllowPhotos(true);
     refresh();
   };
 
@@ -123,6 +135,18 @@ export default function ManageSessionTypes() {
             <input type="checkbox" checked={supportsCost} onChange={e => setSupportsCost(e.target.checked)} />
             Supports cost
           </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={allowSupplies} onChange={e => setAllowSupplies(e.target.checked)} />
+            Supply sign-ups
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={allowAttendance} onChange={e => setAllowAttendance(e.target.checked)} />
+            Attendance tracking
+          </label>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={allowPhotos} onChange={e => setAllowPhotos(e.target.checked)} />
+            Photo sharing
+          </label>
         </div>
         {supportsCost && (
           <div>
@@ -141,7 +165,8 @@ export default function ManageSessionTypes() {
               <div className="text-xs text-gray-500">{t.name} · order {t.sort_order}</div>
               {t.description && <div className="text-xs text-gray-400 mt-1">{t.description}</div>}
               <div className="text-xs text-gray-400 mt-1">
-                {t.hostable ? 'Hostable' : 'Not hostable'} · {t.rsvpable ? 'RSVP on' : 'RSVP off'} · {t.multi_day ? 'Multi-day' : 'Single-day'}
+                {t.hostable ? 'Hostable' : 'Not hostable'} · {t.rsvpable ? 'RSVP' : 'No RSVP'} · {t.multi_day ? 'Multi-day' : 'Single-day'}
+                {t.allow_supplies ? ' · Supplies' : ''}{t.allow_attendance ? ' · Attendance' : ''}{t.allow_photos ? ' · Photos' : ''}
               </div>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
                 <button onClick={() => toggleFlag(t, 'hostable', !t.hostable)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
@@ -158,6 +183,15 @@ export default function ManageSessionTypes() {
                 </button>
                 <button onClick={() => toggleFlag(t, 'supports_cost', !t.supports_cost)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
                   {t.supports_cost ? 'No cost field' : 'Add cost field'}
+                </button>
+                <button onClick={() => toggleFlag(t, 'allow_supplies', !t.allow_supplies)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                  {t.allow_supplies ? 'Disable supplies' : 'Enable supplies'}
+                </button>
+                <button onClick={() => toggleFlag(t, 'allow_attendance', !t.allow_attendance)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                  {t.allow_attendance ? 'Disable attendance' : 'Enable attendance'}
+                </button>
+                <button onClick={() => toggleFlag(t, 'allow_photos', !t.allow_photos)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                  {t.allow_photos ? 'Disable photos' : 'Enable photos'}
                 </button>
               </div>
             </div>

@@ -154,6 +154,26 @@ pub async fn get_post_internal(
     }
 }
 
+pub async fn delete_post(
+    RequireTeacher(user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let author_id: i64 = conn.query_row("SELECT author_id FROM posts WHERE id = ?1", params![id], |row| row.get(0))
+        .map_err(|_| AppError::NotFound("Post not found".to_string()))?;
+
+    if author_id != user.id && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute("DELETE FROM post_comments WHERE post_id = ?1", params![id])?;
+    conn.execute("DELETE FROM files WHERE linked_type = 'post' AND linked_id = ?1", params![id])?;
+    conn.execute("DELETE FROM posts WHERE id = ?1", params![id])?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Post Comments (Authenticated) ──
 
 pub async fn list_post_comments(

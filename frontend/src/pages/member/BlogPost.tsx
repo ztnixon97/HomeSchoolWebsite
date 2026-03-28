@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
 import RichTextDisplay from '../../components/RichTextDisplay';
@@ -48,6 +48,7 @@ interface Comment {
 export default function BlogPost() {
   const { id } = useParams();
   const { user, isTeacher, isAdmin } = useAuth();
+  const navigate = useNavigate();
   const [post, setPost] = useState<Post | null>(null);
   const [files, setFiles] = useState<FileRecord[]>([]);
   const [neighbors, setNeighbors] = useState<NeighborsResponse | null>(null);
@@ -84,12 +85,24 @@ export default function BlogPost() {
           &larr; Back to Blog
         </Link>
         {(isAdmin || (user && user.id === post.author_id)) && (
-          <Link
-            to={`/posts/${post.id}/edit`}
-            className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors inline-block"
-          >
-            Edit Post
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              to={`/posts/${post.id}/edit`}
+              className="px-4 py-2 bg-emerald-700 text-white rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors inline-block"
+            >
+              Edit Post
+            </Link>
+            <button
+              onClick={async () => {
+                if (!window.confirm('Delete this post? This cannot be undone.')) return;
+                await api.del(`/api/posts/${post.id}`);
+                navigate('/blog');
+              }}
+              className="text-sm text-red-500 hover:text-red-700 font-medium"
+            >
+              Delete
+            </button>
+          </div>
         )}
       </div>
 

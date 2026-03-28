@@ -220,6 +220,12 @@ export default function AdminDashboard() {
             description="Monitor storage and manage uploaded files"
             href="/admin/files"
           />
+          <AdminLink
+            icon="⚙️"
+            title="Feature Settings"
+            description="Enable or disable site features"
+            href="/admin/features"
+          />
         </div>
       </section>
     </div>

@@ -213,7 +213,7 @@ async fn main() {
         )
         // Teacher+ routes
         .route("/api/posts", post(routes::blog::create_post))
-        .route("/api/posts/{id}", put(routes::blog::update_post))
+        .route("/api/posts/{id}", put(routes::blog::update_post).delete(routes::blog::delete_post))
         .route("/api/posts/drafts", get(routes::blog::list_draft_posts))
         .route(
             "/api/posts/{id}/internal",
