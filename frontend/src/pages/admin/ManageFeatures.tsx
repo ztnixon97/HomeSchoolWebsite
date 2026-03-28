@@ -11,6 +11,7 @@ interface FeatureFlags {
   families: boolean;
   my_children: boolean;
   my_rsvps: boolean;
+  class_groups: boolean;
 }
 
 const featureLabels: Record<string, { label: string; description: string }> = {
@@ -22,6 +23,7 @@ const featureLabels: Record<string, { label: string; description: string }> = {
   families: { label: 'Families', description: 'Family groups that share children and RSVPs between parents' },
   my_children: { label: 'My Children', description: 'Parents can manage their children profiles, allergies, and emergency contacts' },
   my_rsvps: { label: 'My RSVPs', description: 'Parents can view all their session RSVPs in one place' },
+  class_groups: { label: 'Class Groups', description: 'Organize students into named groups for scheduling and management' },
 };
 
 export default function ManageFeatures() {
