@@ -81,6 +81,7 @@ interface StudentGrade {
   student_name: string | null;
   score: number | null;
   notes: string | null;
+  status: string; // 'graded' | 'excused' | 'missing'
   graded_by: number;
   graded_by_name: string | null;
   updated_at: string;
@@ -91,6 +92,7 @@ interface CategoryWeight {
   group_id: number;
   category: string;
   weight: number;
+  drop_lowest: number;
 }
 
 type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
@@ -125,10 +127,13 @@ export default function ClassDetail() {
   const [newAssignmentMax, setNewAssignmentMax] = useState('100');
   const [newAssignmentDue, setNewAssignmentDue] = useState('');
   const [gradingAssignmentId, setGradingAssignmentId] = useState<number | null>(null);
-  const [gradeInputs, setGradeInputs] = useState<Record<number, { score: string; notes: string }>>({});
+  const [gradeInputs, setGradeInputs] = useState<Record<number, { score: string; notes: string; status: string }>>({});
   const [categoryWeights, setCategoryWeights] = useState<CategoryWeight[]>([]);
   const [editingWeights, setEditingWeights] = useState(false);
-  const [weightInputs, setWeightInputs] = useState<{ category: string; weight: string }[]>([]);
+  const [weightInputs, setWeightInputs] = useState<{ category: string; weight: string; drop_lowest: string }[]>([]);
+  // Assignment editing
+  const [editingAssignmentId, setEditingAssignmentId] = useState<number | null>(null);
+  const [editAssignment, setEditAssignment] = useState({ title: '', description: '', category: '', max_points: '', due_date: '' });
   // Home content editing
   const [editingHome, setEditingHome] = useState(false);
   const [homeContent, setHomeContent] = useState('');
@@ -241,15 +246,51 @@ export default function ClassDetail() {
     }
   };
 
+  const startEditAssignment = (a: ClassAssignment) => {
+    setEditingAssignmentId(a.id);
+    setEditAssignment({
+      title: a.title,
+      description: a.description || '',
+      category: a.category || '',
+      max_points: String(a.max_points),
+      due_date: a.due_date || '',
+    });
+  };
+
+  const saveAssignmentEdit = async () => {
+    if (!editingAssignmentId || !editAssignment.title.trim()) return;
+    try {
+      await api.put(`/api/admin/class-assignments/${editingAssignmentId}`, {
+        title: editAssignment.title,
+        description: editAssignment.description || null,
+        category: editAssignment.category || null,
+        max_points: editAssignment.max_points ? parseFloat(editAssignment.max_points) : null,
+        due_date: editAssignment.due_date || null,
+      });
+      setAssignments(prev => prev.map(a => a.id === editingAssignmentId ? {
+        ...a,
+        title: editAssignment.title,
+        description: editAssignment.description || null,
+        category: editAssignment.category || null,
+        max_points: editAssignment.max_points ? parseFloat(editAssignment.max_points) : 100,
+        due_date: editAssignment.due_date || null,
+      } : a));
+      setEditingAssignmentId(null);
+      addToast('Assignment updated', 'success');
+    } catch {
+      addToast('Failed to update assignment', 'error');
+    }
+  };
+
   const openGrading = (assignmentId: number) => {
     setGradingAssignmentId(assignmentId);
-    // Pre-fill inputs from existing grades
-    const existing: Record<number, { score: string; notes: string }> = {};
+    const existing: Record<number, { score: string; notes: string; status: string }> = {};
     for (const s of roster) {
       const g = grades.find(g => g.assignment_id === assignmentId && g.student_id === s.id);
       existing[s.id] = {
         score: g?.score != null ? String(g.score) : '',
         notes: g?.notes || '',
+        status: g?.status || 'graded',
       };
     }
     setGradeInputs(existing);
@@ -262,6 +303,7 @@ export default function ClassDetail() {
         student_id: s.id,
         score: gradeInputs[s.id]?.score ? parseFloat(gradeInputs[s.id].score) : null,
         notes: gradeInputs[s.id]?.notes || null,
+        status: gradeInputs[s.id]?.status || 'graded',
       }));
       await api.put(`/api/admin/class-assignments/${gradingAssignmentId}/grades`, { grades: gradesList });
       // Refresh grades
@@ -276,10 +318,13 @@ export default function ClassDetail() {
   };
 
   const openWeightEditor = () => {
-    // Get all unique categories from assignments
     const cats = [...new Set(assignments.map(a => a.category).filter(Boolean))] as string[];
-    const existing = Object.fromEntries(categoryWeights.map(w => [w.category, w.weight]));
-    setWeightInputs(cats.map(c => ({ category: c, weight: String(existing[c] ?? '') })));
+    const existingMap = Object.fromEntries(categoryWeights.map(w => [w.category, w]));
+    setWeightInputs(cats.map(c => ({
+      category: c,
+      weight: String(existingMap[c]?.weight ?? ''),
+      drop_lowest: String(existingMap[c]?.drop_lowest || 0),
+    })));
     setEditingWeights(true);
   };
 
@@ -287,7 +332,7 @@ export default function ClassDetail() {
     try {
       const weights = weightInputs
         .filter(w => w.category.trim() && w.weight.trim())
-        .map(w => ({ category: w.category.trim(), weight: parseFloat(w.weight) }));
+        .map(w => ({ category: w.category.trim(), weight: parseFloat(w.weight), drop_lowest: parseInt(w.drop_lowest) || 0 }));
       await api.put(`/api/admin/class-groups/${id}/category-weights`, { weights });
       const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[]; category_weights: CategoryWeight[] }>(`/api/class-groups/${id}/grades`);
       setCategoryWeights(data.category_weights || []);
@@ -298,9 +343,10 @@ export default function ClassDetail() {
     }
   };
 
-  // Calculate weighted average for a student
+  // Calculate weighted average for a student (handles excused, missing, drop-lowest)
   const calcStudentAverage = (studentId: number): { weighted: number | null; unweighted: number | null } => {
-    const studentGrades = grades.filter(g => g.student_id === studentId && g.score != null);
+    // Exclude excused grades; missing grades count as 0 (already stored as score=0)
+    const studentGrades = grades.filter(g => g.student_id === studentId && g.status !== 'excused' && g.score != null);
     if (studentGrades.length === 0) return { weighted: null, unweighted: null };
 
     // Unweighted: simple average of (score/max_points) percentages
@@ -314,26 +360,33 @@ export default function ClassDetail() {
     }
     const unweighted = count > 0 ? totalPct / count : null;
 
-    // Weighted: if category weights are configured
     if (categoryWeights.length === 0) return { weighted: null, unweighted };
 
-    const weightMap = Object.fromEntries(categoryWeights.map(w => [w.category, w.weight]));
+    const weightMap = Object.fromEntries(categoryWeights.map(w => [w.category, w]));
     let weightedSum = 0, weightTotal = 0;
 
-    // Group assignments by category
-    const catAssignments: Record<string, { totalScore: number; totalMax: number }> = {};
+    // Group grades by category, apply drop-lowest
+    const catGrades: Record<string, { score: number; max: number }[]> = {};
     for (const g of studentGrades) {
       const a = assignments.find(a => a.id === g.assignment_id);
       if (!a || !a.category || !weightMap[a.category]) continue;
-      if (!catAssignments[a.category]) catAssignments[a.category] = { totalScore: 0, totalMax: 0 };
-      catAssignments[a.category].totalScore += g.score || 0;
-      catAssignments[a.category].totalMax += a.max_points;
+      if (!catGrades[a.category]) catGrades[a.category] = [];
+      catGrades[a.category].push({ score: g.score || 0, max: a.max_points });
     }
 
-    for (const [cat, data] of Object.entries(catAssignments)) {
-      if (data.totalMax > 0 && weightMap[cat]) {
-        weightedSum += (data.totalScore / data.totalMax) * weightMap[cat];
-        weightTotal += weightMap[cat];
+    for (const [cat, items] of Object.entries(catGrades)) {
+      const cw = weightMap[cat];
+      if (!cw) continue;
+      // Drop lowest N by percentage
+      let sorted = items.map(i => ({ ...i, pct: i.max > 0 ? i.score / i.max : 0 }))
+        .sort((a, b) => a.pct - b.pct);
+      const dropCount = Math.min(cw.drop_lowest || 0, Math.max(sorted.length - 1, 0));
+      sorted = sorted.slice(dropCount);
+      const totalScore = sorted.reduce((s, i) => s + i.score, 0);
+      const totalMax = sorted.reduce((s, i) => s + i.max, 0);
+      if (totalMax > 0) {
+        weightedSum += (totalScore / totalMax) * cw.weight;
+        weightTotal += cw.weight;
       }
     }
 
@@ -698,7 +751,7 @@ export default function ClassDetail() {
                 {categoryWeights.length > 0 ? (
                   categoryWeights.map(w => (
                     <span key={w.category} className="text-xs bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full border border-purple-100">
-                      {w.category}: {w.weight}%
+                      {w.category}: {w.weight}%{w.drop_lowest > 0 ? ` (drop ${w.drop_lowest})` : ''}
                     </span>
                   ))
                 ) : (
@@ -740,6 +793,17 @@ export default function ClassDetail() {
                       />
                       <span className="text-xs text-gray-400">%</span>
                     </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs text-gray-400">Drop</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={w.drop_lowest}
+                        onChange={e => setWeightInputs(prev => prev.map((p, j) => j === i ? { ...p, drop_lowest: e.target.value } : p))}
+                        className="w-14 text-sm border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                      <span className="text-xs text-gray-400">lowest</span>
+                    </div>
                     <button
                       onClick={() => setWeightInputs(prev => prev.filter((_, j) => j !== i))}
                       className="text-red-400 hover:text-red-600 text-sm font-bold"
@@ -750,7 +814,7 @@ export default function ClassDetail() {
               <div className="flex items-center justify-between">
                 <div className="flex gap-2">
                   <button
-                    onClick={() => setWeightInputs(prev => [...prev, { category: '', weight: '' }])}
+                    onClick={() => setWeightInputs(prev => [...prev, { category: '', weight: '', drop_lowest: '0' }])}
                     className="text-xs text-purple-600 hover:text-purple-800 font-medium"
                   >
                     + Add Category
@@ -855,22 +919,47 @@ export default function ClassDetail() {
                     <tr>
                       <th className="text-left px-4 py-2 font-medium text-gray-600">Student</th>
                       <th className="text-left px-4 py-2 font-medium text-gray-600 w-32">Score / {assignment.max_points}</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-600 w-28">Status</th>
                       <th className="text-left px-4 py-2 font-medium text-gray-600">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-50">
-                    {roster.map(s => (
-                      <tr key={s.id}>
+                    {roster.map(s => {
+                      const st = gradeInputs[s.id]?.status || 'graded';
+                      return (
+                      <tr key={s.id} className={st === 'excused' ? 'bg-yellow-50/50' : st === 'missing' ? 'bg-red-50/50' : ''}>
                         <td className="px-4 py-2 text-ink">{s.first_name} {s.last_name}</td>
                         <td className="px-4 py-2">
                           <input
                             type="number"
                             step="0.1"
                             placeholder="—"
-                            value={gradeInputs[s.id]?.score ?? ''}
+                            disabled={st === 'excused'}
+                            value={st === 'excused' ? '' : st === 'missing' ? '0' : (gradeInputs[s.id]?.score ?? '')}
                             onChange={e => setGradeInputs(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))}
-                            className="w-24 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-24 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:bg-gray-100 disabled:text-gray-400"
                           />
+                        </td>
+                        <td className="px-4 py-2">
+                          <select
+                            value={st}
+                            onChange={e => {
+                              const newStatus = e.target.value;
+                              setGradeInputs(prev => ({
+                                ...prev,
+                                [s.id]: {
+                                  ...prev[s.id],
+                                  status: newStatus,
+                                  score: newStatus === 'missing' ? '0' : newStatus === 'excused' ? '' : prev[s.id]?.score || '',
+                                }
+                              }));
+                            }}
+                            className="text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            <option value="graded">Graded</option>
+                            <option value="excused">Excused</option>
+                            <option value="missing">Missing</option>
+                          </select>
                         </td>
                         <td className="px-4 py-2">
                           <input
@@ -882,7 +971,8 @@ export default function ClassDetail() {
                           />
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -982,12 +1072,30 @@ export default function ClassDetail() {
               ) : (
                 <div className="space-y-3">
                   {assignments.map(a => {
-                    const assignmentGrades = grades.filter(g => g.assignment_id === a.id);
+                    const assignmentGrades = grades.filter(g => g.assignment_id === a.id && g.status !== 'excused');
                     const scored = assignmentGrades.filter(g => g.score != null);
                     const avg = scored.length > 0 ? scored.reduce((sum, g) => sum + (g.score || 0), 0) / scored.length : null;
                     const catWeight = a.category ? categoryWeights.find(w => w.category === a.category) : null;
+                    const isEditing = editingAssignmentId === a.id;
                     return (
                       <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                        {isEditing ? (
+                          <div className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                              <input type="text" value={editAssignment.title} onChange={e => setEditAssignment(p => ({ ...p, title: e.target.value }))} className={inputClass} placeholder="Title *" />
+                              <input type="text" value={editAssignment.category} onChange={e => setEditAssignment(p => ({ ...p, category: e.target.value }))} className={inputClass} placeholder="Category" />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <input type="number" value={editAssignment.max_points} onChange={e => setEditAssignment(p => ({ ...p, max_points: e.target.value }))} className={inputClass} placeholder="Max points" />
+                              <input type="date" value={editAssignment.due_date} onChange={e => setEditAssignment(p => ({ ...p, due_date: e.target.value }))} className={inputClass} />
+                              <input type="text" value={editAssignment.description} onChange={e => setEditAssignment(p => ({ ...p, description: e.target.value }))} className={inputClass} placeholder="Description" />
+                            </div>
+                            <div className="flex gap-2">
+                              <button onClick={saveAssignmentEdit} disabled={!editAssignment.title.trim()} className="px-3 py-1.5 bg-emerald-700 text-white text-xs rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition-colors">Save</button>
+                              <button onClick={() => setEditingAssignmentId(null)} className="px-3 py-1.5 bg-gray-100 text-gray-700 text-xs rounded-lg hover:bg-gray-200 transition-colors">Cancel</button>
+                            </div>
+                          </div>
+                        ) : (
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
@@ -1008,22 +1116,29 @@ export default function ClassDetail() {
                               {canManage && <span>{scored.length}/{roster.length} graded</span>}
                             </div>
                             {/* Parent view: show their child's grades inline */}
-                            {!canManage && assignmentGrades.length > 0 && (
-                              <div className="mt-2 space-y-1">
-                                {assignmentGrades.map(g => (
-                                  <div key={g.id} className="text-sm">
-                                    <span className="text-ink font-medium">{g.student_name}:</span>{' '}
-                                    {g.score != null ? (
-                                      <span>
-                                        {g.score}/{a.max_points}
-                                        <span className="text-gray-400 ml-1 text-xs">({Math.round((g.score / a.max_points) * 100)}%)</span>
-                                      </span>
-                                    ) : <span className="text-gray-400">Not graded</span>}
-                                    {g.notes && <span className="text-gray-400 ml-2 text-xs">— {g.notes}</span>}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
+                            {!canManage && (() => {
+                              const allGrades = grades.filter(g => g.assignment_id === a.id);
+                              return allGrades.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {allGrades.map(g => (
+                                    <div key={g.id} className="text-sm">
+                                      <span className="text-ink font-medium">{g.student_name}:</span>{' '}
+                                      {g.status === 'excused' ? (
+                                        <span className="text-yellow-600 text-xs font-medium">Excused</span>
+                                      ) : g.status === 'missing' ? (
+                                        <span className="text-red-500 text-xs font-medium">Missing (0/{a.max_points})</span>
+                                      ) : g.score != null ? (
+                                        <span>
+                                          {g.score}/{a.max_points}
+                                          <span className="text-gray-400 ml-1 text-xs">({Math.round((g.score / a.max_points) * 100)}%)</span>
+                                        </span>
+                                      ) : <span className="text-gray-400">Not graded</span>}
+                                      {g.notes && <span className="text-gray-400 ml-2 text-xs">— {g.notes}</span>}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })()}
                           </div>
                           {canManage && (
                             <div className="flex gap-2 ml-3">
@@ -1034,6 +1149,12 @@ export default function ClassDetail() {
                                 Grade
                               </button>
                               <button
+                                onClick={() => startEditAssignment(a)}
+                                className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg hover:bg-blue-100 transition-colors"
+                              >
+                                Edit
+                              </button>
+                              <button
                                 onClick={() => deleteAssignment(a.id)}
                                 className="text-red-500 hover:text-red-700 text-xs"
                               >
@@ -1042,6 +1163,7 @@ export default function ClassDetail() {
                             </div>
                           )}
                         </div>
+                        )}
                       </div>
                     );
                   })}

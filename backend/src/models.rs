@@ -960,6 +960,7 @@ pub struct SaveGradeRequest {
     pub student_id: i64,
     pub score: Option<f64>,
     pub notes: Option<String>,
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -984,4 +985,5 @@ pub struct SaveCategoryWeightsRequest {
 pub struct CategoryWeightEntry {
     pub category: String,
     pub weight: f64,
+    pub drop_lowest: Option<i64>,
 }
