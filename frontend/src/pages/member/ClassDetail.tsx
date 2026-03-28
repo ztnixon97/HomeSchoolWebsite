@@ -61,18 +61,29 @@ interface Announcement {
   created_at: string;
 }
 
-interface ClassGrade {
+interface ClassAssignment {
   id: number;
   group_id: number;
+  title: string;
+  description: string | null;
+  category: string | null;
+  max_points: number;
+  due_date: string | null;
+  created_by: number;
+  created_by_name: string | null;
+  created_at: string;
+}
+
+interface StudentGrade {
+  id: number;
+  assignment_id: number;
   student_id: number;
   student_name: string | null;
-  assignment_title: string;
-  grade: number | null;
-  max_grade: number | null;
+  score: number | null;
   notes: string | null;
   graded_by: number;
   graded_by_name: string | null;
-  created_at: string;
+  updated_at: string;
 }
 
 type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
@@ -98,13 +109,16 @@ export default function ClassDetail() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
-  // Grades
-  const [grades, setGrades] = useState<ClassGrade[]>([]);
-  const [gradeStudentId, setGradeStudentId] = useState('');
-  const [gradeAssignment, setGradeAssignment] = useState('');
-  const [gradeValue, setGradeValue] = useState('');
-  const [gradeMax, setGradeMax] = useState('');
-  const [gradeNotes, setGradeNotes] = useState('');
+  // Grades / Assignments
+  const [assignments, setAssignments] = useState<ClassAssignment[]>([]);
+  const [grades, setGrades] = useState<StudentGrade[]>([]);
+  const [newAssignmentTitle, setNewAssignmentTitle] = useState('');
+  const [newAssignmentDesc, setNewAssignmentDesc] = useState('');
+  const [newAssignmentCategory, setNewAssignmentCategory] = useState('');
+  const [newAssignmentMax, setNewAssignmentMax] = useState('100');
+  const [newAssignmentDue, setNewAssignmentDue] = useState('');
+  const [gradingAssignmentId, setGradingAssignmentId] = useState<number | null>(null);
+  const [gradeInputs, setGradeInputs] = useState<Record<number, { score: string; notes: string }>>({});
   // Home content editing
   const [editingHome, setEditingHome] = useState(false);
   const [homeContent, setHomeContent] = useState('');
@@ -143,10 +157,11 @@ export default function ClassDetail() {
     } else if (tab === 'announcements') {
       api.get<Announcement[]>(`/api/class-groups/${id}/announcements`).then(setAnnouncements).catch(() => {});
     } else if (tab === 'grades') {
-      api.get<{ grading_enabled: boolean; grades: ClassGrade[] }>(`/api/class-groups/${id}/grades`).then(data => {
+      api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[] }>(`/api/class-groups/${id}/grades`).then(data => {
+        setAssignments(data.assignments);
         setGrades(data.grades);
       }).catch(() => {});
-      // Also fetch roster for the grade form (teacher needs student list)
+      // Also fetch roster for the gradebook (teacher needs student list)
       if (canManage && roster.length === 0) {
         api.get<RosterStudent[]>(`/api/class-groups/${id}/roster`).then(setRoster).catch(() => {});
       }
@@ -180,36 +195,71 @@ export default function ClassDetail() {
     }
   };
 
-  const createGrade = async () => {
-    if (!gradeStudentId || !gradeAssignment.trim()) return;
+  const createAssignment = async () => {
+    if (!newAssignmentTitle.trim()) return;
     try {
-      const newGrade = await api.post<ClassGrade>('/api/admin/class-grades', {
+      const assignment = await api.post<ClassAssignment>('/api/admin/class-assignments', {
         group_id: Number(id),
-        student_id: Number(gradeStudentId),
-        assignment_title: gradeAssignment,
-        grade: gradeValue ? parseFloat(gradeValue) : null,
-        max_grade: gradeMax ? parseFloat(gradeMax) : null,
-        notes: gradeNotes || null,
+        title: newAssignmentTitle,
+        description: newAssignmentDesc || null,
+        category: newAssignmentCategory || null,
+        max_points: newAssignmentMax ? parseFloat(newAssignmentMax) : 100,
+        due_date: newAssignmentDue || null,
       });
-      setGrades(prev => [...prev, newGrade]);
-      setGradeStudentId('');
-      setGradeAssignment('');
-      setGradeValue('');
-      setGradeMax('');
-      setGradeNotes('');
-      addToast('Grade added', 'success');
+      setAssignments(prev => [...prev, assignment]);
+      setNewAssignmentTitle('');
+      setNewAssignmentDesc('');
+      setNewAssignmentCategory('');
+      setNewAssignmentMax('100');
+      setNewAssignmentDue('');
+      addToast('Assignment created', 'success');
     } catch {
-      addToast('Failed to add grade', 'error');
+      addToast('Failed to create assignment', 'error');
     }
   };
 
-  const deleteGrade = async (gradeId: number) => {
+  const deleteAssignment = async (assignmentId: number) => {
     try {
-      await api.del(`/api/admin/class-grades/${gradeId}`);
-      setGrades(prev => prev.filter(g => g.id !== gradeId));
-      addToast('Grade deleted', 'success');
+      await api.del(`/api/admin/class-assignments/${assignmentId}`);
+      setAssignments(prev => prev.filter(a => a.id !== assignmentId));
+      setGrades(prev => prev.filter(g => g.assignment_id !== assignmentId));
+      if (gradingAssignmentId === assignmentId) setGradingAssignmentId(null);
+      addToast('Assignment deleted', 'success');
     } catch {
-      addToast('Failed to delete grade', 'error');
+      addToast('Failed to delete assignment', 'error');
+    }
+  };
+
+  const openGrading = (assignmentId: number) => {
+    setGradingAssignmentId(assignmentId);
+    // Pre-fill inputs from existing grades
+    const existing: Record<number, { score: string; notes: string }> = {};
+    for (const s of roster) {
+      const g = grades.find(g => g.assignment_id === assignmentId && g.student_id === s.id);
+      existing[s.id] = {
+        score: g?.score != null ? String(g.score) : '',
+        notes: g?.notes || '',
+      };
+    }
+    setGradeInputs(existing);
+  };
+
+  const saveGrades = async () => {
+    if (!gradingAssignmentId) return;
+    try {
+      const gradesList = roster.map(s => ({
+        student_id: s.id,
+        score: gradeInputs[s.id]?.score ? parseFloat(gradeInputs[s.id].score) : null,
+        notes: gradeInputs[s.id]?.notes || null,
+      }));
+      await api.put(`/api/admin/class-assignments/${gradingAssignmentId}/grades`, { grades: gradesList });
+      // Refresh grades
+      const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[] }>(`/api/class-groups/${id}/grades`);
+      setGrades(data.grades);
+      setGradingAssignmentId(null);
+      addToast('Grades saved', 'success');
+    } catch {
+      addToast('Failed to save grades', 'error');
     }
   };
 
@@ -563,109 +613,190 @@ export default function ClassDetail() {
       {/* Grades Tab */}
       {tab === 'grades' && (
         <div className="space-y-4">
-          {canManage && (
+          {/* Create Assignment Form (teachers) */}
+          {canManage && !gradingAssignmentId && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-              <h3 className="text-sm font-medium text-ink mb-3">Add Grade</h3>
+              <h3 className="text-sm font-medium text-ink mb-3">Create Assignment</h3>
               <div className="grid grid-cols-2 gap-2 mb-2">
-                <select
-                  value={gradeStudentId}
-                  onChange={e => setGradeStudentId(e.target.value)}
-                  className={inputClass}
-                >
-                  <option value="">Select student...</option>
-                  {roster.map(s => (
-                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
-                  ))}
-                </select>
                 <input
                   type="text"
-                  placeholder="Assignment title"
-                  value={gradeAssignment}
-                  onChange={e => setGradeAssignment(e.target.value)}
+                  placeholder="Assignment title *"
+                  value={newAssignmentTitle}
+                  onChange={e => setNewAssignmentTitle(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  type="text"
+                  placeholder="Category (e.g. Homework, Quiz, Test)"
+                  value={newAssignmentCategory}
+                  onChange={e => setNewAssignmentCategory(e.target.value)}
                   className={inputClass}
                 />
               </div>
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <input
                   type="number"
-                  step="0.1"
-                  placeholder="Grade"
-                  value={gradeValue}
-                  onChange={e => setGradeValue(e.target.value)}
+                  step="1"
+                  placeholder="Max points"
+                  value={newAssignmentMax}
+                  onChange={e => setNewAssignmentMax(e.target.value)}
                   className={inputClass}
                 />
                 <input
-                  type="number"
-                  step="0.1"
-                  placeholder="Max grade"
-                  value={gradeMax}
-                  onChange={e => setGradeMax(e.target.value)}
+                  type="date"
+                  placeholder="Due date"
+                  value={newAssignmentDue}
+                  onChange={e => setNewAssignmentDue(e.target.value)}
                   className={inputClass}
                 />
                 <input
                   type="text"
-                  placeholder="Notes (optional)"
-                  value={gradeNotes}
-                  onChange={e => setGradeNotes(e.target.value)}
+                  placeholder="Description (optional)"
+                  value={newAssignmentDesc}
+                  onChange={e => setNewAssignmentDesc(e.target.value)}
                   className={inputClass}
                 />
               </div>
               <button
-                onClick={createGrade}
-                disabled={!gradeStudentId || !gradeAssignment.trim()}
+                onClick={createAssignment}
+                disabled={!newAssignmentTitle.trim()}
                 className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition-colors"
               >
-                Add Grade
+                Create Assignment
               </button>
             </div>
           )}
-          {grades.length === 0 ? (
-            <p className="text-gray-500 text-sm">No grades recorded yet.</p>
-          ) : (
-            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Assignment</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Grade</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
-                    {canManage && <th className="text-right px-4 py-3 font-medium text-gray-600"></th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {grades.map(g => (
-                    <tr key={g.id}>
-                      <td className="px-4 py-3 text-ink">{g.student_name}</td>
-                      <td className="px-4 py-3 text-ink">{g.assignment_title}</td>
-                      <td className="px-4 py-3 text-ink">
-                        {g.grade != null ? (
-                          <span>
-                            {g.grade}{g.max_grade != null ? `/${g.max_grade}` : ''}
-                            {g.max_grade != null && g.max_grade > 0 && (
-                              <span className="text-gray-400 ml-1 text-xs">
-                                ({Math.round((g.grade / g.max_grade) * 100)}%)
-                              </span>
-                            )}
-                          </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{g.notes || '—'}</td>
-                      {canManage && (
-                        <td className="px-4 py-3 text-right">
-                          <button
-                            onClick={() => deleteGrade(g.id)}
-                            className="text-red-500 hover:text-red-700 text-xs"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      )}
+
+          {/* Grade Entry View (when grading a specific assignment) */}
+          {gradingAssignmentId && (() => {
+            const assignment = assignments.find(a => a.id === gradingAssignmentId);
+            if (!assignment) return null;
+            return (
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-ink">Grading: {assignment.title}</h3>
+                    <p className="text-xs text-gray-500">Max points: {assignment.max_points}{assignment.due_date ? ` · Due: ${new Date(assignment.due_date).toLocaleDateString()}` : ''}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={saveGrades} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 transition-colors">
+                      Save Grades
+                    </button>
+                    <button onClick={() => setGradingAssignmentId(null)} className="px-4 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-2 font-medium text-gray-600">Student</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-600 w-32">Score / {assignment.max_points}</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-600">Notes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {roster.map(s => (
+                      <tr key={s.id}>
+                        <td className="px-4 py-2 text-ink">{s.first_name} {s.last_name}</td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="number"
+                            step="0.1"
+                            placeholder="—"
+                            value={gradeInputs[s.id]?.score ?? ''}
+                            onChange={e => setGradeInputs(prev => ({ ...prev, [s.id]: { ...prev[s.id], score: e.target.value } }))}
+                            className="w-24 text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </td>
+                        <td className="px-4 py-2">
+                          <input
+                            type="text"
+                            placeholder="Optional"
+                            value={gradeInputs[s.id]?.notes ?? ''}
+                            onChange={e => setGradeInputs(prev => ({ ...prev, [s.id]: { ...prev[s.id], notes: e.target.value } }))}
+                            className="w-full text-sm border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
+          })()}
+
+          {/* Assignments List */}
+          {!gradingAssignmentId && (
+            <>
+              {assignments.length === 0 ? (
+                <p className="text-gray-500 text-sm">No assignments yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {assignments.map(a => {
+                    const assignmentGrades = grades.filter(g => g.assignment_id === a.id);
+                    const scored = assignmentGrades.filter(g => g.score != null);
+                    const avg = scored.length > 0 ? scored.reduce((sum, g) => sum + (g.score || 0), 0) / scored.length : null;
+                    return (
+                      <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium text-ink text-sm">{a.title}</h4>
+                              {a.category && (
+                                <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">{a.category}</span>
+                              )}
+                              <span className="text-xs text-gray-400">{a.max_points} pts</span>
+                            </div>
+                            {a.description && <p className="text-xs text-gray-500 mt-1">{a.description}</p>}
+                            <div className="flex items-center gap-3 mt-2 text-xs text-gray-400">
+                              {a.due_date && <span>Due: {new Date(a.due_date).toLocaleDateString()}</span>}
+                              {canManage && avg != null && (
+                                <span>Avg: {avg.toFixed(1)}/{a.max_points} ({Math.round((avg / a.max_points) * 100)}%)</span>
+                              )}
+                              {canManage && <span>{scored.length} graded</span>}
+                            </div>
+                            {/* Parent view: show their child's grades inline */}
+                            {!canManage && assignmentGrades.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {assignmentGrades.map(g => (
+                                  <div key={g.id} className="text-sm">
+                                    <span className="text-ink font-medium">{g.student_name}:</span>{' '}
+                                    {g.score != null ? (
+                                      <span>
+                                        {g.score}/{a.max_points}
+                                        <span className="text-gray-400 ml-1 text-xs">({Math.round((g.score / a.max_points) * 100)}%)</span>
+                                      </span>
+                                    ) : <span className="text-gray-400">Not graded</span>}
+                                    {g.notes && <span className="text-gray-400 ml-2 text-xs">— {g.notes}</span>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          {canManage && (
+                            <div className="flex gap-2 ml-3">
+                              <button
+                                onClick={() => openGrading(a.id)}
+                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs rounded-lg hover:bg-emerald-100 transition-colors"
+                              >
+                                Grade
+                              </button>
+                              <button
+                                onClick={() => deleteAssignment(a.id)}
+                                className="text-red-500 hover:text-red-700 text-xs"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

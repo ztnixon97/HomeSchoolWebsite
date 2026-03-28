@@ -439,9 +439,10 @@ async fn main() {
         .route("/api/class-groups/{id}/home", put(routes::class_groups::update_class_home))
         .route("/api/class-groups/{id}/sessions", post(routes::class_groups::create_class_session))
         .route("/api/class-groups/{id}/sessions/{session_id}", put(routes::class_groups::update_class_session).delete(routes::class_groups::delete_class_session))
-        // Class grade CRUD (teacher+)
-        .route("/api/admin/class-grades", post(routes::admin::create_class_grade))
-        .route("/api/admin/class-grades/{id}", put(routes::admin::update_class_grade).delete(routes::admin::delete_class_grade));
+        // Assignment & grade CRUD (teacher+)
+        .route("/api/admin/class-assignments", post(routes::admin::create_assignment))
+        .route("/api/admin/class-assignments/{id}", put(routes::admin::update_assignment).delete(routes::admin::delete_assignment))
+        .route("/api/admin/class-assignments/{id}/grades", put(routes::admin::save_assignment_grades));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.
