@@ -71,21 +71,22 @@ export default function ManageFeatures() {
 
       <div className="space-y-3">
         {Object.entries(featureLabels).map(([key, { label, description }]) => (
-          <div key={key} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between">
-            <div>
+          <div key={key} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 flex items-center justify-between gap-4">
+            <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-gray-900">{label}</h3>
               <p className="text-sm text-gray-500 mt-0.5">{description}</p>
             </div>
             <button
               onClick={() => toggle(key as keyof FeatureFlags)}
               disabled={saving}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+              aria-label={`Toggle ${label}`}
+              className={`relative inline-flex h-8 w-14 flex-shrink-0 items-center rounded-full transition-colors ${
                 flags[key as keyof FeatureFlags] ? 'bg-emerald-600' : 'bg-gray-300'
               }`}
             >
               <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  flags[key as keyof FeatureFlags] ? 'translate-x-6' : 'translate-x-1'
+                className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                  flags[key as keyof FeatureFlags] ? 'translate-x-7' : 'translate-x-1'
                 }`}
               />
             </button>
