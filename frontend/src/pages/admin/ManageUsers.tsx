@@ -236,7 +236,7 @@ export default function ManageUsers() {
                     </span>
                   </td>
                   <td className="py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         onClick={() => toggleActive(u)}
                         className="text-xs text-gray-500 hover:text-gray-700 font-medium"

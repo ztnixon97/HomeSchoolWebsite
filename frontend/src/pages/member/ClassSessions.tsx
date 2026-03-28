@@ -464,10 +464,11 @@ function CalendarView() {
         <h3 className="text-lg font-semibold text-ink">{monthName}</h3>
         <button onClick={goToday} className="px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5 rounded-lg transition-colors">Today</button>
       </div>
-      <div className="grid grid-cols-7 gap-px text-center text-xs font-medium text-ink/50 uppercase tracking-wider mb-2">
+      <div className="overflow-x-auto">
+      <div className="min-w-[350px] grid grid-cols-7 gap-px text-center text-xs font-medium text-ink/50 uppercase tracking-wider mb-2">
         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className="py-2">{d}</div>)}
       </div>
-      <div className="grid grid-cols-7 gap-px bg-ink/5 rounded-lg overflow-hidden">
+      <div className="min-w-[350px] grid grid-cols-7 gap-px bg-ink/5 rounded-lg overflow-hidden">
         {days.map((d, i) => {
           const daySessionCount = d ? sessionsOnDay(d).length : 0;
           const hasSessions = daySessionCount > 0;
@@ -512,6 +513,7 @@ function CalendarView() {
             </div>
           );
         })}
+      </div>
       </div>
     </div>
   );

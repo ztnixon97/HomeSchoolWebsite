@@ -223,7 +223,7 @@ export default function Inbox() {
             />
           </div>
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex flex-wrap gap-3 pt-1">
             <button
               type="submit"
               disabled={sending}

@@ -440,7 +440,7 @@ export default function ManageStandards() {
                             className={`${inputClass} resize-none`}
                           />
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => saveEdit(std.id)}
                             disabled={saving}
@@ -464,7 +464,7 @@ export default function ManageStandards() {
                           Delete{' '}
                           <span className="font-semibold">{std.code}</span>? This cannot be undone.
                         </p>
-                        <div className="flex gap-2 flex-shrink-0">
+                        <div className="flex flex-wrap gap-2 flex-shrink-0">
                           <button
                             onClick={() => handleDelete(std.id)}
                             className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 transition-colors"

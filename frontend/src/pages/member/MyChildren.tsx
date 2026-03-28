@@ -242,7 +242,7 @@ export default function MyChildren() {
               <div className="text-sm text-blue-800">
                 <span className="font-semibold">{inv.invited_by_name}</span> invited you to join <span className="font-semibold">{inv.family_name}</span>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <button onClick={() => handleAcceptInvite(inv.id)} className="btn-primary text-xs px-3 py-1.5">Accept</button>
                 <button onClick={() => handleDeclineInvite(inv.id)} className="btn-ghost text-xs px-3 py-1.5">Decline</button>
               </div>
@@ -287,7 +287,7 @@ export default function MyChildren() {
           </div>
 
           {/* Invite form */}
-          <div className="flex gap-2 items-end">
+          <div className="flex flex-wrap gap-2 items-end">
             <div className="flex-1">
               <label className="block text-xs text-ink/50 mb-1">Invite a family member</label>
               <input
@@ -310,9 +310,9 @@ export default function MyChildren() {
             <div className="space-y-3">
               <h2 className="text-lg font-semibold text-ink">Create a Family</h2>
               <p className="text-sm text-ink/60">Create a family group to share children and RSVPs with your partner.</p>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <input
-                  className="flex-1 px-3 py-2 border border-ink/20 rounded text-sm"
+                  className="flex-1 min-w-[200px] px-3 py-2 border border-ink/20 rounded text-sm"
                   value={familyName}
                   onChange={e => setFamilyName(e.target.value)}
                   placeholder="Family name (e.g. The Smith Family)"
@@ -432,7 +432,7 @@ export default function MyChildren() {
                   <input className="px-3 py-2 border border-ink/20 rounded" value={form.emergency_contact_name || ''} onChange={e => setForm(f => ({ ...f, emergency_contact_name: e.target.value }))} placeholder="Emergency contact name" />
                   <input type="tel" className="px-3 py-2 border border-ink/20 rounded" value={form.emergency_contact_phone || ''} onChange={e => setForm(f => ({ ...f, emergency_contact_phone: e.target.value }))} placeholder="Emergency contact phone" />
                   <textarea className="px-3 py-2 border border-ink/20 rounded" value={form.notes || ''} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Notes" rows={2} />
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button onClick={save} className="btn-primary text-sm">Save</button>
                     <button onClick={() => setEditingId(null)} className="btn-ghost text-sm">Cancel</button>
                   </div>

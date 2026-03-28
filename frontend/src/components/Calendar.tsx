@@ -58,12 +58,13 @@ export default function Calendar({ year, month, sessions, linkTo }: Props) {
 
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="grid grid-cols-7 text-center text-xs font-medium text-gray-500 border-b border-gray-200">
+      <div className="overflow-x-auto">
+      <div className="min-w-[500px] grid grid-cols-7 text-center text-xs font-medium text-gray-500 border-b border-gray-200">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
           <div key={d} className="py-2">{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7">
+      <div className="min-w-[500px] grid grid-cols-7">
         {days.map((day, i) => (
           <div
             key={i}
@@ -103,6 +104,7 @@ export default function Calendar({ year, month, sessions, linkTo }: Props) {
             )}
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

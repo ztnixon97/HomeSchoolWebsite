@@ -477,20 +477,22 @@ export default function ClassDetail() {
       {group.description && <p className="text-gray-500 text-sm mb-6">{group.description}</p>}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-gray-200 mb-6">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key
-                ? 'border-emerald-600 text-emerald-700'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="overflow-x-auto -mx-4 px-4">
+        <div className="flex gap-1 border-b border-gray-200 mb-6 min-w-max">
+          {tabs.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                tab === t.key
+                  ? 'border-emerald-600 text-emerald-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Home Tab */}
@@ -776,13 +778,13 @@ export default function ClassDetail() {
               <p className="text-xs text-gray-500 mb-3">Set the percentage weight for each assignment category. Weights should total 100%.</p>
               <div className="space-y-2 mb-3">
                 {weightInputs.map((w, i) => (
-                  <div key={i} className="flex items-center gap-2">
+                  <div key={i} className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
                       value={w.category}
                       onChange={e => setWeightInputs(prev => prev.map((p, j) => j === i ? { ...p, category: e.target.value } : p))}
                       placeholder="Category name"
-                      className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="flex-1 min-w-[120px] text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-purple-500"
                     />
                     <div className="flex items-center gap-1">
                       <input
@@ -808,13 +810,13 @@ export default function ClassDetail() {
                     </div>
                     <button
                       onClick={() => setWeightInputs(prev => prev.filter((_, j) => j !== i))}
-                      className="text-red-400 hover:text-red-600 text-sm font-bold"
+                      className="text-red-400 hover:text-red-600 text-sm font-bold p-1"
                     >&times;</button>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex gap-2">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap gap-2 items-center">
                   <button
                     onClick={() => setWeightInputs(prev => [...prev, { category: '', weight: '', drop_lowest: '0' }])}
                     className="text-xs text-purple-600 hover:text-purple-800 font-medium"
@@ -846,7 +848,7 @@ export default function ClassDetail() {
           {canManage && !gradingAssignmentId && !editingWeights && (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
               <h3 className="text-sm font-medium text-ink mb-3">Create Assignment</h3>
-              <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                 <input
                   type="text"
                   placeholder="Assignment title *"
@@ -916,7 +918,7 @@ export default function ClassDetail() {
                     </button>
                   </div>
                 </div>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm min-w-[500px]">
                   <thead className="bg-gray-50 border-b border-gray-100">
                     <tr>
                       <th className="text-left px-4 py-2 font-medium text-gray-600">Student</th>
@@ -985,7 +987,7 @@ export default function ClassDetail() {
           {!gradingAssignmentId && !editingWeights && grades.length > 0 && (
             <div className="flex items-center gap-3 flex-wrap">
               {canManage ? (
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span className="text-sm text-gray-600">Export Report Card:</span>
                   {roster.map(s => (
                     <Link
@@ -1143,9 +1145,9 @@ export default function ClassDetail() {
                             </div>
                           </div>
                         ) : (
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
                               <h4 className="font-medium text-ink text-sm">{a.title}</h4>
                               {a.category && (
                                 <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">
@@ -1188,7 +1190,7 @@ export default function ClassDetail() {
                             })()}
                           </div>
                           {canManage && (
-                            <div className="flex gap-2 ml-3">
+                            <div className="flex flex-wrap gap-2 sm:ml-3">
                               <button
                                 onClick={() => openGrading(a.id)}
                                 className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-xs rounded-lg hover:bg-emerald-100 transition-colors"

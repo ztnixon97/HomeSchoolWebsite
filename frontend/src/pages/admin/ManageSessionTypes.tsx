@@ -163,7 +163,7 @@ export default function ManageSessionTypes() {
           <label className="block text-xs text-gray-500 mb-1">Description</label>
           <input value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="Optional summary shown to parents" />
         </div>
-        <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={hostable} onChange={e => setHostable(e.target.checked)} />
             Hostable

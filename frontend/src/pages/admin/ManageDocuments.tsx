@@ -338,7 +338,7 @@ export default function ManageDocuments() {
                       {new Date(t.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
                     <button
                       onClick={() => startEdit(t)}
                       className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
@@ -470,7 +470,7 @@ export default function ManageDocuments() {
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
                         />
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button
                           onClick={() => reviewSubmission(sub.id, 'approved')}
                           disabled={reviewSaving}

@@ -252,7 +252,7 @@ export default function ManageStudents() {
                   })}
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 {features.student_progress && <Link
                   to={`/student-progress/${s.id}`}
                   className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"

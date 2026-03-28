@@ -214,7 +214,7 @@ export default function ManageSessions() {
           <h1 className="text-2xl font-bold text-ink">Manage Sessions</h1>
           <p className="text-ink/60 text-sm mt-1">Create class sessions for parents to host.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
               setShowHolidayForm(false);
@@ -408,8 +408,8 @@ export default function ManageSessions() {
           return matchesSearch && matchesType && matchesStatus;
         }).map(s => (
           <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+              <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold text-sm text-gray-900">{s.title}</h3>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
                   s.status === 'open'
