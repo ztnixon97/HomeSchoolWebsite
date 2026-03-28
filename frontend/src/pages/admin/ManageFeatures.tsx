@@ -9,6 +9,8 @@ interface FeatureFlags {
   member_directory: boolean;
   student_progress: boolean;
   families: boolean;
+  my_children: boolean;
+  my_rsvps: boolean;
 }
 
 const featureLabels: Record<string, { label: string; description: string }> = {
@@ -18,6 +20,8 @@ const featureLabels: Record<string, { label: string; description: string }> = {
   member_directory: { label: 'Member Directory', description: 'Directory showing all members, contact info, and hosting history' },
   student_progress: { label: 'Student Progress', description: 'Milestone tracking and progress reports for students' },
   families: { label: 'Families', description: 'Family groups that share children and RSVPs between parents' },
+  my_children: { label: 'My Children', description: 'Parents can manage their children profiles, allergies, and emergency contacts' },
+  my_rsvps: { label: 'My RSVPs', description: 'Parents can view all their session RSVPs in one place' },
 };
 
 export default function ManageFeatures() {

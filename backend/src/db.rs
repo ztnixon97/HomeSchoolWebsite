@@ -359,7 +359,9 @@ fn run_migrations(pool: &DbPool) {
          ('feature_lesson_plans', '1'),
          ('feature_member_directory', '1'),
          ('feature_student_progress', '1'),
-         ('feature_families', '1')",
+         ('feature_families', '1'),
+         ('feature_my_children', '1'),
+         ('feature_my_rsvps', '1')",
         [],
     );
 

@@ -8,6 +8,8 @@ interface FeatureFlags {
   member_directory: boolean;
   student_progress: boolean;
   families: boolean;
+  my_children: boolean;
+  my_rsvps: boolean;
 }
 
 const defaults: FeatureFlags = {
@@ -17,6 +19,8 @@ const defaults: FeatureFlags = {
   member_directory: true,
   student_progress: true,
   families: true,
+  my_children: true,
+  my_rsvps: true,
 };
 
 const FeatureContext = createContext<FeatureFlags>(defaults);
