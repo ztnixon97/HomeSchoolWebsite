@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../auth';
+import { useFeatures } from '../../features';
 import { api } from '../../api';
 
 interface Post {
@@ -53,6 +54,7 @@ function calculateAge(dob: string): number {
 
 export default function Dashboard() {
   const { user, isTeacher, isAdmin } = useAuth();
+  const features = useFeatures();
   const [posts, setPosts] = useState<Post[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [children, setChildren] = useState<Student[]>([]);
@@ -60,11 +62,11 @@ export default function Dashboard() {
   const [dismissedAnnouncements, setDismissedAnnouncements] = useState<Set<number>>(new Set());
 
   useEffect(() => {
-    api.get<Post[]>('/api/posts').then(p => setPosts(p.slice(0, 5))).catch(() => {});
+    if (features.blog) api.get<Post[]>('/api/posts').then(p => setPosts(p.slice(0, 5))).catch(() => {});
     api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
-    api.get<Student[]>('/api/my-children').then(setChildren).catch(() => {});
+    if (features.my_children) api.get<Student[]>('/api/my-children').then(setChildren).catch(() => {});
     api.get<Announcement[]>('/api/announcements').then(setAnnouncements).catch(() => {});
-  }, []);
+  }, [features.blog, features.my_children]);
 
   const visibleAnnouncements = announcements.filter(a => !dismissedAnnouncements.has(a.id));
 
@@ -125,7 +127,7 @@ export default function Dashboard() {
       )}
 
       {/* First-time parent prompt to register children */}
-      {user?.role === 'parent' && children.length === 0 && (
+      {features.my_children && user?.role === 'parent' && children.length === 0 && (
         <div className="border-2 border-cobalt/30 rounded-xl p-6 bg-white/80">
           <h2 className="text-lg font-semibold text-ink mb-2">Welcome to the co-op!</h2>
           <p className="text-sm text-ink/70 mb-4">
@@ -219,7 +221,7 @@ export default function Dashboard() {
         </div>
 
         {/* My Children */}
-        {children.length > 0 && (
+        {features.my_children && children.length > 0 && (
           <div className="border-t border-ink/20 pt-4">
             <h2 className="text-lg font-semibold text-ink mb-4">My Children</h2>
             <ul className="space-y-3">
@@ -245,7 +247,7 @@ export default function Dashboard() {
         )}
 
         {/* Recent Blog Posts */}
-        <div className="border-t border-ink/20 pt-4">
+        {features.blog && <div className="border-t border-ink/20 pt-4">
           <h2 className="text-lg font-semibold text-ink mb-4">Recent Posts</h2>
           {posts.length === 0 ? (
             <p className="text-ink/50 text-sm">No posts yet.</p>
@@ -261,23 +263,23 @@ export default function Dashboard() {
               ))}
             </ul>
           )}
-        </div>
+        </div>}
 
         {/* Quick Links */}
         <div className="border-t border-ink/20 pt-4 md:col-span-2">
           <h2 className="text-lg font-semibold text-ink mb-4">Quick Links</h2>
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-3">
             <QuickLink to="/sessions" label="View Schedule" />
-            <QuickLink to="/lesson-plans" label="Browse Lesson Plans" />
-            <QuickLink to="/resources" label="View Resources" />
-            <QuickLink to="/my-children" label="My Children" />
-            <QuickLink to="/my-rsvps" label="My RSVPs" />
-            <QuickLink to="/members" label="Member Directory" />
+            {features.lesson_plans && <QuickLink to="/lesson-plans" label="Browse Lesson Plans" />}
+            {features.resources && <QuickLink to="/resources" label="View Resources" />}
+            {features.my_children && <QuickLink to="/my-children" label="My Children" />}
+            {features.my_rsvps && <QuickLink to="/my-rsvps" label="My RSVPs" />}
+            {features.member_directory && <QuickLink to="/members" label="Member Directory" />}
             {(isTeacher || isAdmin) && (
               <>
-                <QuickLink to="/posts/new" label="Write a Blog Post" />
-                <QuickLink to="/lesson-plans/new" label="Create Lesson Plan" />
-                <QuickLink to="/posts/drafts" label="My Drafts" />
+                {features.blog && <QuickLink to="/posts/new" label="Write a Blog Post" />}
+                {features.lesson_plans && <QuickLink to="/lesson-plans/new" label="Create Lesson Plan" />}
+                {features.blog && <QuickLink to="/posts/drafts" label="My Drafts" />}
               </>
             )}
             {isAdmin && (

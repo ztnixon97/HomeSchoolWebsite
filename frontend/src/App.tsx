@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider, SessionGuard } from './auth';
 import Layout from './components/Layout';
 import RoleGuard from './components/RoleGuard';
+import FeatureGate from './components/FeatureGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 
@@ -64,9 +65,9 @@ export default function App() {
             {/* Public */}
             <Route path="/" element={<Home />} />
             <Route path="/schedule" element={<Schedule />} />
-            <Route path="/blog" element={<Blog />} />
-            <Route path="/blog/:id" element={<BlogPost />} />
-            <Route path="/resources" element={<Resources />} />
+            <Route path="/blog" element={<FeatureGate feature="blog"><Blog /></FeatureGate>} />
+            <Route path="/blog/:id" element={<FeatureGate feature="blog"><BlogPost /></FeatureGate>} />
+            <Route path="/resources" element={<FeatureGate feature="resources"><Resources /></FeatureGate>} />
             <Route path="/about" element={<About />} />
             <Route path="/contact" element={<Contact />} />
 
@@ -78,24 +79,24 @@ export default function App() {
 
             {/* Member (any logged-in user) */}
             <Route path="/dashboard" element={<RoleGuard><Dashboard /></RoleGuard>} />
-            <Route path="/lesson-plans" element={<RoleGuard><LessonPlans /></RoleGuard>} />
-            <Route path="/lesson-plans/:id" element={<RoleGuard><LessonPlanDetail /></RoleGuard>} />
-            <Route path="/lesson-plans/:id/edit" element={<RoleGuard><EditLessonPlan /></RoleGuard>} />
+            <Route path="/lesson-plans" element={<RoleGuard><FeatureGate feature="lesson_plans"><LessonPlans /></FeatureGate></RoleGuard>} />
+            <Route path="/lesson-plans/:id" element={<RoleGuard><FeatureGate feature="lesson_plans"><LessonPlanDetail /></FeatureGate></RoleGuard>} />
+            <Route path="/lesson-plans/:id/edit" element={<RoleGuard><FeatureGate feature="lesson_plans"><EditLessonPlan /></FeatureGate></RoleGuard>} />
             <Route path="/sessions" element={<RoleGuard><ClassSessions /></RoleGuard>} />
             <Route path="/sessions/:id" element={<RoleGuard><SessionDetail /></RoleGuard>} />
-            <Route path="/members" element={<RoleGuard><Members /></RoleGuard>} />
-            <Route path="/my-children" element={<RoleGuard><MyChildren /></RoleGuard>} />
-            <Route path="/my-rsvps" element={<RoleGuard><MyRsvps /></RoleGuard>} />
+            <Route path="/members" element={<RoleGuard><FeatureGate feature="member_directory"><Members /></FeatureGate></RoleGuard>} />
+            <Route path="/my-children" element={<RoleGuard><FeatureGate feature="my_children"><MyChildren /></FeatureGate></RoleGuard>} />
+            <Route path="/my-rsvps" element={<RoleGuard><FeatureGate feature="my_rsvps"><MyRsvps /></FeatureGate></RoleGuard>} />
             <Route path="/account" element={<RoleGuard><AccountSettings /></RoleGuard>} />
 
             {/* Teacher+ */}
-            <Route path="/posts/new" element={<RoleGuard requireRole="teacher"><CreatePost /></RoleGuard>} />
-            <Route path="/posts/drafts" element={<RoleGuard requireRole="teacher"><DraftPosts /></RoleGuard>} />
-            <Route path="/posts/:id/preview" element={<RoleGuard requireRole="teacher"><PostPreview /></RoleGuard>} />
-            <Route path="/posts/:id/edit" element={<RoleGuard requireRole="teacher"><EditPost /></RoleGuard>} />
-            <Route path="/lesson-plans/new" element={<RoleGuard requireRole="teacher"><CreateLessonPlan /></RoleGuard>} />
-            <Route path="/student-progress" element={<RoleGuard requireRole="teacher"><StudentProgress /></RoleGuard>} />
-            <Route path="/student-progress/:id" element={<RoleGuard requireRole="teacher"><StudentProgress /></RoleGuard>} />
+            <Route path="/posts/new" element={<RoleGuard requireRole="teacher"><FeatureGate feature="blog"><CreatePost /></FeatureGate></RoleGuard>} />
+            <Route path="/posts/drafts" element={<RoleGuard requireRole="teacher"><FeatureGate feature="blog"><DraftPosts /></FeatureGate></RoleGuard>} />
+            <Route path="/posts/:id/preview" element={<RoleGuard requireRole="teacher"><FeatureGate feature="blog"><PostPreview /></FeatureGate></RoleGuard>} />
+            <Route path="/posts/:id/edit" element={<RoleGuard requireRole="teacher"><FeatureGate feature="blog"><EditPost /></FeatureGate></RoleGuard>} />
+            <Route path="/lesson-plans/new" element={<RoleGuard requireRole="teacher"><FeatureGate feature="lesson_plans"><CreateLessonPlan /></FeatureGate></RoleGuard>} />
+            <Route path="/student-progress" element={<RoleGuard requireRole="teacher"><FeatureGate feature="student_progress"><StudentProgress /></FeatureGate></RoleGuard>} />
+            <Route path="/student-progress/:id" element={<RoleGuard requireRole="teacher"><FeatureGate feature="student_progress"><StudentProgress /></FeatureGate></RoleGuard>} />
 
             {/* Admin */}
             <Route path="/admin" element={<RoleGuard requireRole="admin"><AdminDashboard /></RoleGuard>} />

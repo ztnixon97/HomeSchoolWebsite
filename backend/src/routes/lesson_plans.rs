@@ -16,6 +16,7 @@ pub async fn list_lesson_plans(
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<LessonPlansQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "lesson_plans")?;
     let conn = state.db.get()?;
 
     let mut where_clauses = vec!["1=1".to_string()];
@@ -77,6 +78,7 @@ pub async fn get_lesson_plan(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<LessonPlan>, AppError> {
+    crate::features::require_feature(&state.db, "lesson_plans")?;
     let conn = state.db.get()?;
     let plan = conn
         .query_row(
@@ -107,6 +109,7 @@ pub async fn create_lesson_plan(
     State(state): State<AppState>,
     Json(req): Json<CreateLessonPlanRequest>,
 ) -> Result<Json<LessonPlan>, AppError> {
+    crate::features::require_feature(&state.db, "lesson_plans")?;
     let conn = state.db.get()?;
     let title = validate_required(&req.title, "title")?;
     let title = sanitize_text(&title);
@@ -139,6 +142,7 @@ pub async fn update_lesson_plan(
     Path(id): Path<i64>,
     Json(req): Json<UpdateLessonPlanRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "lesson_plans")?;
     let conn = state.db.get()?;
 
     // Only author, admin, or collaborator can edit
@@ -180,6 +184,7 @@ pub async fn delete_lesson_plan(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "lesson_plans")?;
     let conn = state.db.get()?;
     let author_id: i64 = conn
         .query_row("SELECT author_id FROM lesson_plans WHERE id = ?1", params![id], |row| row.get(0))

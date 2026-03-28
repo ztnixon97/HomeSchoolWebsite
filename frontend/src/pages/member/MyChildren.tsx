@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import { useFeatures } from '../../features';
 
 interface Student {
   id: number;
@@ -56,6 +57,7 @@ function calculateAge(dob: string): number {
 
 export default function MyChildren() {
   const { user } = useAuth();
+  const features = useFeatures();
   const [children, setChildren] = useState<Student[]>([]);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<Partial<Student>>({});
@@ -75,8 +77,10 @@ export default function MyChildren() {
 
   const refresh = () => {
     api.get<Student[]>('/api/my-children').then(setChildren).catch(() => {});
-    api.get<FamilyDetail>('/api/my-family').then(setFamily).catch(() => setFamily(null));
-    api.get<FamilyInvite[]>('/api/my-invites').then(setPendingInvites).catch(() => setPendingInvites([]));
+    if (features.families) {
+      api.get<FamilyDetail>('/api/my-family').then(setFamily).catch(() => setFamily(null));
+      api.get<FamilyInvite[]>('/api/my-invites').then(setPendingInvites).catch(() => setPendingInvites([]));
+    }
   };
 
   useEffect(refresh, []);
@@ -193,7 +197,7 @@ export default function MyChildren() {
       </div>
 
       {/* Pending family invites */}
-      {pendingInvites.length > 0 && (
+      {features.families && pendingInvites.length > 0 && (
         <div className="space-y-2">
           {pendingInvites.map(inv => (
             <div key={inv.id} className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
@@ -210,7 +214,7 @@ export default function MyChildren() {
       )}
 
       {/* Family section */}
-      {family ? (
+      {features.families && (family ? (
         <div className="panel p-5 space-y-3">
           <div className="flex items-center justify-between">
             {editingFamilyName ? (
@@ -288,7 +292,7 @@ export default function MyChildren() {
             </div>
           )}
         </div>
-      )}
+      ))}
 
       {!showAddForm ? (
         <button

@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom';
+import { useFeatures } from '../../features';
 
 export default function Home() {
+  const features = useFeatures();
   return (
     <div className="space-y-16">
       <section className="-mx-4 -mt-6 px-4 py-12 md:py-20 china-pattern">
@@ -55,24 +57,28 @@ export default function Home() {
             Explore the calendar
           </Link>
         </div>
-        <div className="panel-quiet p-6">
-          <h2 className="text-lg font-semibold mb-3">Shared Curriculum</h2>
-          <p className="text-sm text-ink/70">
-            Lesson plans stay editable and collaborative so the co-op grows with the children.
-          </p>
-          <Link to="/lesson-plans" className="inline-block mt-4 text-sm text-ink hover:text-ink/70 no-underline">
-            Browse lesson plans
-          </Link>
-        </div>
-        <div className="panel-quiet p-6">
-          <h2 className="text-lg font-semibold mb-3">Community Notes</h2>
-          <p className="text-sm text-ink/70">
-            The blog captures recaps, updates, and the everyday wins of our co-op.
-          </p>
-          <Link to="/blog" className="inline-block mt-4 text-sm text-ink hover:text-ink/70 no-underline">
-            Read the journal
-          </Link>
-        </div>
+        {features.lesson_plans && (
+          <div className="panel-quiet p-6">
+            <h2 className="text-lg font-semibold mb-3">Shared Curriculum</h2>
+            <p className="text-sm text-ink/70">
+              Lesson plans stay editable and collaborative so the co-op grows with the children.
+            </p>
+            <Link to="/lesson-plans" className="inline-block mt-4 text-sm text-ink hover:text-ink/70 no-underline">
+              Browse lesson plans
+            </Link>
+          </div>
+        )}
+        {features.blog && (
+          <div className="panel-quiet p-6">
+            <h2 className="text-lg font-semibold mb-3">Community Notes</h2>
+            <p className="text-sm text-ink/70">
+              The blog captures recaps, updates, and the everyday wins of our co-op.
+            </p>
+            <Link to="/blog" className="inline-block mt-4 text-sm text-ink hover:text-ink/70 no-underline">
+              Read the journal
+            </Link>
+          </div>
+        )}
       </section>
 
       <section className="grid gap-8 md:grid-cols-[0.9fr_1.1fr] md:items-start">

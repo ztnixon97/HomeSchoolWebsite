@@ -16,6 +16,7 @@ mod backup;
 mod db;
 mod email;
 mod errors;
+mod features;
 mod models;
 mod reminders;
 mod routes;

@@ -240,6 +240,7 @@ pub async fn list_users(
     RequireTeacher(_user): RequireTeacher,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<BasicUser>>, AppError> {
+    crate::features::require_feature(&state.db, "member_directory")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT id, display_name, email, role, phone, address, preferred_contact FROM users WHERE active = 1 ORDER BY display_name",
@@ -266,6 +267,7 @@ pub async fn list_members(
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<MembersQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "member_directory")?;
     let conn = state.db.get()?;
 
     let mut where_clauses = vec!["u.active = 1".to_string()];
@@ -580,6 +582,7 @@ pub async fn my_rsvps(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    crate::features::require_feature(&state.db, "my_rsvps")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT r.id, r.session_id, r.student_id, s.first_name || ' ' || s.last_name as student_name,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import type { User } from '../../auth';
+import { useFeatures } from '../../features';
 
 interface Student {
   id: number;
@@ -15,6 +16,7 @@ interface Student {
 }
 
 export default function ManageStudents() {
+  const features = useFeatures();
   const [students, setStudents] = useState<Student[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -178,12 +180,12 @@ export default function ManageStudents() {
                 </div>
               </div>
               <div className="flex gap-3">
-                <Link
+                {features.student_progress && <Link
                   to={`/student-progress/${s.id}`}
                   className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
                 >
                   View Progress
-                </Link>
+                </Link>}
                 <button onClick={() => deleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
                   Remove
                 </button>

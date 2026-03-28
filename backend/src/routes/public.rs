@@ -48,6 +48,7 @@ pub async fn list_events(
 pub async fn list_published_posts(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Post>>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT p.id, p.author_id, u.display_name, p.title, p.content, p.category, p.published, p.created_at, p.updated_at
@@ -79,6 +80,7 @@ pub async fn search_published_posts(
     State(state): State<AppState>,
     Query(q): Query<PostSearchQuery>,
 ) -> Result<Json<PostSearchResponse>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let page = q.page.unwrap_or(1).max(1);
     let page_size = q.page_size.unwrap_or(10).clamp(1, 50);
@@ -161,6 +163,7 @@ pub async fn get_post(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Post>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let post = conn
         .query_row(
@@ -191,6 +194,7 @@ pub async fn get_post_neighbors(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<PostNeighborsResponse>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let created_at: String = conn
         .query_row(
@@ -238,6 +242,7 @@ pub async fn get_post_neighbors(
 pub async fn list_published_resources(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Resource>>, AppError> {
+    crate::features::require_feature(&state.db, "resources")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT id, title, content, category, sort_order, published, updated_at

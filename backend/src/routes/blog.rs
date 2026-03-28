@@ -16,6 +16,7 @@ pub async fn create_post(
     State(state): State<AppState>,
     Json(req): Json<CreatePostRequest>,
 ) -> Result<Json<Post>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let title = validate_required(&req.title, "title")?;
     let title = sanitize_text(&title);
@@ -49,6 +50,7 @@ pub async fn update_post(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePostRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
 
     let author_id: i64 = conn
@@ -80,6 +82,7 @@ pub async fn list_draft_posts(
     RequireTeacher(user): RequireTeacher,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Post>>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let map_post = |row: &rusqlite::Row| {
         Ok(Post {
@@ -124,6 +127,7 @@ pub async fn get_post_internal(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Post>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let post = conn
         .query_row(
@@ -159,6 +163,7 @@ pub async fn delete_post(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let author_id: i64 = conn.query_row("SELECT author_id FROM posts WHERE id = ?1", params![id], |row| row.get(0))
         .map_err(|_| AppError::NotFound("Post not found".to_string()))?;
@@ -181,6 +186,7 @@ pub async fn list_post_comments(
     State(state): State<AppState>,
     Path(post_id): Path<i64>,
 ) -> Result<Json<Vec<PostComment>>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT c.id, c.post_id, c.author_id, u.display_name, c.content, c.created_at, c.updated_at
@@ -212,6 +218,7 @@ pub async fn create_post_comment(
     Path(post_id): Path<i64>,
     Json(req): Json<CreateCommentRequest>,
 ) -> Result<Json<PostComment>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let content = sanitize_html(&req.content);
     if content.trim().is_empty() {
@@ -242,6 +249,7 @@ pub async fn update_post_comment(
     Path(id): Path<i64>,
     Json(req): Json<UpdateCommentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let author_id: i64 = conn
         .query_row(
@@ -272,6 +280,7 @@ pub async fn delete_post_comment(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "blog")?;
     let conn = state.db.get()?;
     let author_id: i64 = conn
         .query_row(

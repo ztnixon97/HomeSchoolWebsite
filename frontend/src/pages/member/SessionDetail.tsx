@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
+import { useFeatures } from '../../features';
 import PhotoGallery from '../../components/Lightbox';
 
 interface Session {
@@ -96,6 +97,7 @@ interface SessionType {
 export default function SessionDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const features = useFeatures();
   const [session, setSession] = useState<Session | null>(null);
   const [rsvps, setRsvps] = useState<Rsvp[]>([]);
   const [children, setChildren] = useState<Student[]>([]);
@@ -357,7 +359,7 @@ export default function SessionDetail() {
           </div>
         )}
 
-        {session.lesson_plan_id && (
+        {features.lesson_plans && session.lesson_plan_id && (
           <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm">
             <span className="font-semibold text-blue-800">Lesson Plan:</span>
             <Link to={`/lesson-plans/${session.lesson_plan_id}`} className="text-blue-700 ml-2 hover:text-blue-900 underline underline-offset-2">
@@ -545,22 +547,24 @@ export default function SessionDetail() {
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Lesson Plan</label>
-                <select
-                  value={editLessonPlanId}
-                  onChange={e => setEditLessonPlanId(e.target.value)}
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
-                >
-                  <option value="">None</option>
-                  {lessonPlans.map(lp => (
-                    <option key={lp.id} value={lp.id}>{lp.title}</option>
-                  ))}
-                </select>
-                <Link to="/lesson-plans/new" className="text-xs text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                  Create a new lesson plan
-                </Link>
-              </div>
+              {features.lesson_plans && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Lesson Plan</label>
+                  <select
+                    value={editLessonPlanId}
+                    onChange={e => setEditLessonPlanId(e.target.value)}
+                    className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
+                  >
+                    <option value="">None</option>
+                    {lessonPlans.map(lp => (
+                      <option key={lp.id} value={lp.id}>{lp.title}</option>
+                    ))}
+                  </select>
+                  <Link to="/lesson-plans/new" className="text-xs text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                    Create a new lesson plan
+                  </Link>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button type="submit" className="bg-blue-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors">
                   Save

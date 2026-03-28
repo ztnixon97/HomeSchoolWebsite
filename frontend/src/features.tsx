@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { api } from './api';
 
-interface FeatureFlags {
+export interface FeatureFlags {
   blog: boolean;
   resources: boolean;
   lesson_plans: boolean;

@@ -15,6 +15,7 @@ pub async fn my_children(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Student>>, AppError> {
+    crate::features::require_feature(&state.db, "my_children")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT s.id, s.first_name, s.last_name, s.date_of_birth, s.notes, s.allergies, s.dietary_restrictions, s.emergency_contact_name, s.emergency_contact_phone, s.enrolled, s.created_at
@@ -50,6 +51,7 @@ pub async fn create_my_child(
     State(state): State<AppState>,
     Json(req): Json<CreateStudentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "my_children")?;
     let mut conn = state.db.get()?;
     let first_name = validate_required(&req.first_name, "first_name")?;
     let first_name = sanitize_text(&first_name);
@@ -95,6 +97,7 @@ pub async fn update_my_child(
     Path(id): Path<i64>,
     Json(req): Json<UpdateMyChildRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "my_children")?;
     let conn = state.db.get()?;
     let linked: bool = conn
         .query_row(
@@ -140,6 +143,7 @@ pub async fn delete_my_child(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "my_children")?;
     let conn = state.db.get()?;
     let linked: bool = conn
         .query_row(
@@ -209,6 +213,7 @@ pub async fn get_student_milestones(
     State(state): State<AppState>,
     Path(student_id): Path<i64>,
 ) -> Result<Json<Vec<Milestone>>, AppError> {
+    crate::features::require_feature(&state.db, "student_progress")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT id, student_id, recorded_by, category, title, notes, achieved_date, created_at
@@ -239,6 +244,7 @@ pub async fn create_milestone(
     State(state): State<AppState>,
     Json(req): Json<CreateMilestoneRequest>,
 ) -> Result<Json<Milestone>, AppError> {
+    crate::features::require_feature(&state.db, "student_progress")?;
     let conn = state.db.get()?;
     conn.execute(
         "INSERT INTO milestones (student_id, recorded_by, category, title, notes, achieved_date) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
@@ -266,6 +272,7 @@ pub async fn update_milestone(
     Path(id): Path<i64>,
     Json(req): Json<UpdateMilestoneRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "student_progress")?;
     let conn = state.db.get()?;
 
     if let Some(category) = req.category {
@@ -289,6 +296,7 @@ pub async fn delete_milestone(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "student_progress")?;
     let conn = state.db.get()?;
     conn.execute("DELETE FROM milestones WHERE id = ?1", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))

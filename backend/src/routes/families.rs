@@ -16,6 +16,7 @@ pub async fn create_family(
     State(state): State<AppState>,
     Json(req): Json<CreateFamilyRequest>,
 ) -> Result<Json<FamilyDetail>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     if user.family_id.is_some() {
         return Err(AppError::BadRequest("You already belong to a family".to_string()));
     }
@@ -50,6 +51,7 @@ pub async fn get_my_family(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<FamilyDetail>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let family_id = user.family_id.ok_or_else(|| AppError::NotFound("No family".to_string()))?;
     let conn = state.db.get()?;
 
@@ -103,6 +105,7 @@ pub async fn update_my_family(
     State(state): State<AppState>,
     Json(req): Json<UpdateFamilyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let family_id = user.family_id.ok_or_else(|| AppError::BadRequest("You don't belong to a family".to_string()))?;
     let name = validate_required(&req.name, "name")?;
     let name = sanitize_text(&name);
@@ -115,6 +118,7 @@ pub async fn leave_family(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let family_id = user.family_id.ok_or_else(|| AppError::BadRequest("You don't belong to a family".to_string()))?;
     let conn = state.db.get()?;
 
@@ -138,6 +142,7 @@ pub async fn invite_family_member(
     State(state): State<AppState>,
     Json(req): Json<InviteFamilyMemberRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let family_id = user.family_id.ok_or_else(|| AppError::BadRequest("You must create a family first".to_string()))?;
     let email = req.email.trim().to_lowercase();
     let conn = state.db.get()?;
@@ -178,6 +183,7 @@ pub async fn list_family_invites(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<FamilyInviteInfo>>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let family_id = user.family_id.ok_or_else(|| AppError::NotFound("No family".to_string()))?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
@@ -204,6 +210,7 @@ pub async fn list_my_invites(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<FamilyInviteInfo>>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT fi.id, fi.family_id, f.name, u.display_name, fi.status, fi.created_at
@@ -230,6 +237,7 @@ pub async fn accept_family_invite(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let conn = state.db.get()?;
 
     // Verify invite belongs to this user and is pending
@@ -278,6 +286,7 @@ pub async fn decline_family_invite(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "families")?;
     let conn = state.db.get()?;
 
     let invited_user_id: i64 = conn.query_row(

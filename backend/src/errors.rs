@@ -8,6 +8,7 @@ pub enum AppError {
     BadRequest(String),
     Unauthorized,
     Forbidden,
+    FeatureDisabled,
     Internal(String),
     Database(String),
 }
@@ -19,6 +20,7 @@ impl std::fmt::Display for AppError {
             AppError::BadRequest(msg) => write!(f, "Bad request: {msg}"),
             AppError::Unauthorized => write!(f, "Unauthorized"),
             AppError::Forbidden => write!(f, "Forbidden"),
+            AppError::FeatureDisabled => write!(f, "Feature disabled"),
             AppError::Internal(msg) => write!(f, "Internal error: {msg}"),
             AppError::Database(msg) => write!(f, "Database error: {msg}"),
         }
@@ -32,6 +34,7 @@ impl IntoResponse for AppError {
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden".to_string()),
+            AppError::FeatureDisabled => (StatusCode::FORBIDDEN, "This feature is currently disabled".to_string()),
             AppError::Internal(msg) => {
                 eprintln!("Internal error: {}", msg);
                 (StatusCode::INTERNAL_SERVER_ERROR, "An internal error occurred".to_string())
