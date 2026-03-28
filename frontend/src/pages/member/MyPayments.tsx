@@ -77,14 +77,14 @@ export default function MyPayments() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Payments</h1>
+        <h1 className="text-2xl font-bold text-gray-900">My Payments</h1>
         <p className="text-gray-500 text-sm mt-1">Your charges and payment history.</p>
       </div>
 
       {/* Balance summary */}
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Account Summary</h2>
-        <div className="grid grid-cols-3 gap-6 text-center">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
           <div>
             <p className="text-xs uppercase tracking-wider text-gray-500 font-medium mb-1">Total Charges</p>
             <p className="text-2xl font-bold text-red-600">{formatCurrency(totalCharges)}</p>

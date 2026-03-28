@@ -195,7 +195,7 @@ export default function ReportCard() {
             <p className="text-gray-600 mt-1">{className}</p>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 mb-6 text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 text-sm">
             <div>
               <span className="text-gray-500">Student:</span>
               <span className="ml-2 font-medium text-ink">{student.first_name} {student.last_name}</span>
@@ -225,7 +225,8 @@ export default function ReportCard() {
           {categories.length > 0 && (
             <div className="mb-6">
               <h2 className="text-sm font-semibold text-ink mb-3">Category Averages</h2>
-              <table className="w-full text-sm">
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[400px]">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
                     <th className="text-left px-4 py-2 font-medium text-gray-600">Category</th>
@@ -249,12 +250,14 @@ export default function ReportCard() {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
 
           <div>
             <h2 className="text-sm font-semibold text-ink mb-3">Assignments</h2>
-            <table className="w-full text-sm">
+            <div className="overflow-x-auto">
+            <table className="w-full text-sm min-w-[600px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="text-left px-4 py-2 font-medium text-gray-600">Assignment</th>
@@ -297,6 +300,7 @@ export default function ReportCard() {
                 })}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

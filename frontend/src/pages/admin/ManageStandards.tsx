@@ -212,7 +212,7 @@ export default function ManageStandards() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manage Curriculum Standards</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Manage Curriculum Standards</h1>
         <p className="text-gray-500 text-sm mt-1">
           Create and manage learning standards referenced across sessions and lesson plans.
         </p>

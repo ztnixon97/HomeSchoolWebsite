@@ -75,7 +75,7 @@ export default function ManageSiteContent() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-ink">Site Content</h1>
+        <h1 className="text-2xl font-bold text-ink">Site Content</h1>
         <p className="text-ink/60 text-sm mt-1">Edit public pages and content.</p>
       </div>
 

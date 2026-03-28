@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
@@ -6,8 +6,26 @@ import { useFeatures } from '../features';
 
 export default function Layout() {
   const { user, logout, isAdmin } = useAuth();
+  const features = useFeatures();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
   const navigate = useNavigate();
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    if (!user || !features.notifications) {
+      setUnreadCount(0);
+      return;
+    }
+    const fetchCount = () => {
+      api.get<{ count: number }>('/api/notifications/unread-count')
+        .then(data => setUnreadCount(data.count))
+        .catch(() => {});
+    };
+    fetchCount();
+    pollRef.current = setInterval(fetchCount, 60000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [user, features.notifications]);
 
   const handleLogout = async () => {
     await logout();
@@ -43,6 +61,22 @@ export default function Layout() {
             <div className="w-px h-5 bg-ink/20 mx-2" />
             {user ? (
               <div className="flex items-center gap-3">
+                {features.notifications && (
+                  <Link
+                    to="/notifications"
+                    className="relative p-1.5 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5 transition-colors no-underline"
+                    title="Notifications"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 <Link
                   to="/account"
                   className="text-sm text-ink/70 bg-ink/5 px-3 py-1 rounded-full no-underline hover:bg-ink/10 transition-colors"
@@ -75,6 +109,20 @@ export default function Layout() {
             <div className="h-px bg-ink/10 my-2" />
             {user ? (
               <>
+                {features.notifications && (
+                  <Link
+                    to="/notifications"
+                    className="flex items-center gap-2 text-ink/70 hover:text-ink px-3 py-1.5 rounded-lg hover:bg-ink/5 no-underline"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Notifications
+                    {unreadCount > 0 && (
+                      <span className="bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                        {unreadCount > 99 ? '99+' : unreadCount}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 <Link
                   to="/account"
                   className="text-ink/70 hover:text-ink px-3 py-1.5 rounded-lg hover:bg-ink/5 no-underline"

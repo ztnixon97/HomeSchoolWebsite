@@ -159,14 +159,14 @@ export default function ManageClassGroups() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Class Groups</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Class Groups</h1>
         <p className="text-gray-500 text-sm mt-1">Organize students into named groups for scheduling and management.</p>
       </div>
 
       {/* Create Form */}
       <form onSubmit={create} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
         <h2 className="text-lg font-semibold text-gray-900">Create Group</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Name</label>
             <input value={name} onChange={e => setName(e.target.value)} required className={`w-full ${inputClass}`} placeholder="e.g. Pre-K" />
@@ -200,7 +200,7 @@ export default function ManageClassGroups() {
             <div key={g.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               {editingId === g.id ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <input value={editName} onChange={e => setEditName(e.target.value)} className={`w-full ${inputClass}`} placeholder="Name" />
                     <input value={editDescription} onChange={e => setEditDescription(e.target.value)} className={`w-full ${inputClass}`} placeholder="Description" />
                     <input type="number" value={editSortOrder} onChange={e => setEditSortOrder(e.target.value)} className={`w-full ${inputClass}`} placeholder="Sort Order" />

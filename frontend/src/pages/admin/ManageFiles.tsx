@@ -60,7 +60,7 @@ export default function ManageFiles() {
       <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Admin Dashboard</Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">File Management</h1>
+        <h1 className="text-2xl font-bold text-gray-900">File Management</h1>
         <p className="text-gray-500 text-sm mt-1">Monitor storage usage and manage uploaded files.</p>
       </div>
 

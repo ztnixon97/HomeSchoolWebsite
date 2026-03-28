@@ -178,7 +178,7 @@ export default function BulkSessions() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Bulk Create Sessions</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Bulk Create Sessions</h1>
         <p className="text-gray-500 text-sm mt-1">Generate recurring weekly sessions in bulk.</p>
       </div>
 

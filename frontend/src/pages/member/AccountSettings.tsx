@@ -99,7 +99,7 @@ export default function AccountSettings() {
   return (
     <div className="space-y-8 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-bold text-ink">Account Settings</h1>
+        <h1 className="text-2xl font-bold text-ink">Account Settings</h1>
         <p className="text-ink/60 text-sm mt-1">Manage your profile, email, and password.</p>
       </div>
 

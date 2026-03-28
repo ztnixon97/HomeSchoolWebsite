@@ -47,7 +47,7 @@ export default function EmailParents() {
     return (
       <div className="space-y-8">
         <div>
-          <h1 className="text-3xl font-bold text-ink">Email Parents</h1>
+          <h1 className="text-2xl font-bold text-ink">Email Parents</h1>
           <p className="text-ink/60 text-sm mt-1">Send announcements to all co-op members.</p>
         </div>
 
@@ -71,7 +71,7 @@ export default function EmailParents() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-ink">Email Parents</h1>
+        <h1 className="text-2xl font-bold text-ink">Email Parents</h1>
         <p className="text-ink/60 text-sm mt-1">Send announcements to all co-op members.</p>
       </div>
 

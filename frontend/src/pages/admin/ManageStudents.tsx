@@ -156,7 +156,7 @@ export default function ManageStudents() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Students</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Manage Students</h1>
           <p className="text-gray-500 text-sm mt-1">Add students and link them to their parents.</p>
         </div>
         <button
@@ -169,7 +169,7 @@ export default function ManageStudents() {
 
       {showForm && (
         <form onSubmit={addStudent} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <div className="grid sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">First Name</label>
               <input type="text" value={firstName} onChange={e => setFirstName(e.target.value)} required className={`w-full ${inputClass}`} />
@@ -183,7 +183,7 @@ export default function ManageStudents() {
               <input type="date" value={dob} onChange={e => setDob(e.target.value)} className={`w-full ${inputClass}`} />
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Allergies</label>
               <input type="text" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="e.g. peanuts, dairy" className={`w-full ${inputClass}`} />
@@ -193,7 +193,7 @@ export default function ManageStudents() {
               <input type="text" value={dietary} onChange={e => setDietary(e.target.value)} placeholder="e.g. vegetarian, gluten-free" className={`w-full ${inputClass}`} />
             </div>
           </div>
-          <div className="grid sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Emergency Contact Name</label>
               <input type="text" value={emergencyName} onChange={e => setEmergencyName(e.target.value)} placeholder="Parent/guardian name" className={`w-full ${inputClass}`} />

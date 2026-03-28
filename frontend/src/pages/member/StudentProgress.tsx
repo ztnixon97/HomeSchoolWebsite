@@ -110,7 +110,7 @@ export default function StudentProgress() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Student Progress</h1>
+        <h1 className="text-2xl font-bold">Student Progress</h1>
         <Link to="/admin/students" className="text-sm text-blue-600">Manage Students</Link>
       </div>
 

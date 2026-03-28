@@ -65,7 +65,7 @@ export default function ManageFeatures() {
       <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Admin Dashboard</Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Feature Settings</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Feature Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Enable or disable major site features. Disabled features hide from navigation.</p>
       </div>
 

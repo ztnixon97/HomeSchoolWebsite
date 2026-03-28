@@ -119,7 +119,7 @@ export default function ClassSessions() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Class Sessions</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Class Sessions</h1>
           <p className="text-gray-500 text-sm mt-1">View and sign up for upcoming co-op sessions.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">

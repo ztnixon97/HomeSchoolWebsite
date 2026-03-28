@@ -181,7 +181,7 @@ export default function ManageDocuments() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Manage Documents</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Manage Documents</h1>
         <p className="text-gray-500 text-sm mt-1">
           Create document templates and review member submissions.
         </p>

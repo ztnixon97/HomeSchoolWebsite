@@ -19,7 +19,7 @@ export default function DraftPosts() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Draft Posts</h1>
+        <h1 className="text-2xl font-bold">Draft Posts</h1>
         <Link to="/posts/new" className="text-sm text-blue-600 hover:text-blue-800">New Post</Link>
       </div>
 

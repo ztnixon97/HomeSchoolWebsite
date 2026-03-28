@@ -102,7 +102,7 @@ export default function ManageAnnouncements() {
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-ink">Manage Announcements</h1>
+        <h1 className="text-2xl font-bold text-ink">Manage Announcements</h1>
         <p className="text-ink/60 text-sm mt-1">Create and manage alerts and announcements that appear on the member dashboard.</p>
       </div>
 

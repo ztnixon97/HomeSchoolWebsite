@@ -205,7 +205,7 @@ export default function ManagePayments() {
 
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Payments</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Manage Payments</h1>
           <p className="text-gray-500 text-sm mt-1">Track charges and payments for all members.</p>
         </div>
         <button

@@ -64,6 +64,7 @@ import ManageClassGroups from './pages/admin/ManageClassGroups';
 import ManageDocuments from './pages/admin/ManageDocuments';
 import ManageStandards from './pages/admin/ManageStandards';
 import ManagePayments from './pages/admin/ManagePayments';
+import Reports from './pages/admin/Reports';
 
 export default function App() {
   return (
@@ -132,9 +133,10 @@ export default function App() {
             <Route path="/admin/files" element={<RoleGuard requireRole="admin"><ManageFiles /></RoleGuard>} />
             <Route path="/admin/features" element={<RoleGuard requireRole="admin"><ManageFeatures /></RoleGuard>} />
             <Route path="/admin/class-groups" element={<RoleGuard requireRole="admin"><ManageClassGroups /></RoleGuard>} />
-            <Route path="/admin/documents" element={<RoleGuard requireRole="admin"><FeatureGate feature="documents"><ManageDocuments /></FeatureGate></RoleGuard>} />
-            <Route path="/admin/standards" element={<RoleGuard requireRole="admin"><FeatureGate feature="standards"><ManageStandards /></FeatureGate></RoleGuard>} />
-            <Route path="/admin/payments" element={<RoleGuard requireRole="admin"><FeatureGate feature="payments"><ManagePayments /></FeatureGate></RoleGuard>} />
+            <Route path="/admin/documents" element={<RoleGuard requireRole="admin"><ManageDocuments /></RoleGuard>} />
+            <Route path="/admin/standards" element={<RoleGuard requireRole="admin"><ManageStandards /></RoleGuard>} />
+            <Route path="/admin/payments" element={<RoleGuard requireRole="admin"><ManagePayments /></RoleGuard>} />
+            <Route path="/admin/reports" element={<RoleGuard requireRole="admin"><Reports /></RoleGuard>} />
           </Route>
             </Routes>
           </AuthProvider>

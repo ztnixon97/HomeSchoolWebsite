@@ -32,6 +32,7 @@ export default function MyClasses() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      <Link to="/dashboard" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Dashboard</Link>
       <h1 className="text-2xl font-bold text-ink mb-6">My Classes</h1>
 
       {groups.length === 0 ? (

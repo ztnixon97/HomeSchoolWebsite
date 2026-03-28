@@ -133,7 +133,7 @@ export default function Inbox() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-ink">Inbox</h1>
+          <h1 className="text-2xl font-bold text-ink">Inbox</h1>
           <p className="text-gray-500 text-sm mt-1">
             {conversations.length > 0
               ? `${conversations.length} conversation${conversations.length !== 1 ? 's' : ''}`

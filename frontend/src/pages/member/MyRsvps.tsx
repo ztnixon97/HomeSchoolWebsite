@@ -37,7 +37,7 @@ export default function MyRsvps() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-3xl font-bold text-ink">My RSVPs</h1>
+        <h1 className="text-2xl font-bold text-ink">My RSVPs</h1>
         <p className="text-sm text-ink/60 mt-1">All session RSVPs for your children.</p>
       </div>
 

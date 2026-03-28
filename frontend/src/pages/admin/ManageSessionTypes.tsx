@@ -114,7 +114,7 @@ export default function ManageSessionTypes() {
         ← Admin Dashboard
       </Link>
 
-      <h1 className="text-3xl font-bold">Session Types</h1>
+      <h1 className="text-2xl font-bold">Session Types</h1>
 
       {/* Session Defaults */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
