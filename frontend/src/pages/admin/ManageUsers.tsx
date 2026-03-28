@@ -155,10 +155,10 @@ export default function ManageUsers() {
             <h3 className="text-sm font-medium text-gray-700 mb-2">Pending Invites</h3>
             <div className="space-y-2">
               {unusedInvites.map(inv => (
-                <div key={inv.id} className="flex items-center gap-3 text-sm bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-100">
-                  <span className="text-gray-700 font-medium">{inv.email}</span>
+                <div key={inv.id} className="flex flex-wrap items-center gap-2 text-sm bg-emerald-50 px-4 py-2.5 rounded-lg border border-emerald-100">
+                  <span className="text-gray-700 font-medium break-all">{inv.email}</span>
                   <span className="text-emerald-700 capitalize text-xs bg-emerald-100 px-2 py-0.5 rounded-full">{inv.role}</span>
-                  <span className="text-gray-400 text-xs ml-auto">
+                  <span className="text-gray-400 text-xs sm:ml-auto">
                     Sent {new Date(inv.created_at).toLocaleDateString()}
                   </span>
                   <button
@@ -203,8 +203,9 @@ export default function ManageUsers() {
           <p className="text-xs text-gray-400 mb-3">Showing {filteredUsers.length} of {users.length} members</p>
         ) : null}
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        {/* Mobile: card layout, Desktop: table */}
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full text-sm min-w-[600px]">
             <thead>
               <tr className="border-b border-gray-200 text-left">
                 <th className="pb-3 font-medium text-gray-500 text-xs uppercase tracking-wider">Name</th>
@@ -217,7 +218,7 @@ export default function ManageUsers() {
             <tbody>
               {filteredUsers.map(u => (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="py-3 font-medium text-gray-800">{u.display_name}</td>
+                  <td className="py-3 font-medium text-gray-800 whitespace-nowrap">{u.display_name}</td>
                   <td className="py-3 text-gray-500">{u.email}</td>
                   <td className="py-3">
                     <select
@@ -237,34 +238,19 @@ export default function ManageUsers() {
                   </td>
                   <td className="py-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        onClick={() => toggleActive(u)}
-                        className="text-xs text-gray-500 hover:text-gray-700 font-medium"
-                      >
+                      <button onClick={() => toggleActive(u)} className="text-xs text-gray-500 hover:text-gray-700 font-medium">
                         {u.active ? 'Deactivate' : 'Activate'}
                       </button>
-                      <button
-                        onClick={() => { setResetPasswordId(resetPasswordId === u.id ? null : u.id); setNewPassword(''); }}
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium"
-                      >
-                        Reset Password
+                      <button onClick={() => { setResetPasswordId(resetPasswordId === u.id ? null : u.id); setNewPassword(''); }} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                        Reset PW
                       </button>
-                      <button
-                        onClick={() => deleteUser(u)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
-                      >
+                      <button onClick={() => deleteUser(u)} className="text-xs text-red-500 hover:text-red-700 font-medium">
                         Delete
                       </button>
                     </div>
                     {resetPasswordId === u.id && (
                       <div className="flex items-center gap-2 mt-2">
-                        <input
-                          type="password"
-                          value={newPassword}
-                          onChange={e => setNewPassword(e.target.value)}
-                          placeholder="New password (min 8 chars)"
-                          className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 w-48"
-                        />
+                        <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 8)" className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 w-48" />
                         <button onClick={() => resetPassword(u.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
                         <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} className="text-xs text-gray-500">Cancel</button>
                       </div>
@@ -274,6 +260,53 @@ export default function ManageUsers() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile card view */}
+        <div className="sm:hidden space-y-3">
+          {filteredUsers.map(u => (
+            <div key={u.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="font-medium text-gray-800">{u.display_name}</p>
+                  <p className="text-gray-500 text-xs mt-0.5 break-all">{u.email}</p>
+                </div>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium flex-shrink-0 ${u.active ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                  {u.active ? 'Active' : 'Inactive'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <label className="text-xs text-gray-500">Role:</label>
+                <select
+                  value={u.role}
+                  onChange={e => changeRole(u.id, e.target.value)}
+                  className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="parent">Parent</option>
+                </select>
+              </div>
+              <div className="flex flex-wrap gap-3 pt-1 border-t border-gray-50">
+                <button onClick={() => toggleActive(u)} className="text-xs text-gray-500 hover:text-gray-700 font-medium py-1">
+                  {u.active ? 'Deactivate' : 'Activate'}
+                </button>
+                <button onClick={() => { setResetPasswordId(resetPasswordId === u.id ? null : u.id); setNewPassword(''); }} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-1">
+                  Reset Password
+                </button>
+                <button onClick={() => deleteUser(u)} className="text-xs text-red-500 hover:text-red-700 font-medium py-1">
+                  Delete
+                </button>
+              </div>
+              {resetPasswordId === u.id && (
+                <div className="flex items-center gap-2">
+                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 8)" className="flex-1 px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <button onClick={() => resetPassword(u.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
+                  <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} className="text-xs text-gray-500">Cancel</button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       </section>
     </div>
