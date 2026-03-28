@@ -1803,7 +1803,7 @@ pub async fn update_feature_flags(
     Json(flags): Json<std::collections::HashMap<String, bool>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    let valid_features = ["blog", "resources", "lesson_plans", "member_directory", "student_progress", "families", "my_children", "my_rsvps", "class_groups"];
+    let valid_features = ["blog", "resources", "lesson_plans", "member_directory", "student_progress", "families", "my_children", "my_rsvps", "class_groups", "notifications", "messaging", "documents", "standards", "payments"];
     for (key, enabled) in &flags {
         if valid_features.contains(&key.as_str()) {
             conn.execute(

@@ -443,7 +443,40 @@ async fn main() {
         .route("/api/admin/class-assignments", post(routes::admin::create_assignment))
         .route("/api/admin/class-assignments/{id}", put(routes::admin::update_assignment).delete(routes::admin::delete_assignment))
         .route("/api/admin/class-assignments/{id}/grades", put(routes::admin::save_assignment_grades))
-        .route("/api/admin/class-groups/{id}/category-weights", put(routes::admin::save_category_weights));
+        .route("/api/admin/class-groups/{id}/category-weights", put(routes::admin::save_category_weights))
+        // Report card
+        .route("/api/class-groups/{id}/report-card/{student_id}", get(routes::reports::get_report_card))
+        // Notifications
+        .route("/api/notifications", get(routes::notifications::list_notifications))
+        .route("/api/notifications/read-all", put(routes::notifications::mark_all_read))
+        .route("/api/notifications/unread-count", get(routes::notifications::unread_count))
+        .route("/api/notifications/{id}/read", put(routes::notifications::mark_notification_read))
+        // Conversations / Messaging
+        .route("/api/conversations", get(routes::messages::list_conversations).post(routes::messages::create_conversation))
+        .route("/api/conversations/unread-count", get(routes::messages::conversations_unread_count))
+        .route("/api/conversations/{id}", get(routes::messages::get_conversation_messages))
+        .route("/api/conversations/{id}/messages", post(routes::messages::send_message))
+        .route("/api/conversations/{id}/read", put(routes::messages::mark_conversation_read))
+        // Documents
+        .route("/api/document-types", get(routes::documents::list_document_types))
+        .route("/api/my-documents", get(routes::documents::list_my_documents))
+        .route("/api/documents/{template_id}/submit", post(routes::documents::submit_document))
+        .route("/api/admin/document-templates", get(routes::documents::admin_list_templates).post(routes::documents::admin_create_template))
+        .route("/api/admin/document-templates/{id}", put(routes::documents::admin_update_template).delete(routes::documents::admin_delete_template))
+        .route("/api/admin/document-submissions", get(routes::documents::admin_list_submissions))
+        .route("/api/admin/document-submissions/{id}", put(routes::documents::admin_review_submission))
+        // Standards
+        .route("/api/standards", get(routes::standards::list_standards))
+        .route("/api/admin/standards", post(routes::standards::create_standard))
+        .route("/api/admin/standards/{id}", put(routes::standards::update_standard).delete(routes::standards::delete_standard))
+        .route("/api/admin/class-assignments/{assignment_id}/standards", post(routes::standards::link_standards_to_assignment))
+        .route("/api/admin/class-assignments/{assignment_id}/standards/{standard_id}", delete(routes::standards::unlink_standard_from_assignment))
+        .route("/api/class-assignments/{id}/standards", get(routes::standards::list_assignment_standards))
+        // Payments
+        .route("/api/my-payments", get(routes::payments::list_my_payments))
+        .route("/api/admin/payments", get(routes::payments::admin_list_payments).post(routes::payments::admin_create_payment))
+        .route("/api/admin/payments/summary", get(routes::payments::admin_payments_summary))
+        .route("/api/admin/payments/{id}", put(routes::payments::admin_update_payment).delete(routes::payments::admin_delete_payment));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

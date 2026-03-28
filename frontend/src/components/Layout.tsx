@@ -158,6 +158,10 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
           {features.member_directory && <Link to="/members" className={base} onClick={onClick}>Members</Link>}
           {features.lesson_plans && <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>}
           {features.class_groups && <Link to="/my-classes" className={base} onClick={onClick}>My Classes</Link>}
+          {features.messaging && <Link to="/inbox" className={base} onClick={onClick}>Inbox</Link>}
+          {features.documents && <Link to="/my-documents" className={base} onClick={onClick}>Documents</Link>}
+          {features.payments && <Link to="/my-payments" className={base} onClick={onClick}>Payments</Link>}
+          {features.notifications && <Link to="/notifications" className={base} onClick={onClick}>Notifications</Link>}
         </>
       )}
       {isAdmin && (

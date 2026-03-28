@@ -11,6 +11,12 @@ interface FeatureFlags {
   families: boolean;
   my_children: boolean;
   my_rsvps: boolean;
+  class_groups: boolean;
+  notifications: boolean;
+  messaging: boolean;
+  documents: boolean;
+  standards: boolean;
+  payments: boolean;
 }
 
 const featureLabels: Record<string, { label: string; description: string }> = {
@@ -22,6 +28,12 @@ const featureLabels: Record<string, { label: string; description: string }> = {
   families: { label: 'Families', description: 'Family groups that share children and RSVPs between parents' },
   my_children: { label: 'My Children', description: 'Parents can manage their children profiles, allergies, and emergency contacts' },
   my_rsvps: { label: 'My RSVPs', description: 'Parents can view all their session RSVPs in one place' },
+  class_groups: { label: 'Class Groups', description: 'Organize students into named groups with grading and assignments' },
+  notifications: { label: 'Notifications', description: 'In-app notification center for activity alerts' },
+  messaging: { label: 'Messaging', description: 'Parent-teacher messaging with conversation threads' },
+  documents: { label: 'Documents', description: 'Document and waiver management with approval workflow' },
+  standards: { label: 'Standards', description: 'Curriculum standards tracking mapped to assignments' },
+  payments: { label: 'Payments', description: 'Payment tracking ledger for session costs' },
 };
 
 export default function ManageFeatures() {
