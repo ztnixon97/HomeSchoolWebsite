@@ -4,7 +4,7 @@ use axum::{
 };
 use rusqlite::params;
 
-use crate::auth::RequireAdmin;
+use crate::auth::{RequireAdmin, RequireTeacher};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::{sanitize_html, sanitize_text, validate_required};
@@ -1376,7 +1376,7 @@ pub async fn list_class_groups(
 ) -> Result<Json<Vec<ClassGroup>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, sort_order, active, created_at FROM class_groups ORDER BY sort_order, name",
+        "SELECT id, name, description, sort_order, active, created_at, grading_enabled FROM class_groups ORDER BY sort_order, name",
     )?;
     let groups = stmt
         .query_map([], |row| {
@@ -1387,6 +1387,7 @@ pub async fn list_class_groups(
                 sort_order: row.get(3)?,
                 active: row.get(4)?,
                 created_at: row.get(5)?,
+                grading_enabled: row.get(6)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1407,7 +1408,7 @@ pub async fn create_class_group(
     )?;
     let id = conn.last_insert_rowid();
     let group = conn.query_row(
-        "SELECT id, name, description, sort_order, active, created_at FROM class_groups WHERE id = ?1",
+        "SELECT id, name, description, sort_order, active, created_at, grading_enabled FROM class_groups WHERE id = ?1",
         [id],
         |row| {
             Ok(ClassGroup {
@@ -1417,6 +1418,7 @@ pub async fn create_class_group(
                 sort_order: row.get(3)?,
                 active: row.get(4)?,
                 created_at: row.get(5)?,
+                grading_enabled: row.get(6)?,
             })
         },
     )?;
@@ -1442,6 +1444,9 @@ pub async fn update_class_group(
     }
     if let Some(active) = req.active {
         conn.execute("UPDATE class_groups SET active = ?1 WHERE id = ?2", params![active, id])?;
+    }
+    if let Some(grading_enabled) = req.grading_enabled {
+        conn.execute("UPDATE class_groups SET grading_enabled = ?1 WHERE id = ?2", params![grading_enabled, id])?;
     }
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1565,6 +1570,101 @@ pub async fn delete_class_group_announcement(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
     conn.execute("DELETE FROM class_group_announcements WHERE id = ?1", [id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Class Grades ──
+
+pub async fn create_class_grade(
+    RequireTeacher(user): RequireTeacher,
+    State(state): State<AppState>,
+    Json(req): Json<CreateClassGradeRequest>,
+) -> Result<Json<ClassGrade>, AppError> {
+    crate::features::require_feature(&state.db, "class_groups")?;
+    let conn = state.db.get()?;
+
+    // Verify grading is enabled for this group
+    let enabled: bool = conn.query_row(
+        "SELECT grading_enabled FROM class_groups WHERE id = ?1",
+        [req.group_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if !enabled {
+        return Err(AppError::BadRequest("Grading is not enabled for this class".to_string()));
+    }
+
+    // Verify student is in the group
+    let in_group: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+        params![req.group_id, req.student_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if !in_group {
+        return Err(AppError::BadRequest("Student is not in this class group".to_string()));
+    }
+
+    let title = validate_required(&req.assignment_title, "assignment_title")?;
+    conn.execute(
+        "INSERT INTO class_grades (group_id, student_id, assignment_title, grade, max_grade, notes, graded_by)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![req.group_id, req.student_id, title, req.grade, req.max_grade, req.notes, user.id],
+    )?;
+    let id = conn.last_insert_rowid();
+    let grade = conn.query_row(
+        "SELECT g.id, g.group_id, g.student_id, s.first_name || ' ' || s.last_name,
+                g.assignment_title, g.grade, g.max_grade, g.notes, g.graded_by, u.display_name, g.created_at
+         FROM class_grades g
+         JOIN students s ON g.student_id = s.id
+         LEFT JOIN users u ON g.graded_by = u.id
+         WHERE g.id = ?1",
+        [id],
+        |row| Ok(ClassGrade {
+            id: row.get(0)?,
+            group_id: row.get(1)?,
+            student_id: row.get(2)?,
+            student_name: row.get(3)?,
+            assignment_title: row.get(4)?,
+            grade: row.get(5)?,
+            max_grade: row.get(6)?,
+            notes: row.get(7)?,
+            graded_by: row.get(8)?,
+            graded_by_name: row.get(9)?,
+            created_at: row.get(10)?,
+        }),
+    )?;
+    Ok(Json(grade))
+}
+
+pub async fn update_class_grade(
+    RequireTeacher(_user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateClassGradeRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    if let Some(title) = &req.assignment_title {
+        let title = validate_required(title, "assignment_title")?;
+        conn.execute("UPDATE class_grades SET assignment_title = ?1 WHERE id = ?2", params![title, id])?;
+    }
+    if let Some(grade) = req.grade {
+        conn.execute("UPDATE class_grades SET grade = ?1 WHERE id = ?2", params![grade, id])?;
+    }
+    if let Some(max_grade) = req.max_grade {
+        conn.execute("UPDATE class_grades SET max_grade = ?1 WHERE id = ?2", params![max_grade, id])?;
+    }
+    if let Some(notes) = &req.notes {
+        conn.execute("UPDATE class_grades SET notes = ?1 WHERE id = ?2", params![notes, id])?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_class_grade(
+    RequireTeacher(_user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute("DELETE FROM class_grades WHERE id = ?1", [id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 

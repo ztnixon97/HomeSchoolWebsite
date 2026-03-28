@@ -201,6 +201,7 @@ async fn main() {
             "/api/my-children/{id}",
             put(routes::children::update_my_child).delete(routes::children::delete_my_child),
         )
+        .route("/api/my-children/{id}/milestones", get(routes::children::get_my_child_milestones))
         .route("/api/users", get(routes::sessions::list_users))
         .route("/api/members", get(routes::sessions::list_members))
         .route("/api/files/{id}", get(routes::files::get_file_info).delete(routes::files::delete_file))
@@ -431,7 +432,11 @@ async fn main() {
         .route("/api/class-groups/{id}/sessions", get(routes::class_groups::get_group_sessions))
         .route("/api/class-groups/{id}/roster", get(routes::class_groups::get_group_roster))
         .route("/api/class-groups/{id}/attendance", get(routes::class_groups::get_group_attendance))
-        .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements));
+        .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements))
+        .route("/api/class-groups/{id}/grades", get(routes::class_groups::get_group_grades))
+        // Class grade CRUD (teacher+)
+        .route("/api/admin/class-grades", post(routes::admin::create_class_grade))
+        .route("/api/admin/class-grades/{id}", put(routes::admin::update_class_grade).delete(routes::admin::delete_class_grade));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

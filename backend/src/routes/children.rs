@@ -175,6 +175,54 @@ pub async fn delete_my_child(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+// ── Parent Milestone View ──
+
+/// GET /api/my-children/{id}/milestones — parent sees milestones for their own child
+pub async fn get_my_child_milestones(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<Milestone>>, AppError> {
+    crate::features::require_feature(&state.db, "student_progress")?;
+    let conn = state.db.get()?;
+
+    // Verify parent-child link (unless admin/teacher)
+    if user.role != "admin" && user.role != "teacher" {
+        let linked: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM student_parents WHERE student_id = ?1 AND user_id = ?2",
+                params![id, user.id],
+                |row| row.get(0),
+            )
+            .unwrap_or(false);
+        if !linked {
+            return Err(AppError::Forbidden);
+        }
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT id, student_id, recorded_by, category, title, notes, achieved_date, created_at
+         FROM milestones WHERE student_id = ?1 ORDER BY created_at DESC",
+    )?;
+    let milestones: Vec<Milestone> = stmt
+        .query_map(params![id], |row| {
+            Ok(Milestone {
+                id: row.get(0)?,
+                student_id: row.get(1)?,
+                recorded_by: row.get(2)?,
+                category: row.get(3)?,
+                title: row.get(4)?,
+                notes: row.get(5)?,
+                achieved_date: row.get(6)?,
+                created_at: row.get(7)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(Json(milestones))
+}
+
 // ── Students & Milestones (Teacher+) ──
 
 pub async fn list_students(

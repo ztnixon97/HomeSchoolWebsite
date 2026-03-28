@@ -16,6 +16,17 @@ interface Student {
   enrolled: boolean;
 }
 
+interface Milestone {
+  id: number;
+  student_id: number;
+  recorded_by: number;
+  category: string;
+  title: string;
+  notes: string | null;
+  achieved_date: string | null;
+  created_at: string;
+}
+
 interface FamilyMember {
   id: number;
   display_name: string;
@@ -75,6 +86,10 @@ export default function MyChildren() {
   const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [editFamilyName, setEditFamilyName] = useState('');
 
+  // Milestones (parent progress view)
+  const [expandedChild, setExpandedChild] = useState<number | null>(null);
+  const [milestones, setMilestones] = useState<Record<number, Milestone[]>>({});
+
   const refresh = () => {
     api.get<Student[]>('/api/my-children').then(setChildren).catch(() => {});
     if (features.families) {
@@ -84,6 +99,27 @@ export default function MyChildren() {
   };
 
   useEffect(refresh, []);
+
+  const toggleMilestones = (childId: number) => {
+    if (expandedChild === childId) {
+      setExpandedChild(null);
+      return;
+    }
+    setExpandedChild(childId);
+    if (!milestones[childId]) {
+      api.get<Milestone[]>(`/api/my-children/${childId}/milestones`)
+        .then(ms => setMilestones(prev => ({ ...prev, [childId]: ms })))
+        .catch(() => setMilestones(prev => ({ ...prev, [childId]: [] })));
+    }
+  };
+
+  const categoryColors: Record<string, string> = {
+    social: 'bg-blue-100 text-blue-700',
+    motor: 'bg-green-100 text-green-700',
+    language: 'bg-purple-100 text-purple-700',
+    cognitive: 'bg-amber-100 text-amber-700',
+    creative: 'bg-pink-100 text-pink-700',
+  };
 
   const startEdit = (c: Student) => {
     setEditingId(c.id);
@@ -417,6 +453,43 @@ export default function MyChildren() {
                     <div className="text-sm text-ink/70">Emergency Contact: {[c.emergency_contact_name, c.emergency_contact_phone].filter(Boolean).join(' - ')}</div>
                   )}
                   {c.notes && <div className="text-sm text-ink/60">Notes: {c.notes}</div>}
+
+                  {features.student_progress && (
+                    <div className="mt-3 pt-3 border-t border-ink/10">
+                      <button
+                        onClick={() => toggleMilestones(c.id)}
+                        className="text-sm text-cobalt hover:text-ink font-medium"
+                      >
+                        {expandedChild === c.id ? 'Hide Progress' : 'View Progress'}
+                      </button>
+                      {expandedChild === c.id && (
+                        <div className="mt-3 space-y-2">
+                          {!milestones[c.id] ? (
+                            <p className="text-sm text-ink/50">Loading...</p>
+                          ) : milestones[c.id].length === 0 ? (
+                            <p className="text-sm text-ink/50">No milestones recorded yet.</p>
+                          ) : (
+                            milestones[c.id].map(m => (
+                              <div key={m.id} className="flex items-start gap-2 text-sm">
+                                <span className={`px-2 py-0.5 rounded text-xs font-medium ${categoryColors[m.category] || 'bg-gray-100 text-gray-700'}`}>
+                                  {m.category}
+                                </span>
+                                <div>
+                                  <span className="font-medium text-ink">{m.title}</span>
+                                  {m.notes && <span className="text-ink/60 ml-1">— {m.notes}</span>}
+                                  {m.achieved_date && (
+                                    <span className="text-ink/40 ml-1 text-xs">
+                                      ({new Date(m.achieved_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })})
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

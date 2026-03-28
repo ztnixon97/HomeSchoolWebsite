@@ -9,6 +9,7 @@ interface ClassGroup {
   description: string | null;
   sort_order: number;
   active: boolean;
+  grading_enabled: boolean;
   created_at: string;
 }
 
@@ -42,6 +43,7 @@ export default function ManageClassGroups() {
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editSortOrder, setEditSortOrder] = useState('');
+  const [editGradingEnabled, setEditGradingEnabled] = useState(false);
 
   const refresh = () => {
     api.get<ClassGroup[]>('/api/admin/class-groups').then(setGroups).catch(() => {});
@@ -74,6 +76,7 @@ export default function ManageClassGroups() {
     setEditName(g.name);
     setEditDescription(g.description || '');
     setEditSortOrder(String(g.sort_order));
+    setEditGradingEnabled(g.grading_enabled);
   };
 
   const saveEdit = async () => {
@@ -83,6 +86,7 @@ export default function ManageClassGroups() {
         name: editName,
         description: editDescription || null,
         sort_order: editSortOrder ? parseInt(editSortOrder) : 0,
+        grading_enabled: editGradingEnabled,
       });
       setEditingId(null);
       showToast('Group updated', 'success');
@@ -170,6 +174,15 @@ export default function ManageClassGroups() {
                     <input value={editDescription} onChange={e => setEditDescription(e.target.value)} className={`w-full ${inputClass}`} placeholder="Description" />
                     <input type="number" value={editSortOrder} onChange={e => setEditSortOrder(e.target.value)} className={`w-full ${inputClass}`} placeholder="Sort Order" />
                   </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={editGradingEnabled}
+                      onChange={e => setEditGradingEnabled(e.target.checked)}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    Enable grading for this class
+                  </label>
                   <div className="flex gap-2">
                     <button onClick={saveEdit} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
                     <button onClick={() => setEditingId(null)} className="text-sm text-gray-500">Cancel</button>
@@ -185,6 +198,7 @@ export default function ManageClassGroups() {
                           {g.active ? 'Active' : 'Inactive'}
                         </span>
                         <span className="text-xs text-gray-400">{groupMembers.length} student{groupMembers.length !== 1 ? 's' : ''}</span>
+                        {g.grading_enabled && <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-medium">Grading</span>}
                       </div>
                       {g.description && <p className="text-sm text-gray-500 mt-0.5">{g.description}</p>}
                     </div>

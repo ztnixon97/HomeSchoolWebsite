@@ -107,7 +107,7 @@ pub async fn get_class_group(
     let conn = state.db.get()?;
 
     let group = conn.query_row(
-        "SELECT cg.id, cg.name, cg.description
+        "SELECT cg.id, cg.name, cg.description, cg.grading_enabled
          FROM class_groups cg WHERE cg.id = ?1 AND cg.active = 1",
         [id],
         |row| {
@@ -115,6 +115,7 @@ pub async fn get_class_group(
                 "id": row.get::<_, i64>(0)?,
                 "name": row.get::<_, String>(1)?,
                 "description": row.get::<_, Option<String>>(2)?,
+                "grading_enabled": row.get::<_, bool>(3)?,
             }))
         },
     )?;
@@ -306,4 +307,91 @@ pub async fn get_group_announcements(
         .collect();
 
     Ok(Json(announcements))
+}
+
+/// GET /api/class-groups/{id}/grades — grades for this group
+/// Teachers/admins see all; parents see only their children's grades
+pub async fn get_group_grades(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    check_group_access(&state, &user, id)?;
+    let conn = state.db.get()?;
+
+    // Check grading_enabled
+    let enabled: bool = conn.query_row(
+        "SELECT grading_enabled FROM class_groups WHERE id = ?1",
+        [id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if !enabled {
+        return Ok(Json(serde_json::json!({ "grading_enabled": false, "grades": [] })));
+    }
+
+    let grades: Vec<serde_json::Value> = if user.role == "admin" || user.role == "teacher" {
+        let mut stmt = conn.prepare(
+            "SELECT g.id, g.group_id, g.student_id, s.first_name || ' ' || s.last_name,
+                    g.assignment_title, g.grade, g.max_grade, g.notes,
+                    g.graded_by, u.display_name, g.created_at
+             FROM class_grades g
+             JOIN students s ON g.student_id = s.id
+             LEFT JOIN users u ON g.graded_by = u.id
+             WHERE g.group_id = ?1
+             ORDER BY g.assignment_title, s.last_name, s.first_name",
+        )?;
+        let result = stmt.query_map(params![id], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "group_id": row.get::<_, i64>(1)?,
+                "student_id": row.get::<_, i64>(2)?,
+                "student_name": row.get::<_, String>(3)?,
+                "assignment_title": row.get::<_, String>(4)?,
+                "grade": row.get::<_, Option<f64>>(5)?,
+                "max_grade": row.get::<_, Option<f64>>(6)?,
+                "notes": row.get::<_, Option<String>>(7)?,
+                "graded_by": row.get::<_, i64>(8)?,
+                "graded_by_name": row.get::<_, Option<String>>(9)?,
+                "created_at": row.get::<_, String>(10)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+        result
+    } else {
+        // Parents see only their children's grades
+        let mut stmt = conn.prepare(
+            "SELECT g.id, g.group_id, g.student_id, s.first_name || ' ' || s.last_name,
+                    g.assignment_title, g.grade, g.max_grade, g.notes,
+                    g.graded_by, u.display_name, g.created_at
+             FROM class_grades g
+             JOIN students s ON g.student_id = s.id
+             LEFT JOIN users u ON g.graded_by = u.id
+             JOIN student_parents sp ON g.student_id = sp.student_id
+             WHERE g.group_id = ?1 AND sp.user_id = ?2
+             ORDER BY g.assignment_title, s.last_name, s.first_name",
+        )?;
+        let result = stmt.query_map(params![id, user.id], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "group_id": row.get::<_, i64>(1)?,
+                "student_id": row.get::<_, i64>(2)?,
+                "student_name": row.get::<_, String>(3)?,
+                "assignment_title": row.get::<_, String>(4)?,
+                "grade": row.get::<_, Option<f64>>(5)?,
+                "max_grade": row.get::<_, Option<f64>>(6)?,
+                "notes": row.get::<_, Option<String>>(7)?,
+                "graded_by": row.get::<_, i64>(8)?,
+                "graded_by_name": row.get::<_, Option<String>>(9)?,
+                "created_at": row.get::<_, String>(10)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+        result
+    };
+
+    Ok(Json(serde_json::json!({ "grading_enabled": true, "grades": grades })))
 }

@@ -8,6 +8,7 @@ interface ClassGroup {
   id: number;
   name: string;
   description: string | null;
+  grading_enabled?: boolean;
 }
 
 interface GroupSession {
@@ -58,7 +59,21 @@ interface Announcement {
   created_at: string;
 }
 
-type Tab = 'sessions' | 'roster' | 'attendance' | 'announcements';
+interface ClassGrade {
+  id: number;
+  group_id: number;
+  student_id: number;
+  student_name: string | null;
+  assignment_title: string;
+  grade: number | null;
+  max_grade: number | null;
+  notes: string | null;
+  graded_by: number;
+  graded_by_name: string | null;
+  created_at: string;
+}
+
+type Tab = 'sessions' | 'roster' | 'attendance' | 'announcements' | 'grades';
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
@@ -81,6 +96,13 @@ export default function ClassDetail() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [newTitle, setNewTitle] = useState('');
   const [newBody, setNewBody] = useState('');
+  // Grades
+  const [grades, setGrades] = useState<ClassGrade[]>([]);
+  const [gradeStudentId, setGradeStudentId] = useState('');
+  const [gradeAssignment, setGradeAssignment] = useState('');
+  const [gradeValue, setGradeValue] = useState('');
+  const [gradeMax, setGradeMax] = useState('');
+  const [gradeNotes, setGradeNotes] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -104,6 +126,14 @@ export default function ClassDetail() {
       }).catch(() => {});
     } else if (tab === 'announcements') {
       api.get<Announcement[]>(`/api/class-groups/${id}/announcements`).then(setAnnouncements).catch(() => {});
+    } else if (tab === 'grades') {
+      api.get<{ grading_enabled: boolean; grades: ClassGrade[] }>(`/api/class-groups/${id}/grades`).then(data => {
+        setGrades(data.grades);
+      }).catch(() => {});
+      // Also fetch roster for the grade form (teacher needs student list)
+      if (canManage && roster.length === 0) {
+        api.get<RosterStudent[]>(`/api/class-groups/${id}/roster`).then(setRoster).catch(() => {});
+      }
     }
   }, [id, tab]);
 
@@ -134,6 +164,39 @@ export default function ClassDetail() {
     }
   };
 
+  const createGrade = async () => {
+    if (!gradeStudentId || !gradeAssignment.trim()) return;
+    try {
+      const newGrade = await api.post<ClassGrade>('/api/admin/class-grades', {
+        group_id: Number(id),
+        student_id: Number(gradeStudentId),
+        assignment_title: gradeAssignment,
+        grade: gradeValue ? parseFloat(gradeValue) : null,
+        max_grade: gradeMax ? parseFloat(gradeMax) : null,
+        notes: gradeNotes || null,
+      });
+      setGrades(prev => [...prev, newGrade]);
+      setGradeStudentId('');
+      setGradeAssignment('');
+      setGradeValue('');
+      setGradeMax('');
+      setGradeNotes('');
+      addToast('Grade added', 'success');
+    } catch {
+      addToast('Failed to add grade', 'error');
+    }
+  };
+
+  const deleteGrade = async (gradeId: number) => {
+    try {
+      await api.del(`/api/admin/class-grades/${gradeId}`);
+      setGrades(prev => prev.filter(g => g.id !== gradeId));
+      addToast('Grade deleted', 'success');
+    } catch {
+      addToast('Failed to delete grade', 'error');
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -156,6 +219,7 @@ export default function ClassDetail() {
     { key: 'roster', label: 'Roster' },
     { key: 'attendance', label: 'Attendance' },
     { key: 'announcements', label: 'Announcements' },
+    ...(group?.grading_enabled ? [{ key: 'grades' as Tab, label: 'Grades' }] : []),
   ];
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
@@ -359,6 +423,116 @@ export default function ClassDetail() {
                 </div>
               </div>
             ))
+          )}
+        </div>
+      )}
+
+      {/* Grades Tab */}
+      {tab === 'grades' && (
+        <div className="space-y-4">
+          {canManage && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+              <h3 className="text-sm font-medium text-ink mb-3">Add Grade</h3>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <select
+                  value={gradeStudentId}
+                  onChange={e => setGradeStudentId(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">Select student...</option>
+                  {roster.map(s => (
+                    <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  placeholder="Assignment title"
+                  value={gradeAssignment}
+                  onChange={e => setGradeAssignment(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Grade"
+                  value={gradeValue}
+                  onChange={e => setGradeValue(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  type="number"
+                  step="0.1"
+                  placeholder="Max grade"
+                  value={gradeMax}
+                  onChange={e => setGradeMax(e.target.value)}
+                  className={inputClass}
+                />
+                <input
+                  type="text"
+                  placeholder="Notes (optional)"
+                  value={gradeNotes}
+                  onChange={e => setGradeNotes(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <button
+                onClick={createGrade}
+                disabled={!gradeStudentId || !gradeAssignment.trim()}
+                className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition-colors"
+              >
+                Add Grade
+              </button>
+            </div>
+          )}
+          {grades.length === 0 ? (
+            <p className="text-gray-500 text-sm">No grades recorded yet.</p>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Student</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Assignment</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Grade</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Notes</th>
+                    {canManage && <th className="text-right px-4 py-3 font-medium text-gray-600"></th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {grades.map(g => (
+                    <tr key={g.id}>
+                      <td className="px-4 py-3 text-ink">{g.student_name}</td>
+                      <td className="px-4 py-3 text-ink">{g.assignment_title}</td>
+                      <td className="px-4 py-3 text-ink">
+                        {g.grade != null ? (
+                          <span>
+                            {g.grade}{g.max_grade != null ? `/${g.max_grade}` : ''}
+                            {g.max_grade != null && g.max_grade > 0 && (
+                              <span className="text-gray-400 ml-1 text-xs">
+                                ({Math.round((g.grade / g.max_grade) * 100)}%)
+                              </span>
+                            )}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{g.notes || '—'}</td>
+                      {canManage && (
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => deleteGrade(g.id)}
+                            className="text-red-500 hover:text-red-700 text-xs"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
