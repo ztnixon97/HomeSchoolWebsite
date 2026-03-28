@@ -623,6 +623,17 @@ pub async fn create_session(
     )?;
 
     let id = conn.last_insert_rowid();
+
+    // Link session to class groups if provided
+    if let Some(ref group_ids) = req.class_group_ids {
+        for gid in group_ids {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO class_session_groups (session_id, group_id) VALUES (?1, ?2)",
+                params![id, gid],
+            );
+        }
+    }
+
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     Ok(Json(ClassSession {
@@ -710,6 +721,17 @@ pub async fn update_session(
     }
     if let Some(require_approval) = req.require_approval {
         conn.execute("UPDATE class_sessions SET require_approval = ?1 WHERE id = ?2", params![require_approval, id])?;
+    }
+
+    // Update class group assignments if provided
+    if let Some(group_ids) = req.class_group_ids {
+        conn.execute("DELETE FROM class_session_groups WHERE session_id = ?1", [id])?;
+        for gid in &group_ids {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO class_session_groups (session_id, group_id) VALUES (?1, ?2)",
+                params![id, gid],
+            );
+        }
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -1482,6 +1504,67 @@ pub async fn remove_group_member(
         "DELETE FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
         params![group_id, student_id],
     )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Class Group Announcements ──
+
+pub async fn create_class_group_announcement(
+    RequireAdmin(user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(req): Json<CreateClassGroupAnnouncementRequest>,
+) -> Result<Json<ClassGroupAnnouncement>, AppError> {
+    let title = validate_required(&req.title, "title")?;
+    let body = req.body.unwrap_or_default();
+    let conn = state.db.get()?;
+    conn.execute(
+        "INSERT INTO class_group_announcements (group_id, title, body, created_by) VALUES (?1, ?2, ?3, ?4)",
+        params![req.group_id, title, body, user.id],
+    )?;
+    let id = conn.last_insert_rowid();
+    let announcement = conn.query_row(
+        "SELECT a.id, a.group_id, a.title, a.body, a.created_by, u.display_name, a.created_at
+         FROM class_group_announcements a
+         LEFT JOIN users u ON a.created_by = u.id
+         WHERE a.id = ?1",
+        [id],
+        |row| Ok(ClassGroupAnnouncement {
+            id: row.get(0)?,
+            group_id: row.get(1)?,
+            title: row.get(2)?,
+            body: row.get(3)?,
+            created_by: row.get(4)?,
+            created_by_name: row.get(5)?,
+            created_at: row.get(6)?,
+        }),
+    )?;
+    Ok(Json(announcement))
+}
+
+pub async fn update_class_group_announcement(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateClassGroupAnnouncementRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    if let Some(title) = &req.title {
+        let title = validate_required(title, "title")?;
+        conn.execute("UPDATE class_group_announcements SET title = ?1 WHERE id = ?2", params![title, id])?;
+    }
+    if let Some(body) = &req.body {
+        conn.execute("UPDATE class_group_announcements SET body = ?1 WHERE id = ?2", params![body, id])?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_class_group_announcement(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute("DELETE FROM class_group_announcements WHERE id = ?1", [id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 

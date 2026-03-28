@@ -415,6 +415,7 @@ pub struct CreateSessionRequest {
     pub session_type_id: Option<i64>,
     pub rsvp_cutoff: Option<String>,
     pub require_approval: Option<bool>,
+    pub class_group_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -435,6 +436,7 @@ pub struct UpdateSessionRequest {
     pub session_type_id: Option<i64>,
     pub rsvp_cutoff: Option<String>,
     pub require_approval: Option<bool>,
+    pub class_group_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -758,6 +760,7 @@ pub struct SessionsQuery {
     pub session_type_id: Option<i64>,
     pub date_from: Option<String>,
     pub date_to: Option<String>,
+    pub class_group_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -863,4 +866,30 @@ pub struct UpdateClassGroupRequest {
 pub struct AddGroupMemberRequest {
     pub group_id: i64,
     pub student_id: i64,
+}
+
+// ── Class Group Announcements ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassGroupAnnouncement {
+    pub id: i64,
+    pub group_id: i64,
+    pub title: String,
+    pub body: String,
+    pub created_by: Option<i64>,
+    pub created_by_name: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateClassGroupAnnouncementRequest {
+    pub group_id: i64,
+    pub title: String,
+    pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassGroupAnnouncementRequest {
+    pub title: Option<String>,
+    pub body: Option<String>,
 }
