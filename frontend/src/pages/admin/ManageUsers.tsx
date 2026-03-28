@@ -138,6 +138,7 @@ export default function ManageUsers() {
               onChange={e => setInviteEmail(e.target.value)}
               placeholder="parent@example.com"
               required
+              autoComplete="email"
               className={inputClass + " w-full"}
             />
           </div>
@@ -163,7 +164,7 @@ export default function ManageUsers() {
                   </span>
                   <button
                     onClick={async () => { await api.del(`/api/admin/invites/${inv.id}`); refresh(); }}
-                    className="text-xs text-red-500 hover:text-red-700 font-medium"
+                    className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg"
                   >
                     Revoke
                   </button>
@@ -236,22 +237,22 @@ export default function ManageUsers() {
                     </span>
                   </td>
                   <td className="py-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3 flex-wrap">
                       <button
                         onClick={() => toggleActive(u)}
-                        className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg"
                       >
                         {u.active ? 'Deactivate' : 'Activate'}
                       </button>
                       <button
                         onClick={() => { setResetPasswordId(resetPasswordId === u.id ? null : u.id); setNewPassword(''); }}
-                        className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                        className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg"
                       >
-                        Reset Password
+                        Reset PW
                       </button>
                       <button
                         onClick={() => deleteUser(u)}
-                        className="text-xs text-red-500 hover:text-red-700 font-medium"
+                        className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg"
                       >
                         Delete
                       </button>
@@ -263,10 +264,12 @@ export default function ManageUsers() {
                           value={newPassword}
                           onChange={e => setNewPassword(e.target.value)}
                           placeholder="New password (min 8 chars)"
+                          minLength={8}
+                          autoComplete="new-password"
                           className="px-2 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 w-48"
                         />
-                        <button onClick={() => resetPassword(u.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
-                        <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} className="text-xs text-gray-500">Cancel</button>
+                        <button onClick={() => resetPassword(u.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">Save</button>
+                        <button onClick={() => { setResetPasswordId(null); setNewPassword(''); }} className="text-xs text-gray-500 py-2 px-3 rounded-lg">Cancel</button>
                       </div>
                     )}
                   </td>

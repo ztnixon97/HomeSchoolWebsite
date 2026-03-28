@@ -197,7 +197,7 @@ export default function EditLessonPlan() {
                   <span className="font-medium text-gray-800">{c.display_name}</span>
                   <span className="text-gray-500 ml-2">({c.email})</span>
                 </div>
-                <button onClick={() => removeCollaborator(c.user_id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                <button onClick={() => removeCollaborator(c.user_id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Remove</button>
               </div>
             ))}
           </div>

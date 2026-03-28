@@ -130,8 +130,8 @@ export default function ManageResources() {
               <div className="text-xs text-gray-400 capitalize">{r.category}</div>
             </div>
             <div className="flex gap-3">
-              <button onClick={() => startEdit(r)} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium">Edit</button>
-              <button onClick={() => deleteResource(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+              <button onClick={() => startEdit(r)} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">Edit</button>
+              <button onClick={() => deleteResource(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Delete</button>
             </div>
           </div>
         ))}

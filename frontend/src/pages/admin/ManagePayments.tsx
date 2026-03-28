@@ -429,16 +429,16 @@ export default function ManagePayments() {
                           />
                         </td>
                         <td className="py-3">
-                          <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-3 flex-wrap">
                             <button
                               onClick={() => saveEdit(p.id)}
-                              className="text-xs text-emerald-600 hover:text-emerald-800 font-medium"
+                              className="text-xs text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
                             >
                               Save
                             </button>
                             <button
                               onClick={cancelEdit}
-                              className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                              className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg"
                             >
                               Cancel
                             </button>
@@ -475,16 +475,16 @@ export default function ManagePayments() {
                           )}
                         </td>
                         <td className="py-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <button
                               onClick={() => startEdit(p)}
-                              className="text-xs text-blue-500 hover:text-blue-700 font-medium"
+                              className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg"
                             >
                               Edit
                             </button>
                             <button
                               onClick={() => handleDelete(p.id)}
-                              className="text-xs text-red-500 hover:text-red-700 font-medium"
+                              className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg"
                             >
                               Delete
                             </button>

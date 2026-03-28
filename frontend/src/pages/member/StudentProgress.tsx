@@ -162,8 +162,8 @@ export default function StudentProgress() {
                           <span className="font-medium">{m.title}</span>
                           <div className="flex items-center gap-2">
                             <span className="text-xs text-gray-400 capitalize">{m.category}</span>
-                            <button onClick={() => startEditMilestone(m)} className="text-xs text-blue-600 hover:text-blue-800">Edit</button>
-                            <button onClick={() => deleteMilestone(m.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
+                            <button onClick={() => startEditMilestone(m)} className="text-xs text-blue-600 hover:text-blue-800 py-2 px-3 rounded-lg">Edit</button>
+                            <button onClick={() => deleteMilestone(m.id)} className="text-xs text-red-500 hover:text-red-700 py-2 px-3 rounded-lg">Delete</button>
                           </div>
                         </div>
                         {m.notes && <p className="text-xs text-gray-500 mt-1">{m.notes}</p>}

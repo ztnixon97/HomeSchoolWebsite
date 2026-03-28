@@ -136,7 +136,7 @@ export default function ManageFiles() {
             </div>
             <button
               onClick={() => handleDelete(f.id, f.filename)}
-              className="text-xs text-red-500 hover:text-red-700 font-medium flex-shrink-0"
+              className="text-xs text-red-500 hover:text-red-700 font-medium flex-shrink-0 py-2 px-3 rounded-lg"
             >
               Delete
             </button>

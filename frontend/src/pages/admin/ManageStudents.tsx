@@ -255,14 +255,14 @@ export default function ManageStudents() {
               <div className="flex gap-3">
                 {features.student_progress && <Link
                   to={`/student-progress/${s.id}`}
-                  className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
+                  className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
                 >
                   View Progress
                 </Link>}
-                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">
                   Edit
                 </button>
-                <button onClick={() => deleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                <button onClick={() => deleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">
                   Remove
                 </button>
               </div>

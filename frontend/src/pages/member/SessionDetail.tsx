@@ -382,7 +382,7 @@ export default function SessionDetail() {
       <div className="space-y-3">
         {hostable && session.status === 'open' && user && !showClaim && (
           <button
-            onClick={() => setShowClaim(true)}
+            onClick={() => { setShowClaim(true); if (user?.address && !hostAddress) setHostAddress(user.address); }}
             className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors"
           >
             Sign Up to Host This Session
@@ -399,9 +399,13 @@ export default function SessionDetail() {
                 value={hostAddress}
                 onChange={e => setHostAddress(e.target.value)}
                 required
+                autoComplete="street-address"
                 placeholder="123 Main St, City"
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
+              {user?.address && hostAddress === user.address && (
+                <p className="text-xs text-emerald-600 mt-1">Pre-filled from your profile</p>
+              )}
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Materials Needed (optional)</label>
@@ -437,7 +441,7 @@ export default function SessionDetail() {
           <div className="flex gap-4 mt-3">
             <button
               onClick={handleUnclaim}
-              className="text-sm text-red-600 hover:text-red-800 font-medium"
+              className="text-sm text-red-600 hover:text-red-800 font-medium py-2 px-3 rounded-lg"
             >
               Withdraw as Host
             </button>
@@ -447,7 +451,7 @@ export default function SessionDetail() {
                   await api.post(`/api/sessions/${id}/complete`);
                   refresh();
                 }}
-                className="text-sm text-emerald-600 hover:text-emerald-800 font-medium"
+                className="text-sm text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
               >
                 Mark as Completed
               </button>
@@ -599,15 +603,15 @@ export default function SessionDetail() {
                       <span className="ml-2 text-xs text-blue-700 bg-blue-100 px-2 py-0.5 rounded-full">Waitlisted</span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {(isHost || isAdmin) && r.status === 'pending' && (
                       <>
-                        <button onClick={() => handleApproveRsvp(r.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Approve</button>
-                        <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Decline</button>
+                        <button onClick={() => handleApproveRsvp(r.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">Approve</button>
+                        <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Decline</button>
                       </>
                     )}
                     {user && (r.parent_id === user.id || children.some(c => c.id === r.student_id) || user.role === 'admin') && (
-                      <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Remove</button>
+                      <button onClick={() => handleRemoveRsvp(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Remove</button>
                     )}
                   </div>
                 </div>
@@ -693,19 +697,19 @@ export default function SessionDetail() {
                     <span className="font-medium text-gray-800">{s.item_name}</span>
                     {s.quantity && <span className="text-gray-400 text-xs ml-2">({s.quantity})</span>}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     {s.claimed_by ? (
                       <>
                         <span className="text-xs text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">{s.claimed_by_name}</span>
                         {(s.claimed_by === user?.id || user?.role === 'admin') && (
-                          <button onClick={async () => { await api.post(`/api/supplies/${s.id}/unclaim`); refresh(); }} className="text-xs text-gray-500 hover:text-gray-700">Unclaim</button>
+                          <button onClick={async () => { await api.post(`/api/supplies/${s.id}/unclaim`); refresh(); }} className="text-xs text-gray-500 hover:text-gray-700 py-2 px-3 rounded-lg">Unclaim</button>
                         )}
                       </>
                     ) : (
-                      <button onClick={async () => { await api.post(`/api/supplies/${s.id}/claim`); refresh(); }} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">I'll bring this</button>
+                      <button onClick={async () => { await api.post(`/api/supplies/${s.id}/claim`); refresh(); }} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">I'll bring this</button>
                     )}
                     {canEdit && (
-                      <button onClick={async () => { await api.del(`/api/supplies/${s.id}`); refresh(); }} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                      <button onClick={async () => { await api.del(`/api/supplies/${s.id}`); refresh(); }} className="text-xs text-red-500 hover:text-red-700 py-2 px-3 rounded-lg">Remove</button>
                     )}
                   </div>
                 </div>

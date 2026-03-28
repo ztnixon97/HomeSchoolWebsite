@@ -214,9 +214,9 @@ export default function ManageClassGroups() {
                     />
                     Enable grading for this class
                   </label>
-                  <div className="flex gap-2">
-                    <button onClick={saveEdit} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
-                    <button onClick={() => setEditingId(null)} className="text-sm text-gray-500">Cancel</button>
+                  <div className="flex gap-3">
+                    <button onClick={saveEdit} className="text-sm text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">Save</button>
+                    <button onClick={() => setEditingId(null)} className="text-sm text-gray-500 py-2 px-3 rounded-lg">Cancel</button>
                   </div>
                 </div>
               ) : (
@@ -233,15 +233,15 @@ export default function ManageClassGroups() {
                       </div>
                       {g.description && <p className="text-sm text-gray-500 mt-0.5">{g.description}</p>}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setExpandedId(isExpanded ? null : g.id)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <button onClick={() => setExpandedId(isExpanded ? null : g.id)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">
                         {isExpanded ? 'Collapse' : 'Members'}
                       </button>
-                      <button onClick={() => startEdit(g)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
-                      <button onClick={() => toggleActive(g)} className="text-xs text-gray-500 hover:text-gray-700 font-medium">
+                      <button onClick={() => startEdit(g)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">Edit</button>
+                      <button onClick={() => toggleActive(g)} className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg">
                         {g.active ? 'Deactivate' : 'Activate'}
                       </button>
-                      <button onClick={() => deleteGroup(g)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+                      <button onClick={() => deleteGroup(g)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Delete</button>
                     </div>
                   </div>
 

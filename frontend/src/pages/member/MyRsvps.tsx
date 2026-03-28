@@ -13,6 +13,8 @@ interface RsvpEntry {
   session_title: string;
   session_date: string;
   start_time: string | null;
+  location_name: string | null;
+  location: string | null;
 }
 
 export default function MyRsvps() {
@@ -63,6 +65,13 @@ export default function MyRsvps() {
                     {' \u2014 '}
                     <span className="font-medium">{r.student_name}</span>
                   </div>
+                  {(r.location_name || r.location) && (
+                    <div className="text-xs text-ink/40 mt-0.5">
+                      {r.location_name && <span>{r.location_name}</span>}
+                      {r.location_name && r.location && ' — '}
+                      {r.location && <span>{r.location}</span>}
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
@@ -70,7 +79,7 @@ export default function MyRsvps() {
                   }`}>
                     {r.status}
                   </span>
-                  <button onClick={() => handleCancel(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+                  <button onClick={() => handleCancel(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">
                     Cancel
                   </button>
                 </div>
