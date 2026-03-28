@@ -487,6 +487,13 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_name TEXT", []);
     let _ = conn.execute("ALTER TABLE students ADD COLUMN emergency_contact_phone TEXT", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN grading_enabled INTEGER NOT NULL DEFAULT 0", []);
+
+    // Payment enhancements
+    let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN payment_method TEXT", []);
+    let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN due_date TEXT", []);
+    let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN category TEXT", []);
+    let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN reference_number TEXT", []);
+    let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN external_payment_id TEXT", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN home_content TEXT", []);
     let _ = conn.execute("ALTER TABLE class_grades ADD COLUMN status TEXT NOT NULL DEFAULT 'graded'", []);
     let _ = conn.execute("ALTER TABLE grade_category_weights ADD COLUMN drop_lowest INTEGER NOT NULL DEFAULT 0", []);
@@ -526,9 +533,9 @@ fn run_migrations(pool: &DbPool) {
          ('feature_class_groups', '1'),
          ('feature_notifications', '0'),
          ('feature_messaging', '0'),
-         ('feature_documents', '0'),
-         ('feature_standards', '0'),
-         ('feature_payments', '0')",
+         ('feature_documents', '1'),
+         ('feature_standards', '1'),
+         ('feature_payments', '1')",
         [],
     );
 

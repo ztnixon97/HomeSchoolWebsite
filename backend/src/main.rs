@@ -476,6 +476,9 @@ async fn main() {
         .route("/api/my-payments", get(routes::payments::list_my_payments))
         .route("/api/admin/payments", get(routes::payments::admin_list_payments).post(routes::payments::admin_create_payment))
         .route("/api/admin/payments/summary", get(routes::payments::admin_payments_summary))
+        .route("/api/admin/payments/bulk-charge", post(routes::payments::admin_bulk_charge_session))
+        .route("/api/admin/payments/overdue", get(routes::payments::admin_overdue_payments))
+        .route("/api/admin/payments/stats", get(routes::payments::admin_payment_stats))
         .route("/api/admin/payments/{id}", put(routes::payments::admin_update_payment).delete(routes::payments::admin_delete_payment));
 
     // In production, serve the React frontend for any non-API route.

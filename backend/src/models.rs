@@ -1068,6 +1068,10 @@ pub struct CreatePaymentRequest {
     pub payment_type: Option<String>,
     pub status: Option<String>,
     pub notes: Option<String>,
+    pub payment_method: Option<String>,
+    pub due_date: Option<String>,
+    pub category: Option<String>,
+    pub reference_number: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1077,5 +1081,19 @@ pub struct UpdatePaymentRequest {
     pub payment_type: Option<String>,
     pub status: Option<String>,
     pub paid_at: Option<String>,
+    pub notes: Option<String>,
+    pub payment_method: Option<String>,
+    pub due_date: Option<String>,
+    pub category: Option<String>,
+    pub reference_number: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkChargeRequest {
+    pub session_id: i64,
+    pub description: String,
+    pub amount: f64,
+    pub category: Option<String>,
+    pub due_date: Option<String>,
     pub notes: Option<String>,
 }

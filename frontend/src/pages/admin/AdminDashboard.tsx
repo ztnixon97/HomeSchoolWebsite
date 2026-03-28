@@ -250,6 +250,30 @@ export default function AdminDashboard() {
             description="Organize students into named groups"
             href="/admin/class-groups"
           />}
+          {features.payments && <AdminLink
+            icon="💰"
+            title="Manage Payments"
+            description="Charges, payments, invoices, and balances"
+            href="/admin/payments"
+          />}
+          {features.documents && <AdminLink
+            icon="📄"
+            title="Manage Documents"
+            description="Document templates and submission tracking"
+            href="/admin/documents"
+          />}
+          {features.standards && <AdminLink
+            icon="📊"
+            title="Manage Standards"
+            description="Curriculum standards and assignment mapping"
+            href="/admin/standards"
+          />}
+          <AdminLink
+            icon="📈"
+            title="Reports"
+            description="Attendance and enrollment reports"
+            href="/admin/reports"
+          />
           <button
             onClick={sendReminders}
             disabled={sendingReminders}
