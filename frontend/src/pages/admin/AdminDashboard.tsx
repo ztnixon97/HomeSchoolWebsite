@@ -242,6 +242,12 @@ export default function AdminDashboard() {
             description="Enable or disable site features"
             href="/admin/features"
           />
+          <AdminLink
+            icon="🏫"
+            title="Class Groups"
+            description="Organize students into named groups"
+            href="/admin/class-groups"
+          />
           <button
             onClick={sendReminders}
             disabled={sendingReminders}

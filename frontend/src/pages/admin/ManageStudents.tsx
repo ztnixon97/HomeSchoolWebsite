@@ -25,12 +25,24 @@ interface StudentParentLink {
   email: string;
 }
 
+interface ClassGroup {
+  id: number;
+  name: string;
+}
+
+interface GroupMember {
+  group_id: number;
+  student_id: number;
+}
+
 export default function ManageStudents() {
   const features = useFeatures();
   const { showToast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [parentLinks, setParentLinks] = useState<StudentParentLink[]>([]);
+  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
+  const [groupMembers, setGroupMembers] = useState<GroupMember[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [firstName, setFirstName] = useState('');
@@ -46,6 +58,10 @@ export default function ManageStudents() {
     api.get<Student[]>('/api/students').then(setStudents).catch(() => {});
     api.get<User[]>('/api/admin/users').then(setUsers).catch(() => {});
     api.get<StudentParentLink[]>('/api/admin/student-parents').then(setParentLinks).catch(() => {});
+    if (features.class_groups) {
+      api.get<ClassGroup[]>('/api/admin/class-groups').then(setClassGroups).catch(() => {});
+      api.get<GroupMember[]>('/api/admin/class-group-members').then(setGroupMembers).catch(() => {});
+    }
   };
 
   useEffect(refresh, []);
@@ -226,6 +242,14 @@ export default function ManageStudents() {
                       Dietary: {s.dietary_restrictions}
                     </span>
                   )}
+                  {features.class_groups && groupMembers.filter(gm => gm.student_id === s.id).map(gm => {
+                    const group = classGroups.find(g => g.id === gm.group_id);
+                    return group ? (
+                      <span key={gm.group_id} className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full border border-indigo-100">
+                        {group.name}
+                      </span>
+                    ) : null;
+                  })}
                 </div>
               </div>
               <div className="flex gap-3">

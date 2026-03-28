@@ -1346,6 +1346,145 @@ pub async fn recent_activity(
     Ok(Json(activity))
 }
 
+// ── Class Groups ──
+
+pub async fn list_class_groups(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ClassGroup>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, description, sort_order, active, created_at FROM class_groups ORDER BY sort_order, name",
+    )?;
+    let groups = stmt
+        .query_map([], |row| {
+            Ok(ClassGroup {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                sort_order: row.get(3)?,
+                active: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(groups))
+}
+
+pub async fn create_class_group(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(req): Json<CreateClassGroupRequest>,
+) -> Result<Json<ClassGroup>, AppError> {
+    let conn = state.db.get()?;
+    let name = validate_required(&req.name, "name")?;
+    conn.execute(
+        "INSERT INTO class_groups (name, description, sort_order) VALUES (?1, ?2, ?3)",
+        params![name, req.description, req.sort_order.unwrap_or(0)],
+    )?;
+    let id = conn.last_insert_rowid();
+    let group = conn.query_row(
+        "SELECT id, name, description, sort_order, active, created_at FROM class_groups WHERE id = ?1",
+        [id],
+        |row| {
+            Ok(ClassGroup {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                description: row.get(2)?,
+                sort_order: row.get(3)?,
+                active: row.get(4)?,
+                created_at: row.get(5)?,
+            })
+        },
+    )?;
+    Ok(Json(group))
+}
+
+pub async fn update_class_group(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateClassGroupRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    if let Some(name) = &req.name {
+        let name = validate_required(name, "name")?;
+        conn.execute("UPDATE class_groups SET name = ?1 WHERE id = ?2", params![name, id])?;
+    }
+    if let Some(desc) = &req.description {
+        conn.execute("UPDATE class_groups SET description = ?1 WHERE id = ?2", params![desc, id])?;
+    }
+    if let Some(order) = req.sort_order {
+        conn.execute("UPDATE class_groups SET sort_order = ?1 WHERE id = ?2", params![order, id])?;
+    }
+    if let Some(active) = req.active {
+        conn.execute("UPDATE class_groups SET active = ?1 WHERE id = ?2", params![active, id])?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn delete_class_group(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute("DELETE FROM class_groups WHERE id = ?1", [id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn list_class_group_members(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT cgm.group_id, cgm.student_id, s.first_name, s.last_name
+         FROM class_group_members cgm
+         JOIN students s ON cgm.student_id = s.id
+         ORDER BY cgm.group_id",
+    )?;
+    let members: Vec<serde_json::Value> = stmt
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "group_id": row.get::<_, i64>(0)?,
+                "student_id": row.get::<_, i64>(1)?,
+                "first_name": row.get::<_, String>(2)?,
+                "last_name": row.get::<_, String>(3)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(members))
+}
+
+pub async fn add_group_member(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(req): Json<AddGroupMemberRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute(
+        "INSERT OR IGNORE INTO class_group_members (group_id, student_id) VALUES (?1, ?2)",
+        params![req.group_id, req.student_id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn remove_group_member(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path((group_id, student_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    conn.execute(
+        "DELETE FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+        params![group_id, student_id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Feature Flags ──
 
 pub async fn update_feature_flags(
@@ -1354,7 +1493,7 @@ pub async fn update_feature_flags(
     Json(flags): Json<std::collections::HashMap<String, bool>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    let valid_features = ["blog", "resources", "lesson_plans", "member_directory", "student_progress", "families", "my_children", "my_rsvps"];
+    let valid_features = ["blog", "resources", "lesson_plans", "member_directory", "student_progress", "families", "my_children", "my_rsvps", "class_groups"];
     for (key, enabled) in &flags {
         if valid_features.contains(&key.as_str()) {
             conn.execute(

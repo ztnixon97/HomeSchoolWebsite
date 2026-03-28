@@ -52,6 +52,7 @@ import EmailParents from './pages/admin/EmailParents';
 import ManageAnnouncements from './pages/admin/ManageAnnouncements';
 import ManageFiles from './pages/admin/ManageFiles';
 import ManageFeatures from './pages/admin/ManageFeatures';
+import ManageClassGroups from './pages/admin/ManageClassGroups';
 
 export default function App() {
   return (
@@ -111,6 +112,7 @@ export default function App() {
             <Route path="/admin/announcements" element={<RoleGuard requireRole="admin"><ManageAnnouncements /></RoleGuard>} />
             <Route path="/admin/files" element={<RoleGuard requireRole="admin"><ManageFiles /></RoleGuard>} />
             <Route path="/admin/features" element={<RoleGuard requireRole="admin"><ManageFeatures /></RoleGuard>} />
+            <Route path="/admin/class-groups" element={<RoleGuard requireRole="admin"><ManageClassGroups /></RoleGuard>} />
           </Route>
             </Routes>
           </AuthProvider>

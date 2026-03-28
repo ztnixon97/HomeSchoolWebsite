@@ -10,6 +10,7 @@ export interface FeatureFlags {
   families: boolean;
   my_children: boolean;
   my_rsvps: boolean;
+  class_groups: boolean;
 }
 
 const defaults: FeatureFlags = {
@@ -21,6 +22,7 @@ const defaults: FeatureFlags = {
   families: true,
   my_children: true,
   my_rsvps: true,
+  class_groups: true,
 };
 
 const FeatureContext = createContext<FeatureFlags>(defaults);

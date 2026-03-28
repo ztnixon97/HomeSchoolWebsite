@@ -76,6 +76,7 @@ export default function ClassSessions() {
     const params = new URLSearchParams();
     params.set('page', String(listPage));
     params.set('page_size', String(PAGE_SIZE));
+    params.set('date_from', new Date().toISOString().split('T')[0]);
     if (search) params.set('q', search);
     if (statusFilter) params.set('status', statusFilter);
     api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {

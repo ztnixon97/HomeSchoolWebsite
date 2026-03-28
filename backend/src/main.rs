@@ -418,7 +418,11 @@ async fn main() {
         .route("/api/admin/recent-activity", get(routes::admin::recent_activity))
         .route("/api/admin/features", put(routes::admin::update_feature_flags))
         .route("/api/admin/files", get(routes::admin::list_all_files))
-        .route("/api/admin/files/{id}", delete(routes::admin::admin_delete_file));
+        .route("/api/admin/files/{id}", delete(routes::admin::admin_delete_file))
+        .route("/api/admin/class-groups", get(routes::admin::list_class_groups).post(routes::admin::create_class_group))
+        .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
+        .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))
+        .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

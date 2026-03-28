@@ -831,3 +831,36 @@ pub struct CreateSupplyRequest {
 }
 
 // UpdateSupplyRequest removed — unused
+
+// ── Class Groups ──
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassGroup {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub sort_order: i32,
+    pub active: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateClassGroupRequest {
+    pub name: String,
+    pub description: Option<String>,
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassGroupRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub sort_order: Option<i32>,
+    pub active: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddGroupMemberRequest {
+    pub group_id: i64,
+    pub student_id: i64,
+}
