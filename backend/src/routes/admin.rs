@@ -1628,11 +1628,11 @@ pub async fn delete_class_group_announcement(
 
 // ── Class Grades ──
 
-pub async fn create_class_grade(
+pub async fn create_assignment(
     RequireTeacher(user): RequireTeacher,
     State(state): State<AppState>,
-    Json(req): Json<CreateClassGradeRequest>,
-) -> Result<Json<ClassGrade>, AppError> {
+    Json(req): Json<CreateAssignmentRequest>,
+) -> Result<Json<ClassAssignment>, AppError> {
     crate::features::require_feature(&state.db, "class_groups")?;
     let conn = state.db.get()?;
 
@@ -1646,78 +1646,113 @@ pub async fn create_class_grade(
         return Err(AppError::BadRequest("Grading is not enabled for this class".to_string()));
     }
 
-    // Verify student is in the group
-    let in_group: bool = conn.query_row(
-        "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
-        params![req.group_id, req.student_id],
-        |row| row.get(0),
-    ).unwrap_or(false);
-    if !in_group {
-        return Err(AppError::BadRequest("Student is not in this class group".to_string()));
-    }
-
-    let title = validate_required(&req.assignment_title, "assignment_title")?;
+    let title = validate_required(&req.title, "title")?;
+    let max_points = req.max_points.unwrap_or(100.0);
     conn.execute(
-        "INSERT INTO class_grades (group_id, student_id, assignment_title, grade, max_grade, notes, graded_by)
+        "INSERT INTO class_assignments (group_id, title, description, category, max_points, due_date, created_by)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-        params![req.group_id, req.student_id, title, req.grade, req.max_grade, req.notes, user.id],
+        params![req.group_id, title, req.description, req.category, max_points, req.due_date, user.id],
     )?;
     let id = conn.last_insert_rowid();
-    let grade = conn.query_row(
-        "SELECT g.id, g.group_id, g.student_id, s.first_name || ' ' || s.last_name,
-                g.assignment_title, g.grade, g.max_grade, g.notes, g.graded_by, u.display_name, g.created_at
-         FROM class_grades g
-         JOIN students s ON g.student_id = s.id
-         LEFT JOIN users u ON g.graded_by = u.id
-         WHERE g.id = ?1",
+    let assignment = conn.query_row(
+        "SELECT a.id, a.group_id, a.title, a.description, a.category, a.max_points, a.due_date,
+                a.created_by, u.display_name, a.created_at
+         FROM class_assignments a
+         LEFT JOIN users u ON a.created_by = u.id
+         WHERE a.id = ?1",
         [id],
-        |row| Ok(ClassGrade {
+        |row| Ok(ClassAssignment {
             id: row.get(0)?,
             group_id: row.get(1)?,
-            student_id: row.get(2)?,
-            student_name: row.get(3)?,
-            assignment_title: row.get(4)?,
-            grade: row.get(5)?,
-            max_grade: row.get(6)?,
-            notes: row.get(7)?,
-            graded_by: row.get(8)?,
-            graded_by_name: row.get(9)?,
-            created_at: row.get(10)?,
+            title: row.get(2)?,
+            description: row.get(3)?,
+            category: row.get(4)?,
+            max_points: row.get(5)?,
+            due_date: row.get(6)?,
+            created_by: row.get(7)?,
+            created_by_name: row.get(8)?,
+            created_at: row.get(9)?,
         }),
     )?;
-    Ok(Json(grade))
+    Ok(Json(assignment))
 }
 
-pub async fn update_class_grade(
+pub async fn update_assignment(
     RequireTeacher(_user): RequireTeacher,
     State(state): State<AppState>,
     Path(id): Path<i64>,
-    Json(req): Json<UpdateClassGradeRequest>,
+    Json(req): Json<UpdateAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    if let Some(title) = &req.assignment_title {
-        let title = validate_required(title, "assignment_title")?;
-        conn.execute("UPDATE class_grades SET assignment_title = ?1 WHERE id = ?2", params![title, id])?;
+    if let Some(title) = &req.title {
+        let title = validate_required(title, "title")?;
+        conn.execute("UPDATE class_assignments SET title = ?1 WHERE id = ?2", params![title, id])?;
     }
-    if let Some(grade) = req.grade {
-        conn.execute("UPDATE class_grades SET grade = ?1 WHERE id = ?2", params![grade, id])?;
+    if let Some(desc) = &req.description {
+        conn.execute("UPDATE class_assignments SET description = ?1 WHERE id = ?2", params![desc, id])?;
     }
-    if let Some(max_grade) = req.max_grade {
-        conn.execute("UPDATE class_grades SET max_grade = ?1 WHERE id = ?2", params![max_grade, id])?;
+    if let Some(cat) = &req.category {
+        conn.execute("UPDATE class_assignments SET category = ?1 WHERE id = ?2", params![cat, id])?;
     }
-    if let Some(notes) = &req.notes {
-        conn.execute("UPDATE class_grades SET notes = ?1 WHERE id = ?2", params![notes, id])?;
+    if let Some(max) = req.max_points {
+        conn.execute("UPDATE class_assignments SET max_points = ?1 WHERE id = ?2", params![max, id])?;
+    }
+    if let Some(due) = &req.due_date {
+        conn.execute("UPDATE class_assignments SET due_date = ?1 WHERE id = ?2", params![due, id])?;
     }
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
-pub async fn delete_class_grade(
+pub async fn delete_assignment(
     RequireTeacher(_user): RequireTeacher,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    conn.execute("DELETE FROM class_grades WHERE id = ?1", [id])?;
+    // Cascade deletes grades too
+    conn.execute("DELETE FROM class_assignments WHERE id = ?1", [id])?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// Save grades for an assignment (bulk upsert — one request per assignment)
+pub async fn save_assignment_grades(
+    RequireTeacher(user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(assignment_id): Path<i64>,
+    Json(req): Json<BulkSaveGradesRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "class_groups")?;
+    let conn = state.db.get()?;
+
+    // Verify assignment exists and grading is enabled
+    let group_id: i64 = conn.query_row(
+        "SELECT a.group_id FROM class_assignments a
+         JOIN class_groups g ON a.group_id = g.id
+         WHERE a.id = ?1 AND g.grading_enabled = 1",
+        [assignment_id],
+        |row| row.get(0),
+    ).map_err(|_| AppError::BadRequest("Assignment not found or grading not enabled".to_string()))?;
+
+    for g in &req.grades {
+        // Verify student is in the group
+        let in_group: bool = conn.query_row(
+            "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+            params![group_id, g.student_id],
+            |row| row.get(0),
+        ).unwrap_or(false);
+        if !in_group { continue; }
+
+        conn.execute(
+            "INSERT INTO class_grades (assignment_id, student_id, score, notes, graded_by, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, datetime('now'))
+             ON CONFLICT(assignment_id, student_id) DO UPDATE SET
+               score = excluded.score,
+               notes = excluded.notes,
+               graded_by = excluded.graded_by,
+               updated_at = datetime('now')",
+            params![assignment_id, g.student_id, g.score, g.notes, user.id],
+        )?;
+    }
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 

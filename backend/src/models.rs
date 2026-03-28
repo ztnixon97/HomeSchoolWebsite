@@ -907,37 +907,62 @@ pub struct UpdateClassGroupAnnouncementRequest {
     pub body: Option<String>,
 }
 
-// ── Class Grades ──
+// ── Class Assignments & Grades ──
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ClassGrade {
+pub struct ClassAssignment {
     pub id: i64,
     pub group_id: i64,
-    pub student_id: i64,
-    pub student_name: Option<String>,
-    pub assignment_title: String,
-    pub grade: Option<f64>,
-    pub max_grade: Option<f64>,
-    pub notes: Option<String>,
-    pub graded_by: i64,
-    pub graded_by_name: Option<String>,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub max_points: f64,
+    pub due_date: Option<String>,
+    pub created_by: i64,
+    pub created_by_name: Option<String>,
     pub created_at: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct CreateClassGradeRequest {
+pub struct CreateAssignmentRequest {
     pub group_id: i64,
+    pub title: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub max_points: Option<f64>,
+    pub due_date: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAssignmentRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub max_points: Option<f64>,
+    pub due_date: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StudentGrade {
+    pub id: i64,
+    pub assignment_id: i64,
     pub student_id: i64,
-    pub assignment_title: String,
-    pub grade: Option<f64>,
-    pub max_grade: Option<f64>,
+    pub student_name: Option<String>,
+    pub score: Option<f64>,
+    pub notes: Option<String>,
+    pub graded_by: i64,
+    pub graded_by_name: Option<String>,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveGradeRequest {
+    pub student_id: i64,
+    pub score: Option<f64>,
     pub notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateClassGradeRequest {
-    pub assignment_title: Option<String>,
-    pub grade: Option<f64>,
-    pub max_grade: Option<f64>,
-    pub notes: Option<String>,
+pub struct BulkSaveGradesRequest {
+    pub grades: Vec<SaveGradeRequest>,
 }
