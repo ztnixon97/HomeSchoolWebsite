@@ -1756,6 +1756,38 @@ pub async fn save_assignment_grades(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// PUT /api/admin/class-groups/{id}/category-weights — save category weights for a class
+pub async fn save_category_weights(
+    RequireTeacher(_user): RequireTeacher,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<SaveCategoryWeightsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    crate::features::require_feature(&state.db, "class_groups")?;
+    let conn = state.db.get()?;
+
+    // Verify grading is enabled
+    let enabled: bool = conn.query_row(
+        "SELECT grading_enabled FROM class_groups WHERE id = ?1",
+        [group_id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+    if !enabled {
+        return Err(AppError::BadRequest("Grading is not enabled for this class".to_string()));
+    }
+
+    // Replace all weights for this group
+    conn.execute("DELETE FROM grade_category_weights WHERE group_id = ?1", [group_id])?;
+    for w in &req.weights {
+        if w.category.trim().is_empty() { continue; }
+        conn.execute(
+            "INSERT INTO grade_category_weights (group_id, category, weight) VALUES (?1, ?2, ?3)",
+            params![group_id, w.category.trim(), w.weight],
+        )?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Feature Flags ──
 
 pub async fn update_feature_flags(

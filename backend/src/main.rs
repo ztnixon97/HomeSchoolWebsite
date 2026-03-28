@@ -442,7 +442,8 @@ async fn main() {
         // Assignment & grade CRUD (teacher+)
         .route("/api/admin/class-assignments", post(routes::admin::create_assignment))
         .route("/api/admin/class-assignments/{id}", put(routes::admin::update_assignment).delete(routes::admin::delete_assignment))
-        .route("/api/admin/class-assignments/{id}/grades", put(routes::admin::save_assignment_grades));
+        .route("/api/admin/class-assignments/{id}/grades", put(routes::admin::save_assignment_grades))
+        .route("/api/admin/class-groups/{id}/category-weights", put(routes::admin::save_category_weights));
 
     // In production, serve the React frontend for any non-API route.
     // This enables client-side routing (React Router) to work correctly.

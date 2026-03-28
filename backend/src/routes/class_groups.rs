@@ -369,7 +369,7 @@ pub async fn get_group_grades(
     ).unwrap_or(false);
 
     if !enabled {
-        return Ok(Json(serde_json::json!({ "grading_enabled": false, "assignments": [], "grades": [] })));
+        return Ok(Json(serde_json::json!({ "grading_enabled": false, "assignments": [], "grades": [], "category_weights": [] })));
     }
 
     // Fetch assignments for this group
@@ -457,7 +457,22 @@ pub async fn get_group_grades(
         result
     };
 
-    Ok(Json(serde_json::json!({ "grading_enabled": true, "assignments": assignments, "grades": grades })))
+    // Fetch category weights
+    let mut wstmt = conn.prepare(
+        "SELECT id, group_id, category, weight FROM grade_category_weights WHERE group_id = ?1 ORDER BY category",
+    )?;
+    let category_weights: Vec<serde_json::Value> = wstmt.query_map(params![id], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "group_id": row.get::<_, i64>(1)?,
+            "category": row.get::<_, String>(2)?,
+            "weight": row.get::<_, f64>(3)?,
+        }))
+    })?
+    .filter_map(|r| r.ok())
+    .collect();
+
+    Ok(Json(serde_json::json!({ "grading_enabled": true, "assignments": assignments, "grades": grades, "category_weights": category_weights })))
 }
 
 /// POST /api/class-groups/{id}/sessions — assigned teacher creates a session for this class
