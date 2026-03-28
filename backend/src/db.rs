@@ -314,6 +314,9 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN rsvpable INTEGER NOT NULL DEFAULT 1", []);
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN multi_day INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN description TEXT", []);
+    let _ = conn.execute("ALTER TABLE session_types ADD COLUMN allow_supplies INTEGER NOT NULL DEFAULT 1", []);
+    let _ = conn.execute("ALTER TABLE session_types ADD COLUMN allow_attendance INTEGER NOT NULL DEFAULT 1", []);
+    let _ = conn.execute("ALTER TABLE session_types ADD COLUMN allow_photos INTEGER NOT NULL DEFAULT 1", []);
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN requires_location INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN supports_cost INTEGER NOT NULL DEFAULT 0", []);
     let _ = conn.execute("ALTER TABLE session_types ADD COLUMN cost_label TEXT", []);
@@ -329,11 +332,11 @@ fn run_migrations(pool: &DbPool) {
 
     // Seed default session types if missing
     let _ = conn.execute(
-        "INSERT OR IGNORE INTO session_types (name, label, sort_order, hostable, rsvpable, multi_day) VALUES
-         ('class', 'Class', 1, 1, 1, 0),
-         ('field_trip', 'Field Trip', 2, 1, 1, 0),
-         ('holiday', 'Holiday', 3, 0, 0, 1),
-         ('meeting', 'Meeting', 4, 0, 0, 0)",
+        "INSERT OR IGNORE INTO session_types (name, label, sort_order, hostable, rsvpable, multi_day, allow_supplies, allow_attendance, allow_photos) VALUES
+         ('class', 'Class', 1, 1, 1, 0, 1, 1, 1),
+         ('field_trip', 'Field Trip', 2, 1, 1, 0, 1, 1, 1),
+         ('holiday', 'Holiday', 3, 0, 0, 1, 0, 0, 0),
+         ('meeting', 'Meeting', 4, 0, 0, 0, 0, 0, 0)",
         [],
     );
     let _ = conn.execute(

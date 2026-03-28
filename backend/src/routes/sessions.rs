@@ -412,7 +412,8 @@ pub async fn list_active_session_types(
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT id, name, label, sort_order, active, hostable, rsvpable, multi_day,
-                description, requires_location, supports_cost, cost_label
+                description, requires_location, supports_cost, cost_label,
+                allow_supplies, allow_attendance, allow_photos
          FROM session_types WHERE active = 1 ORDER BY sort_order, label",
     )?;
 
@@ -431,6 +432,9 @@ pub async fn list_active_session_types(
                 requires_location: row.get(9)?,
                 supports_cost: row.get(10)?,
                 cost_label: row.get(11)?,
+                allow_supplies: row.get(12)?,
+                allow_attendance: row.get(13)?,
+                allow_photos: row.get(14)?,
             })
         })?
         .filter_map(|r| r.ok())

@@ -474,6 +474,9 @@ pub struct SessionType {
     pub requires_location: bool,
     pub supports_cost: bool,
     pub cost_label: Option<String>,
+    pub allow_supplies: bool,
+    pub allow_attendance: bool,
+    pub allow_photos: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -489,6 +492,9 @@ pub struct CreateSessionTypeRequest {
     pub requires_location: Option<bool>,
     pub supports_cost: Option<bool>,
     pub cost_label: Option<String>,
+    pub allow_supplies: Option<bool>,
+    pub allow_attendance: Option<bool>,
+    pub allow_photos: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -504,6 +510,9 @@ pub struct UpdateSessionTypeRequest {
     pub requires_location: Option<bool>,
     pub supports_cost: Option<bool>,
     pub cost_label: Option<String>,
+    pub allow_supplies: Option<bool>,
+    pub allow_attendance: Option<bool>,
+    pub allow_photos: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

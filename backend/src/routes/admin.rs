@@ -712,7 +712,8 @@ pub async fn list_session_types(
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT id, name, label, sort_order, active, hostable, rsvpable, multi_day,
-                description, requires_location, supports_cost, cost_label
+                description, requires_location, supports_cost, cost_label,
+                allow_supplies, allow_attendance, allow_photos
          FROM session_types ORDER BY sort_order, label",
     )?;
 
@@ -731,6 +732,9 @@ pub async fn list_session_types(
                 requires_location: row.get(9)?,
                 supports_cost: row.get(10)?,
                 cost_label: row.get(11)?,
+                allow_supplies: row.get(12)?,
+                allow_attendance: row.get(13)?,
+                allow_photos: row.get(14)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -754,38 +758,25 @@ pub async fn create_session_type(
     let requires_location = req.requires_location.unwrap_or(false);
     let supports_cost = req.supports_cost.unwrap_or(false);
     let cost_label = req.cost_label;
+    let allow_supplies = req.allow_supplies.unwrap_or(true);
+    let allow_attendance = req.allow_attendance.unwrap_or(true);
+    let allow_photos = req.allow_photos.unwrap_or(true);
     conn.execute(
-        "INSERT INTO session_types (name, label, sort_order, active, hostable, rsvpable, multi_day, description, requires_location, supports_cost, cost_label)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+        "INSERT INTO session_types (name, label, sort_order, active, hostable, rsvpable, multi_day, description, requires_location, supports_cost, cost_label, allow_supplies, allow_attendance, allow_photos)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
         params![
-            req.name,
-            req.label,
-            sort_order,
-            active,
-            hostable,
-            rsvpable,
-            multi_day,
-            description,
-            requires_location,
-            supports_cost,
-            cost_label
+            req.name, req.label, sort_order, active, hostable, rsvpable, multi_day,
+            description, requires_location, supports_cost, cost_label,
+            allow_supplies, allow_attendance, allow_photos
         ],
     )?;
 
     let id = conn.last_insert_rowid();
     Ok(Json(SessionType {
         id,
-        name: req.name,
-        label: req.label,
-        sort_order,
-        active,
-        hostable,
-        rsvpable,
-        multi_day,
-        description,
-        requires_location,
-        supports_cost,
-        cost_label,
+        name: req.name, label: req.label, sort_order, active, hostable, rsvpable, multi_day,
+        description, requires_location, supports_cost, cost_label,
+        allow_supplies, allow_attendance, allow_photos,
     }))
 }
 
@@ -829,6 +820,15 @@ pub async fn update_session_type(
     }
     if let Some(cost_label) = req.cost_label {
         conn.execute("UPDATE session_types SET cost_label = ?1 WHERE id = ?2", params![cost_label, id])?;
+    }
+    if let Some(v) = req.allow_supplies {
+        conn.execute("UPDATE session_types SET allow_supplies = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = req.allow_attendance {
+        conn.execute("UPDATE session_types SET allow_attendance = ?1 WHERE id = ?2", params![v, id])?;
+    }
+    if let Some(v) = req.allow_photos {
+        conn.execute("UPDATE session_types SET allow_photos = ?1 WHERE id = ?2", params![v, id])?;
     }
 
     Ok(Json(serde_json::json!({ "ok": true })))

@@ -88,6 +88,9 @@ interface SessionType {
   requires_location: boolean;
   supports_cost: boolean;
   cost_label: string | null;
+  allow_supplies: boolean;
+  allow_attendance: boolean;
+  allow_photos: boolean;
 }
 
 export default function SessionDetail() {
@@ -185,6 +188,9 @@ export default function SessionDetail() {
   const typeMeta = session ? sessionTypes.find(t => t.id === session.session_type_id) : undefined;
   const hostable = typeMeta ? typeMeta.hostable : true;
   const rsvpable = typeMeta ? typeMeta.rsvpable : true;
+  const allowSupplies = typeMeta ? typeMeta.allow_supplies : true;
+  const allowAttendance = typeMeta ? typeMeta.allow_attendance : true;
+  const allowPhotos = typeMeta ? typeMeta.allow_photos : true;
   const confirmedCount = rsvps.filter(r => r.status === 'confirmed').length;
   const isFull = session?.max_students ? confirmedCount >= session.max_students : false;
   const cutoffPassed = session?.rsvp_cutoff ? new Date(session.rsvp_cutoff) < new Date() : false;
@@ -671,7 +677,7 @@ export default function SessionDetail() {
       )}
 
       {/* Supply Sign-up List */}
-      {(supplies.length > 0 || canEdit) && (
+      {allowSupplies && (supplies.length > 0 || canEdit) && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Supply Sign-up</h2>
 
@@ -718,7 +724,7 @@ export default function SessionDetail() {
       )}
 
       {/* Attendance (host/admin, for completed or claimed sessions) */}
-      {canEdit && session.status !== 'open' && rsvps.length > 0 && (
+      {allowAttendance && canEdit && session.status !== 'open' && rsvps.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
           <div className="space-y-2 mb-4">
@@ -757,7 +763,7 @@ export default function SessionDetail() {
       )}
 
       {/* Session Photos */}
-      {(sessionPhotos.length > 0 || user) && (
+      {allowPhotos && (sessionPhotos.length > 0 || user) && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           {/* Expiry warning for sessions with photos approaching 30-day cleanup */}
           {sessionPhotos.length > 0 && session.session_date && (() => {
