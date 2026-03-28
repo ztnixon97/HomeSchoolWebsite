@@ -48,6 +48,7 @@ pub async fn create_standard(
     State(state): State<AppState>,
     Json(req): Json<CreateStandardRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "standards")?;
     if req.code.trim().is_empty() || req.title.trim().is_empty() {
         return Err(AppError::BadRequest("Code and title are required".into()));
     }
@@ -77,6 +78,7 @@ pub async fn update_standard(
     Path(id): Path<i64>,
     Json(req): Json<UpdateStandardRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "standards")?;
     let conn = state.db.get()?;
 
     let exists: bool = conn
@@ -118,6 +120,7 @@ pub async fn delete_standard(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "standards")?;
     let conn = state.db.get()?;
     let deleted = conn.execute("DELETE FROM standards WHERE id = ?1", params![id])?;
     if deleted == 0 {
@@ -133,6 +136,7 @@ pub async fn link_standards_to_assignment(
     Path(assignment_id): Path<i64>,
     Json(req): Json<LinkStandardsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "standards")?;
     let conn = state.db.get()?;
 
     // Verify assignment exists
@@ -163,6 +167,7 @@ pub async fn unlink_standard_from_assignment(
     State(state): State<AppState>,
     Path((assignment_id, standard_id)): Path<(i64, i64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "standards")?;
     let conn = state.db.get()?;
     conn.execute(
         "DELETE FROM assignment_standards WHERE assignment_id = ?1 AND standard_id = ?2",
@@ -177,6 +182,7 @@ pub async fn list_assignment_standards(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "standards")?;
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(

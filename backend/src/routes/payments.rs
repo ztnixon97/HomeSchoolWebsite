@@ -58,6 +58,7 @@ pub async fn admin_list_payments(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(
@@ -108,6 +109,7 @@ pub async fn admin_create_payment(
     State(state): State<AppState>,
     Json(req): Json<CreatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "payments")?;
     if req.description.trim().is_empty() {
         return Err(AppError::BadRequest("Description is required".into()));
     }
@@ -159,6 +161,7 @@ pub async fn admin_update_payment(
     Path(id): Path<i64>,
     Json(req): Json<UpdatePaymentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
 
     let exists: bool = conn
@@ -212,6 +215,7 @@ pub async fn admin_delete_payment(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
     let deleted = conn.execute("DELETE FROM payment_ledger WHERE id = ?1", params![id])?;
     if deleted == 0 {
@@ -226,6 +230,7 @@ pub async fn admin_bulk_charge_session(
     State(state): State<AppState>,
     Json(req): Json<BulkChargeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
 
     // Get the session to verify it exists
@@ -274,6 +279,7 @@ pub async fn admin_overdue_payments(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT pl.id, pl.user_id, u.display_name, u.email, pl.description, pl.amount, pl.due_date, pl.category, pl.created_at
@@ -303,6 +309,7 @@ pub async fn admin_payment_stats(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
     let stats = conn.query_row(
         "SELECT
@@ -329,6 +336,7 @@ pub async fn admin_payments_summary(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(

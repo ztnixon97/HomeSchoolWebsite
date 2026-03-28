@@ -105,6 +105,7 @@ pub async fn get_conversation_messages(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
     let conn = state.db.get()?;
 
     // Verify participant
@@ -178,6 +179,7 @@ pub async fn send_message(
     Path(id): Path<i64>,
     Json(req): Json<SendMessageRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
     let conn = state.db.get()?;
 
     // Verify participant
@@ -211,6 +213,7 @@ pub async fn mark_conversation_read(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
     let conn = state.db.get()?;
     conn.execute(
         "UPDATE conversation_participants SET last_read_at = datetime('now') WHERE conversation_id = ?1 AND user_id = ?2",
@@ -224,6 +227,7 @@ pub async fn conversations_unread_count(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
     let conn = state.db.get()?;
     let count: i64 = conn.query_row(
         "SELECT COALESCE(SUM(sub.cnt), 0) FROM (

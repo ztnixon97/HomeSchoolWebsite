@@ -115,6 +115,7 @@ pub async fn admin_list_templates(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(
@@ -151,6 +152,7 @@ pub async fn admin_create_template(
     State(state): State<AppState>,
     Json(req): Json<CreateDocumentTemplateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
     conn.execute(
@@ -177,6 +179,7 @@ pub async fn admin_update_template(
     Path(id): Path<i64>,
     Json(req): Json<UpdateDocumentTemplateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
     // Check exists
@@ -219,6 +222,7 @@ pub async fn admin_delete_template(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
     let deleted = conn.execute("DELETE FROM document_templates WHERE id = ?1", params![id])?;
     if deleted == 0 {
@@ -232,6 +236,7 @@ pub async fn admin_list_submissions(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(
@@ -277,6 +282,7 @@ pub async fn admin_review_submission(
     Path(id): Path<i64>,
     Json(req): Json<ReviewSubmissionRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
     let valid_statuses = ["approved", "rejected"];

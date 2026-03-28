@@ -48,6 +48,7 @@ pub async fn mark_notification_read(
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "notifications")?;
     let conn = state.db.get()?;
     let updated = conn.execute(
         "UPDATE notifications SET read = 1 WHERE id = ?1 AND user_id = ?2",
@@ -64,6 +65,7 @@ pub async fn mark_all_read(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "notifications")?;
     let conn = state.db.get()?;
     conn.execute(
         "UPDATE notifications SET read = 1 WHERE user_id = ?1 AND read = 0",
@@ -77,6 +79,7 @@ pub async fn unread_count(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "notifications")?;
     let conn = state.db.get()?;
     let count: i64 = conn.query_row(
         "SELECT COUNT(*) FROM notifications WHERE user_id = ?1 AND read = 0",
