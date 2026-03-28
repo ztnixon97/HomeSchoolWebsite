@@ -144,10 +144,11 @@ export default function Schedule() {
       {/* Content */}
       {view === 'calendar' ? (
         <div className="panel p-4 md:p-6 mx-4 sm:mx-6">
-          <div className="grid grid-cols-7 gap-px text-center text-xs font-medium text-ink/50 uppercase tracking-wider mb-3">
+          <div className="overflow-x-auto">
+          <div className="grid grid-cols-7 gap-px text-center text-xs font-medium text-ink/50 uppercase tracking-wider mb-3 min-w-[500px]">
             {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => <div key={d} className="py-2">{d}</div>)}
           </div>
-          <div className="grid grid-cols-7 gap-px bg-ink/5 rounded-lg overflow-hidden">
+          <div className="grid grid-cols-7 gap-px bg-ink/5 rounded-lg overflow-hidden min-w-[500px]">
             {days.map((d, i) => {
               const daySessionCount = d ? sessionsOnDay(d).length : 0;
               const hasSessions = daySessionCount > 0;
@@ -193,6 +194,7 @@ export default function Schedule() {
                 </div>
               );
             })}
+          </div>
           </div>
           <div className="mt-6 p-4 bg-cobalt-soft rounded-lg border border-cobalt/20">
             <p className="text-sm text-ink">

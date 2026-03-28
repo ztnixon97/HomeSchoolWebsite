@@ -357,6 +357,96 @@ fn run_migrations(pool: &DbPool) {
             UNIQUE(group_id, category)
         );
 
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            notification_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT,
+            link TEXT,
+            read INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS conversations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subject TEXT,
+            created_by INTEGER NOT NULL REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS conversation_participants (
+            conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            last_read_at TEXT,
+            PRIMARY KEY (conversation_id, user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+            sender_id INTEGER NOT NULL REFERENCES users(id),
+            body TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS document_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            description TEXT,
+            category TEXT NOT NULL DEFAULT 'waiver',
+            required INTEGER NOT NULL DEFAULT 0,
+            active INTEGER NOT NULL DEFAULT 1,
+            file_id INTEGER REFERENCES files(id),
+            created_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS document_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            student_id INTEGER REFERENCES students(id),
+            file_id INTEGER REFERENCES files(id),
+            status TEXT NOT NULL DEFAULT 'submitted',
+            reviewed_by INTEGER REFERENCES users(id),
+            reviewed_at TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(template_id, user_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS standards (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            subject TEXT,
+            grade_level TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS assignment_standards (
+            assignment_id INTEGER NOT NULL REFERENCES class_assignments(id) ON DELETE CASCADE,
+            standard_id INTEGER NOT NULL REFERENCES standards(id) ON DELETE CASCADE,
+            PRIMARY KEY (assignment_id, standard_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS payment_ledger (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            session_id INTEGER REFERENCES class_sessions(id),
+            description TEXT NOT NULL,
+            amount REAL NOT NULL,
+            payment_type TEXT NOT NULL DEFAULT 'charge',
+            status TEXT NOT NULL DEFAULT 'pending',
+            paid_at TEXT,
+            recorded_by INTEGER REFERENCES users(id),
+            notes TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS sessions_store (
             id TEXT PRIMARY KEY,
             data BLOB NOT NULL,
@@ -432,7 +522,13 @@ fn run_migrations(pool: &DbPool) {
          ('feature_student_progress', '1'),
          ('feature_families', '1'),
          ('feature_my_children', '1'),
-         ('feature_my_rsvps', '1')",
+         ('feature_my_rsvps', '1'),
+         ('feature_class_groups', '1'),
+         ('feature_notifications', '0'),
+         ('feature_messaging', '0'),
+         ('feature_documents', '0'),
+         ('feature_standards', '0'),
+         ('feature_payments', '0')",
         [],
     );
 

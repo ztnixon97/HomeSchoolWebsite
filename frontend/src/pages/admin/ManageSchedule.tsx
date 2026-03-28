@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../../api';
 
 interface Event {
@@ -65,10 +66,11 @@ export default function ManageSchedule() {
 
   return (
     <div className="space-y-6">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium inline-block mb-4">&larr; Admin Dashboard</Link>
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Schedule</h1>
-          <p className="text-gray-500 text-sm mt-1">Add events, classes, and important dates.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Schedule</h1>
+          <p className="text-ink/60 text-sm mt-1">Add events, classes, and important dates.</p>
         </div>
         <button
           onClick={() => setShowForm(!showForm)}
@@ -80,7 +82,7 @@ export default function ManageSchedule() {
 
       {showForm && (
         <form onSubmit={addEvent} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className={inputClass} />
@@ -95,7 +97,7 @@ export default function ManageSchedule() {
               </select>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
               <input type="date" value={eventDate} onChange={e => setEventDate(e.target.value)} required className={inputClass} />
@@ -122,7 +124,7 @@ export default function ManageSchedule() {
       <div className="space-y-3">
         {events.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500">No events this month.</p>
+            <p className="text-ink/40">No events this month.</p>
           </div>
         ) : (
           events.map(ev => (

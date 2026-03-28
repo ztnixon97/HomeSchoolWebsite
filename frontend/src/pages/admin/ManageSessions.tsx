@@ -205,14 +205,14 @@ export default function ManageSessions() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Manage Sessions</h1>
-          <p className="text-gray-500 text-sm mt-1">Create class sessions for parents to host.</p>
+          <h1 className="text-2xl font-bold text-ink">Manage Sessions</h1>
+          <p className="text-ink/60 text-sm mt-1">Create class sessions for parents to host.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -240,7 +240,7 @@ export default function ManageSessions() {
       {showForm && (
         <form onSubmit={addSession} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
           {error && <div className="text-red-700 text-sm bg-red-50 border border-red-100 p-3 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
               <input type="text" value={title} onChange={e => setTitle(e.target.value)} required placeholder="e.g. Tuesday Class" className={inputClass} />
@@ -259,7 +259,7 @@ export default function ManageSessions() {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
               <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputClass} />
@@ -280,7 +280,7 @@ export default function ManageSessions() {
             </div>
           )}
           {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.requires_location && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Name</label>
                 <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)} className={inputClass} />
@@ -292,7 +292,7 @@ export default function ManageSessions() {
             </div>
           )}
           {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.supports_cost && (
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">{sessionTypeMap.get(parseInt(sessionTypeId))?.cost_label || 'Cost'}</label>
                 <input type="number" step="0.01" value={costAmount} onChange={e => setCostAmount(e.target.value)} className={inputClass} />
@@ -303,7 +303,7 @@ export default function ManageSessions() {
               </div>
             </div>
           )}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Max Students</label>
               <input type="number" value={maxStudents} onChange={e => setMaxStudents(e.target.value)} placeholder="Optional" className={inputClass} />
@@ -348,7 +348,7 @@ export default function ManageSessions() {
       {showHolidayForm && (
         <form onSubmit={addHoliday} className="bg-white rounded-xl border border-amber-100 shadow-sm p-6 space-y-4">
           {error && <div className="text-red-700 text-sm bg-red-50 border border-red-100 p-3 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Holiday Title</label>
               <input type="text" value={holidayTitle} onChange={e => setHolidayTitle(e.target.value)} required placeholder="e.g. Spring Break" className={inputClass} />
@@ -358,7 +358,7 @@ export default function ManageSessions() {
               <input type="date" value={holidayStart} onChange={e => setHolidayStart(e.target.value)} required className={inputClass} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
               <input type="date" value={holidayEnd} onChange={e => setHolidayEnd(e.target.value)} className={inputClass} />
@@ -440,7 +440,7 @@ export default function ManageSessions() {
         ))}
         {sessions.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-gray-500">No sessions created yet.</p>
+            <p className="text-ink/40">No sessions created yet.</p>
           </div>
         )}
       </div>

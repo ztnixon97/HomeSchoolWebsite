@@ -46,7 +46,7 @@ export default function CreatePost() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 px-4 sm:px-6">
-      <h1 className="text-3xl font-bold text-gray-900">New Blog Post</h1>
+      <h1 className="text-2xl font-bold text-ink">New Blog Post</h1>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 md:p-8 space-y-5">
         {error && <div className="text-red-700 text-sm bg-red-50 border border-red-100 p-3 rounded-lg">{error}</div>}

@@ -40,6 +40,12 @@ import AccountSettings from './pages/member/AccountSettings';
 import MyRsvps from './pages/member/MyRsvps';
 import MyClasses from './pages/member/MyClasses';
 import ClassDetail from './pages/member/ClassDetail';
+import Notifications from './pages/member/Notifications';
+import ReportCard from './pages/member/ReportCard';
+import Inbox from './pages/member/Inbox';
+import ConversationDetail from './pages/member/ConversationDetail';
+import MyDocuments from './pages/member/MyDocuments';
+import MyPayments from './pages/member/MyPayments';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -55,6 +61,10 @@ import ManageAnnouncements from './pages/admin/ManageAnnouncements';
 import ManageFiles from './pages/admin/ManageFiles';
 import ManageFeatures from './pages/admin/ManageFeatures';
 import ManageClassGroups from './pages/admin/ManageClassGroups';
+import ManageDocuments from './pages/admin/ManageDocuments';
+import ManageStandards from './pages/admin/ManageStandards';
+import ManagePayments from './pages/admin/ManagePayments';
+import Reports from './pages/admin/Reports';
 
 export default function App() {
   return (
@@ -92,6 +102,12 @@ export default function App() {
             <Route path="/my-rsvps" element={<RoleGuard><FeatureGate feature="my_rsvps"><MyRsvps /></FeatureGate></RoleGuard>} />
             <Route path="/my-classes" element={<RoleGuard><FeatureGate feature="class_groups"><MyClasses /></FeatureGate></RoleGuard>} />
             <Route path="/classes/:id" element={<RoleGuard><FeatureGate feature="class_groups"><ClassDetail /></FeatureGate></RoleGuard>} />
+            <Route path="/classes/:id/report-card/:studentId" element={<RoleGuard><FeatureGate feature="class_groups"><ReportCard /></FeatureGate></RoleGuard>} />
+            <Route path="/notifications" element={<RoleGuard><FeatureGate feature="notifications"><Notifications /></FeatureGate></RoleGuard>} />
+            <Route path="/inbox" element={<RoleGuard><FeatureGate feature="messaging"><Inbox /></FeatureGate></RoleGuard>} />
+            <Route path="/inbox/:id" element={<RoleGuard><FeatureGate feature="messaging"><ConversationDetail /></FeatureGate></RoleGuard>} />
+            <Route path="/my-documents" element={<RoleGuard><FeatureGate feature="documents"><MyDocuments /></FeatureGate></RoleGuard>} />
+            <Route path="/my-payments" element={<RoleGuard><FeatureGate feature="payments"><MyPayments /></FeatureGate></RoleGuard>} />
             <Route path="/account" element={<RoleGuard><AccountSettings /></RoleGuard>} />
 
             {/* Teacher+ */}
@@ -117,6 +133,10 @@ export default function App() {
             <Route path="/admin/files" element={<RoleGuard requireRole="admin"><ManageFiles /></RoleGuard>} />
             <Route path="/admin/features" element={<RoleGuard requireRole="admin"><ManageFeatures /></RoleGuard>} />
             <Route path="/admin/class-groups" element={<RoleGuard requireRole="admin"><FeatureGate feature="class_groups"><ManageClassGroups /></FeatureGate></RoleGuard>} />
+            <Route path="/admin/documents" element={<RoleGuard requireRole="admin"><ManageDocuments /></RoleGuard>} />
+            <Route path="/admin/standards" element={<RoleGuard requireRole="admin"><ManageStandards /></RoleGuard>} />
+            <Route path="/admin/payments" element={<RoleGuard requireRole="admin"><ManagePayments /></RoleGuard>} />
+            <Route path="/admin/reports" element={<RoleGuard requireRole="admin"><Reports /></RoleGuard>} />
           </Route>
             </Routes>
           </AuthProvider>

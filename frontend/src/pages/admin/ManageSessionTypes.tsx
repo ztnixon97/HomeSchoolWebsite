@@ -110,58 +110,58 @@ export default function ManageSessionTypes() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
-      <h1 className="text-3xl font-bold">Session Types</h1>
+      <h1 className="text-2xl font-bold text-ink">Session Types</h1>
 
       {/* Session Defaults */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <button onClick={() => setShowDefaults(!showDefaults)} className="flex items-center justify-between w-full text-left">
           <h2 className="text-lg font-semibold">Session Defaults</h2>
           <span className="text-sm text-gray-400">{showDefaults ? 'Hide' : 'Show'}</span>
         </button>
         {showDefaults && (
           <div className="mt-4 space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Default Start Time</label>
-                <input type="time" value={defaults.default_start_time || ''} onChange={e => setDefaults({ ...defaults, default_start_time: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                <input type="time" value={defaults.default_start_time || ''} onChange={e => setDefaults({ ...defaults, default_start_time: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Default Capacity</label>
-                <input type="number" value={defaults.default_capacity ?? ''} onChange={e => setDefaults({ ...defaults, default_capacity: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="No limit" />
+                <input type="number" value={defaults.default_capacity ?? ''} onChange={e => setDefaults({ ...defaults, default_capacity: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="No limit" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">RSVP Cutoff (days before)</label>
-                <input type="number" value={defaults.default_rsvp_cutoff_days ?? ''} onChange={e => setDefaults({ ...defaults, default_rsvp_cutoff_days: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="No cutoff" />
+                <input type="number" value={defaults.default_rsvp_cutoff_days ?? ''} onChange={e => setDefaults({ ...defaults, default_rsvp_cutoff_days: e.target.value ? parseInt(e.target.value) : null })} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="No cutoff" />
               </div>
             </div>
-            <button onClick={saveDefaults} className="bg-gray-900 text-white px-4 py-2 rounded text-sm hover:bg-gray-800">Save Defaults</button>
+            <button onClick={saveDefaults} className="bg-emerald-700 text-white px-4 py-2 rounded text-sm hover:bg-emerald-800">Save Defaults</button>
           </div>
         )}
       </div>
 
-      <form onSubmit={create} className="bg-white rounded-lg border border-gray-200 p-6 space-y-3">
+      <form onSubmit={create} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3">
         <h2 className="text-lg font-semibold">Add Type</h2>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-xs text-gray-500 mb-1">Name (id)</label>
-            <input value={name} onChange={e => setName(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="field_trip" />
+            <input value={name} onChange={e => setName(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="field_trip" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Label</label>
-            <input value={label} onChange={e => setLabel(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Field Trip" />
+            <input value={label} onChange={e => setLabel(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="Field Trip" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Sort Order</label>
-            <input type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+            <input type="number" value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
           </div>
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Description</label>
-          <input value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Optional summary shown to parents" />
+          <input value={description} onChange={e => setDescription(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="Optional summary shown to parents" />
         </div>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <label className="flex items-center gap-2">
@@ -200,15 +200,15 @@ export default function ManageSessionTypes() {
         {supportsCost && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Cost Label</label>
-            <input value={costLabel} onChange={e => setCostLabel(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" placeholder="Estimated cost" />
+            <input value={costLabel} onChange={e => setCostLabel(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" placeholder="Estimated cost" />
           </div>
         )}
-        <button type="submit" className="bg-gray-900 text-white px-4 py-2 rounded text-sm hover:bg-gray-800">Create</button>
+        <button type="submit" className="bg-emerald-700 text-white px-4 py-2 rounded text-sm hover:bg-emerald-800">Create</button>
       </form>
 
       <div className="space-y-2">
         {types.map(t => (
-          <div key={t.id} className="bg-white rounded-lg border border-gray-200 p-4 flex items-center justify-between">
+          <div key={t.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex items-center justify-between">
             <div>
               <div className="font-medium text-gray-900">{t.label}</div>
               <div className="text-xs text-gray-500">{t.name} · order {t.sort_order}</div>

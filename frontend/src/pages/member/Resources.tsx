@@ -34,7 +34,7 @@ export default function Resources() {
 
       {resources.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">No resources available yet.</p>
+          <p className="text-ink/40">No resources available yet.</p>
         </div>
       ) : (
         <div className="grid md:grid-cols-3 gap-6">

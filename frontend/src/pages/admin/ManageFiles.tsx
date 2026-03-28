@@ -57,11 +57,11 @@ export default function ManageFiles() {
 
   return (
     <div className="space-y-6">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">&larr; Admin Dashboard</Link>
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">&larr; Admin Dashboard</Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">File Management</h1>
-        <p className="text-gray-500 text-sm mt-1">Monitor storage usage and manage uploaded files.</p>
+        <h1 className="text-2xl font-bold text-ink">File Management</h1>
+        <p className="text-ink/60 text-sm mt-1">Monitor storage usage and manage uploaded files.</p>
       </div>
 
       {/* Storage Summary */}
@@ -80,7 +80,7 @@ export default function ManageFiles() {
               />
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-4 text-center text-sm">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center text-sm">
             <div className="bg-blue-50 rounded-lg p-3">
               <div className="text-blue-700 font-semibold">{formatSize(summary.session_bytes)}</div>
               <div className="text-blue-500 text-xs">Session Photos</div>
@@ -143,7 +143,7 @@ export default function ManageFiles() {
           </div>
         ))}
         {filtered.length === 0 && (
-          <p className="text-center text-gray-400 py-8 text-sm">No files found.</p>
+          <p className="text-center text-ink/40 py-8 text-sm">No files found.</p>
         )}
       </div>
     </div>

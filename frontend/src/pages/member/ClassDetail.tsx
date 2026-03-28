@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useToast } from '../../components/Toast';
+import { useFeatures } from '../../features';
 
 interface ClassGroup {
   id: number;
@@ -99,8 +100,9 @@ type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'gr
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
-  const { isAdmin, isTeacher } = useAuth();
+  const { user, isAdmin, isTeacher } = useAuth();
   const { addToast } = useToast();
+  const features = useFeatures();
   // canManage is computed dynamically to include assigned class teachers
 
   const [group, setGroup] = useState<ClassGroup | null>(null);
@@ -442,7 +444,7 @@ export default function ClassDetail() {
   if (loading) {
     return (
       <div className="max-w-5xl mx-auto px-4 py-8">
-        <p className="text-gray-500">Loading class...</p>
+        <p className="text-ink/40">Loading class...</p>
       </div>
     );
   }
@@ -538,11 +540,11 @@ export default function ClassDetail() {
               {showSessionForm ? (
                 <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
                   <h3 className="text-sm font-medium text-ink">Create Session</h3>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <input type="text" placeholder="Title" value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} className={inputClass} />
                     <input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} className={inputClass} />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <input type="time" value={sessionStartTime} onChange={e => setSessionStartTime(e.target.value)} className={inputClass} placeholder="Start time" />
                     <input type="time" value={sessionEndTime} onChange={e => setSessionEndTime(e.target.value)} className={inputClass} placeholder="End time" />
                     <input type="number" value={sessionMax} onChange={e => setSessionMax(e.target.value)} className={inputClass} placeholder="Max students" />
@@ -558,7 +560,7 @@ export default function ClassDetail() {
             </div>
           )}
           {sessions.length === 0 ? (
-            <p className="text-gray-500 text-sm">No sessions assigned to this class yet.</p>
+            <p className="text-ink/40 text-sm">No sessions assigned to this class yet.</p>
           ) : (
             sessions.map(s => (
               <Link
@@ -603,11 +605,11 @@ export default function ClassDetail() {
 
       {/* Roster Tab */}
       {tab === 'roster' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
           {roster.length === 0 ? (
-            <p className="text-gray-500 text-sm p-6">No students in this class.</p>
+            <p className="text-ink/40 text-sm p-6">No students in this class.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[500px]">
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
@@ -635,7 +637,7 @@ export default function ClassDetail() {
       {tab === 'attendance' && (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
           {attSessions.length === 0 ? (
-            <p className="text-gray-500 text-sm p-6">No attendance records yet.</p>
+            <p className="text-ink/40 text-sm p-6">No attendance records yet.</p>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-100">
@@ -713,7 +715,7 @@ export default function ClassDetail() {
             </div>
           )}
           {announcements.length === 0 ? (
-            <p className="text-gray-500 text-sm">No announcements for this class.</p>
+            <p className="text-ink/40 text-sm">No announcements for this class.</p>
           ) : (
             announcements.map(a => (
               <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
@@ -860,7 +862,7 @@ export default function ClassDetail() {
                   className={inputClass}
                 />
               </div>
-              <div className="grid grid-cols-3 gap-2 mb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-2">
                 <input
                   type="number"
                   step="1"
@@ -899,8 +901,8 @@ export default function ClassDetail() {
             const assignment = assignments.find(a => a.id === gradingAssignmentId);
             if (!assignment) return null;
             return (
-              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-                <div className="flex items-center justify-between mb-4">
+              <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 overflow-x-auto">
+                <div className="flex flex-wrap items-center justify-between mb-4 gap-2">
                   <div>
                     <h3 className="text-sm font-medium text-ink">Grading: {assignment.title}</h3>
                     <p className="text-xs text-gray-500">Max points: {assignment.max_points}{assignment.due_date ? ` · Due: ${new Date(assignment.due_date).toLocaleDateString()}` : ''}</p>
@@ -979,12 +981,57 @@ export default function ClassDetail() {
             );
           })()}
 
+          {/* Report Card Export */}
+          {!gradingAssignmentId && !editingWeights && grades.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {canManage ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Export Report Card:</span>
+                  {roster.map(s => (
+                    <Link
+                      key={s.id}
+                      to={`/classes/${id}/report-card/${s.id}`}
+                      className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg hover:bg-blue-100 transition-colors no-underline"
+                    >
+                      {s.first_name} {s.last_name}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                (() => {
+                  const studentIds = [...new Set(grades.map(g => g.student_id))];
+                  return studentIds.length > 0 ? (
+                    <div className="flex items-center gap-2">
+                      {studentIds.map(sid => {
+                        const name = grades.find(g => g.student_id === sid)?.student_name || 'Student';
+                        return (
+                          <Link
+                            key={sid}
+                            to={`/classes/${id}/report-card/${sid}`}
+                            className="px-3 py-1.5 bg-blue-50 text-blue-700 text-xs rounded-lg hover:bg-blue-100 transition-colors no-underline"
+                          >
+                            Report Card: {name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ) : null;
+                })()
+              )}
+            </div>
+          )}
+
+          {/* Standards info */}
+          {features.standards && !gradingAssignmentId && !editingWeights && assignments.length > 0 && (
+            <p className="text-xs text-gray-400 italic">Standards tracking is enabled. Standards can be mapped to assignments in the admin panel.</p>
+          )}
+
           {/* Assignments List & Student Averages */}
           {!gradingAssignmentId && !editingWeights && (
             <>
               {/* Student Averages Summary (teachers see all, parents see their children) */}
               {grades.length > 0 && (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 overflow-x-auto">
                   <h3 className="text-sm font-medium text-ink mb-3">
                     Student Averages
                     {categoryWeights.length > 0 && <span className="text-xs text-purple-600 font-normal ml-2">(weighted)</span>}
@@ -1068,7 +1115,7 @@ export default function ClassDetail() {
 
               {/* Assignments */}
               {assignments.length === 0 ? (
-                <p className="text-gray-500 text-sm">No assignments yet.</p>
+                <p className="text-ink/40 text-sm">No assignments yet.</p>
               ) : (
                 <div className="space-y-3">
                   {assignments.map(a => {
@@ -1081,11 +1128,11 @@ export default function ClassDetail() {
                       <div key={a.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                         {isEditing ? (
                           <div className="space-y-2">
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <input type="text" value={editAssignment.title} onChange={e => setEditAssignment(p => ({ ...p, title: e.target.value }))} className={inputClass} placeholder="Title *" />
                               <input type="text" value={editAssignment.category} onChange={e => setEditAssignment(p => ({ ...p, category: e.target.value }))} className={inputClass} placeholder="Category" />
                             </div>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <input type="number" value={editAssignment.max_points} onChange={e => setEditAssignment(p => ({ ...p, max_points: e.target.value }))} className={inputClass} placeholder="Max points" />
                               <input type="date" value={editAssignment.due_date} onChange={e => setEditAssignment(p => ({ ...p, due_date: e.target.value }))} className={inputClass} />
                               <input type="text" value={editAssignment.description} onChange={e => setEditAssignment(p => ({ ...p, description: e.target.value }))} className={inputClass} placeholder="Description" />

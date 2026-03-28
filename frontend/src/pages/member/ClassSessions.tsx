@@ -119,8 +119,8 @@ export default function ClassSessions() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Class Sessions</h1>
-          <p className="text-gray-500 text-sm mt-1">View and sign up for upcoming co-op sessions.</p>
+          <h1 className="text-2xl font-bold text-ink">Class Sessions</h1>
+          <p className="text-ink/60 text-sm mt-1">View and sign up for upcoming co-op sessions.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
           {user && (
@@ -199,17 +199,17 @@ export default function ClassSessions() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Title</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Topic</label>
-              <input type="text" value={theme} onChange={e => setTheme(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="text" value={theme} onChange={e => setTheme(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Session Type</label>
-              <select value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm">
+              <select value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors">
                 <option value="">Select...</option>
                 {sessionTypes.map(t => (
                   <option key={t.id} value={t.id}>{t.label}</option>
@@ -218,34 +218,34 @@ export default function ClassSessions() {
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
           </div>
           {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.multi_day && (
             <div>
               <label className="block text-xs text-gray-500 mb-1">End Date</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Start Time</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">End Time</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
           </div>
           {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.requires_location && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Location Name</label>
-                <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Location Address</label>
-                <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
               </div>
             </div>
           )}
@@ -253,29 +253,29 @@ export default function ClassSessions() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">{sessionTypeMap.get(parseInt(sessionTypeId))?.cost_label || 'Cost'}</label>
-                <input type="number" step="0.01" value={costAmount} onChange={e => setCostAmount(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                <input type="number" step="0.01" value={costAmount} onChange={e => setCostAmount(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Cost Notes</label>
-                <input type="text" value={costDetails} onChange={e => setCostDetails(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+                <input type="text" value={costDetails} onChange={e => setCostDetails(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
               </div>
             </div>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Max Students</label>
-              <input type="number" value={maxStudents} onChange={e => setMaxStudents(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="number" value={maxStudents} onChange={e => setMaxStudents(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">RSVP Cutoff</label>
-              <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+              <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
             </div>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notes</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded text-sm" />
+            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
           </div>
-          <button type="submit" className="bg-gray-900 text-white px-4 py-2 rounded text-sm hover:bg-gray-800">Create</button>
+          <button type="submit" className="bg-emerald-700 text-white px-4 py-2 rounded text-sm hover:bg-emerald-800">Create</button>
         </form>
       )}
 
@@ -288,12 +288,12 @@ export default function ClassSessions() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search sessions..."
-              className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             />
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             >
               <option value="">All Status</option>
               <option value="open">Unclaimed</option>
@@ -304,7 +304,7 @@ export default function ClassSessions() {
               <select
                 value={groupFilter}
                 onChange={e => setGroupFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+                className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
               >
                 <option value="">All Classes</option>
                 {classGroups.map(g => (
@@ -350,7 +350,7 @@ export default function ClassSessions() {
             ))}
             {listSessions.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-500">{search || statusFilter ? 'No sessions match your filters.' : 'No class sessions scheduled yet.'}</p>
+                <p className="text-ink/40">{search || statusFilter ? 'No sessions match your filters.' : 'No class sessions scheduled yet.'}</p>
               </div>
             )}
           </div>

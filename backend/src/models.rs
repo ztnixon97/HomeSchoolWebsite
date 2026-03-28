@@ -987,3 +987,95 @@ pub struct CategoryWeightEntry {
     pub weight: f64,
     pub drop_lowest: Option<i64>,
 }
+
+// ── Conversations / Messages ──
+
+#[derive(Debug, Deserialize)]
+pub struct CreateConversationRequest {
+    pub participant_ids: Vec<i64>,
+    pub subject: Option<String>,
+    pub body: String,
+}
+
+// ── Documents ──
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitDocumentRequest {
+    pub file_id: Option<i64>,
+    pub student_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateDocumentTemplateRequest {
+    pub title: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub required: Option<bool>,
+    pub file_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateDocumentTemplateRequest {
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub required: Option<bool>,
+    pub active: Option<bool>,
+    pub file_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReviewSubmissionRequest {
+    pub status: String,
+    pub notes: Option<String>,
+}
+
+// ── Standards ──
+
+#[derive(Debug, Deserialize)]
+pub struct CreateStandardRequest {
+    pub code: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub subject: Option<String>,
+    pub grade_level: Option<String>,
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateStandardRequest {
+    pub code: Option<String>,
+    pub title: Option<String>,
+    pub description: Option<String>,
+    pub subject: Option<String>,
+    pub grade_level: Option<String>,
+    pub sort_order: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LinkStandardsRequest {
+    pub standard_ids: Vec<i64>,
+}
+
+// ── Payments ──
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePaymentRequest {
+    pub user_id: i64,
+    pub session_id: Option<i64>,
+    pub description: String,
+    pub amount: f64,
+    pub payment_type: Option<String>,
+    pub status: Option<String>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePaymentRequest {
+    pub description: Option<String>,
+    pub amount: Option<f64>,
+    pub payment_type: Option<String>,
+    pub status: Option<String>,
+    pub paid_at: Option<String>,
+    pub notes: Option<String>,
+}

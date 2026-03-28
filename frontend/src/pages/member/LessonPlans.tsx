@@ -55,8 +55,8 @@ export default function LessonPlans() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Lesson Plans</h1>
-          <p className="text-gray-500 text-sm mt-1">Browse and share lesson plans for the co-op.</p>
+          <h1 className="text-2xl font-bold text-ink">Lesson Plans</h1>
+          <p className="text-ink/60 text-sm mt-1">Browse and share lesson plans for the co-op.</p>
         </div>
         {isTeacher && (
           <Link to="/lesson-plans/new" className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 no-underline transition-colors w-full sm:w-auto text-center">
@@ -106,7 +106,7 @@ export default function LessonPlans() {
 
       {filtered.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">{query || category ? 'No lesson plans match your filters.' : 'No lesson plans yet.'}</p>
+          <p className="text-ink/40">{query || category ? 'No lesson plans match your filters.' : 'No lesson plans yet.'}</p>
         </div>
       ) : (
         <>

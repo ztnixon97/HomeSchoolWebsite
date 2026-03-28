@@ -97,7 +97,7 @@ export default function Blog() {
             <select
               value={category}
               onChange={e => setCategory(e.target.value)}
-              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             >
               <option value="">All categories</option>
               {POST_CATEGORIES.map(cat => (
@@ -110,20 +110,20 @@ export default function Blog() {
                 value={customCategory}
                 onChange={e => setCustomCategory(e.target.value)}
                 placeholder="Custom category"
-                className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white"
+                className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
               />
             )}
             <input
               type="date"
               value={fromDate}
               onChange={e => setFromDate(e.target.value)}
-              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             />
             <input
               type="date"
               value={toDate}
               onChange={e => setToDate(e.target.value)}
-              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white"
+              className="px-3 py-2 border border-ink/20 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
             />
           </div>
         </div>
@@ -131,7 +131,7 @@ export default function Blog() {
 
       {posts.length === 0 ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">{query ? 'No posts match your search.' : 'No posts yet. Check back soon!'}</p>
+          <p className="text-ink/40">{query ? 'No posts match your search.' : 'No posts yet. Check back soon!'}</p>
         </div>
       ) : (
         <div className="max-w-6xl mx-auto space-y-4 px-4 sm:px-6">

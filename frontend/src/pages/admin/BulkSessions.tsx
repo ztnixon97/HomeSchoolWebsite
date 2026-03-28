@@ -173,13 +173,13 @@ export default function BulkSessions() {
 
   return (
     <div className="space-y-8">
-      <Link to="/admin" className="text-sm text-[#1e3a5f] hover:underline mb-4 inline-block">
+      <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
         ← Admin Dashboard
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Bulk Create Sessions</h1>
-        <p className="text-gray-500 text-sm mt-1">Generate recurring weekly sessions in bulk.</p>
+        <h1 className="text-2xl font-bold text-ink">Bulk Create Sessions</h1>
+        <p className="text-ink/60 text-sm mt-1">Generate recurring weekly sessions in bulk.</p>
       </div>
 
       {/* Form Section */}
@@ -363,7 +363,7 @@ export default function BulkSessions() {
         <div className="mt-6">
           <button
             onClick={generateDates}
-            className="bg-blue-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            className="bg-emerald-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50"
           >
             Generate Dates
           </button>

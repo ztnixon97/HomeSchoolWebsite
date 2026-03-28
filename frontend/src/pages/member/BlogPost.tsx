@@ -74,7 +74,7 @@ export default function BlogPost() {
 
   if (!post) return (
     <div className="text-center py-16">
-      <p className="text-gray-400">Loading post...</p>
+      <p className="text-ink/40">Loading post...</p>
     </div>
   );
 
@@ -107,7 +107,7 @@ export default function BlogPost() {
       </div>
 
       <article className="panel p-8 md:p-10">
-        <h1 className="text-3xl font-bold text-gray-900 mb-3">{post.title}</h1>
+        <h1 className="text-3xl font-bold text-ink mb-3">{post.title}</h1>
         <div className="flex flex-wrap items-center gap-2 text-sm text-gray-400 mb-8 pb-6 border-b border-gray-100">
           {post.author_name && (
             <span className="bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full text-xs font-medium">{post.author_name}</span>
@@ -266,7 +266,7 @@ export default function BlogPost() {
                           setCommentError(err.message || 'Failed to update comment');
                         }
                       }}
-                      className="w-full sm:w-auto bg-blue-600 text-white px-3 py-1.5 rounded text-xs font-medium hover:bg-blue-700"
+                      className="w-full sm:w-auto bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-emerald-800"
                     >
                       Save Changes
                     </button>
