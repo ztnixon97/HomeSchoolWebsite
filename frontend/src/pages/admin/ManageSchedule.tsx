@@ -142,7 +142,7 @@ export default function ManageSchedule() {
                   {ev.end_time && ` - ${ev.end_time}`}
                 </div>
               </div>
-              <button onClick={() => deleteEvent(ev.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">
+              <button onClick={() => deleteEvent(ev.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">
                 Delete
               </button>
             </div>

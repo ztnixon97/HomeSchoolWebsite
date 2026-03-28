@@ -539,13 +539,26 @@ pub async fn claim_session(
         return Err(AppError::BadRequest("This session type cannot be hosted".to_string()));
     }
 
+    // Auto-fill host_address from user profile if not provided
+    let host_address = if req.host_address.trim().is_empty() {
+        conn.query_row(
+            "SELECT address FROM users WHERE id = ?1",
+            params![user.id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .unwrap_or(None)
+        .unwrap_or_default()
+    } else {
+        req.host_address.clone()
+    };
+
     // Use atomic UPDATE to prevent race condition
     let changes = conn.execute(
         "UPDATE class_sessions SET host_id = ?1, host_address = ?2, lesson_plan_id = ?3, materials_needed = ?4,
              rsvp_cutoff = COALESCE(?5, rsvp_cutoff), require_approval = COALESCE(?6, require_approval),
              status = 'claimed'
          WHERE id = ?7 AND status = 'open'",
-        params![user.id, req.host_address, req.lesson_plan_id, req.materials_needed, req.rsvp_cutoff, req.require_approval, id],
+        params![user.id, host_address, req.lesson_plan_id, req.materials_needed, req.rsvp_cutoff, req.require_approval, id],
     )?;
 
     if changes == 0 {
@@ -604,7 +617,8 @@ pub async fn my_rsvps(
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
         "SELECT r.id, r.session_id, r.student_id, s.first_name || ' ' || s.last_name as student_name,
-                r.status, r.note, cs.title as session_title, cs.session_date, cs.start_time
+                r.status, r.note, cs.title as session_title, cs.session_date, cs.start_time,
+                cs.location_name, COALESCE(cs.location_address, cs.host_address) as location
          FROM rsvps r
          JOIN students s ON r.student_id = s.id
          JOIN class_sessions cs ON r.session_id = cs.id
@@ -622,6 +636,8 @@ pub async fn my_rsvps(
             "session_title": row.get::<_, String>(6)?,
             "session_date": row.get::<_, String>(7)?,
             "start_time": row.get::<_, Option<String>>(8)?,
+            "location_name": row.get::<_, Option<String>>(9)?,
+            "location": row.get::<_, Option<String>>(10)?,
         }))
     })?.filter_map(|r| r.ok()).collect();
 

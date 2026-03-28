@@ -763,9 +763,9 @@ export default function ManagePayments() {
                             <input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)} className={inlineInputClass + ' w-36'} />
                           </td>
                           <td className="py-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <button onClick={() => saveEdit(p.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium">Save</button>
-                              <button onClick={cancelEdit} className="text-xs text-gray-500 hover:text-gray-700 font-medium">Cancel</button>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <button onClick={() => saveEdit(p.id)} className="text-xs text-emerald-600 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">Save</button>
+                              <button onClick={cancelEdit} className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg">Cancel</button>
                             </div>
                           </td>
                         </tr>
@@ -795,9 +795,9 @@ export default function ManagePayments() {
                             {p.due_date ? new Date(p.due_date).toLocaleDateString() : '--'}
                           </td>
                           <td className="py-3">
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => startEdit(p)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
-                              <button onClick={() => handleDelete(p.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+                            <div className="flex items-center gap-3">
+                              <button onClick={() => startEdit(p)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">Edit</button>
+                              <button onClick={() => handleDelete(p.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Delete</button>
                             </div>
                           </td>
                         </tr>
@@ -843,7 +843,7 @@ export default function ManagePayments() {
                       <td className="py-3">
                         <button
                           onClick={() => viewMemberTransactions(s.display_name)}
-                          className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
+                          className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
                         >
                           View Transactions
                         </button>

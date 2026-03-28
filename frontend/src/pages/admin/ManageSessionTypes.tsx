@@ -218,33 +218,33 @@ export default function ManageSessionTypes() {
                 {t.allow_supplies ? ' · Supplies' : ''}{t.allow_attendance ? ' · Attendance' : ''}{t.allow_photos ? ' · Photos' : ''}
               </div>
               <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                <button onClick={() => toggleFlag(t, 'hostable', !t.hostable)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'hostable', !t.hostable)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.hostable ? 'Disable hosting' : 'Enable hosting'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'rsvpable', !t.rsvpable)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'rsvpable', !t.rsvpable)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.rsvpable ? 'Disable RSVP' : 'Enable RSVP'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'multi_day', !t.multi_day)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'multi_day', !t.multi_day)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.multi_day ? 'Set single-day' : 'Set multi-day'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'requires_location', !t.requires_location)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'requires_location', !t.requires_location)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.requires_location ? 'Location optional' : 'Require location'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'supports_cost', !t.supports_cost)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'supports_cost', !t.supports_cost)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.supports_cost ? 'No cost field' : 'Add cost field'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'allow_supplies', !t.allow_supplies)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'allow_supplies', !t.allow_supplies)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.allow_supplies ? 'Disable supplies' : 'Enable supplies'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'allow_attendance', !t.allow_attendance)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'allow_attendance', !t.allow_attendance)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.allow_attendance ? 'Disable attendance' : 'Enable attendance'}
                 </button>
-                <button onClick={() => toggleFlag(t, 'allow_photos', !t.allow_photos)} className="px-2 py-1 border border-gray-200 rounded hover:bg-gray-50">
+                <button onClick={() => toggleFlag(t, 'allow_photos', !t.allow_photos)} className="px-3 py-2 border border-gray-200 rounded-lg hover:bg-gray-50 text-sm">
                   {t.allow_photos ? 'Disable photos' : 'Enable photos'}
                 </button>
               </div>
             </div>
-            <button onClick={() => toggle(t)} className="text-xs text-blue-600 hover:text-blue-800">
+            <button onClick={() => toggle(t)} className="text-xs text-blue-600 hover:text-blue-800 py-2 px-3 rounded-lg">
               {t.active ? 'Deactivate' : 'Activate'}
             </button>
           </div>

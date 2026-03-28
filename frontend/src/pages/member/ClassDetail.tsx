@@ -593,7 +593,7 @@ export default function ClassDetail() {
                 {canManageClass && (
                   <button
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteClassSession(s.id); }}
-                    className="text-xs text-red-500 hover:text-red-700 mt-2"
+                    className="text-xs text-red-500 hover:text-red-700 mt-2 py-2 px-3 rounded-lg"
                   >
                     Delete
                   </button>
@@ -764,7 +764,7 @@ export default function ClassDetail() {
               </div>
               <button
                 onClick={openWeightEditor}
-                className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                className="text-xs text-purple-600 hover:text-purple-800 font-medium py-2 px-3 rounded-lg"
               >
                 Configure Weights
               </button>
@@ -819,7 +819,7 @@ export default function ClassDetail() {
                 <div className="flex flex-wrap gap-2 items-center">
                   <button
                     onClick={() => setWeightInputs(prev => [...prev, { category: '', weight: '', drop_lowest: '0' }])}
-                    className="text-xs text-purple-600 hover:text-purple-800 font-medium"
+                    className="text-xs text-purple-600 hover:text-purple-800 font-medium py-2 px-3 rounded-lg"
                   >
                     + Add Category
                   </button>

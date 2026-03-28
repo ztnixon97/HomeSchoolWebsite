@@ -106,7 +106,7 @@ export default function LessonPlanDetail() {
             )}
             {canEdit && (
               <div className="flex items-center gap-3">
-                <Link to={`/lesson-plans/${plan.id}/edit`} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium">
+                <Link to={`/lesson-plans/${plan.id}/edit`} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg">
                   Edit
                 </Link>
                 <button
@@ -119,7 +119,7 @@ export default function LessonPlanDetail() {
                     });
                     navigate(`/lesson-plans/${res.id}/edit`);
                   }}
-                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-xs text-blue-600 hover:text-blue-800 font-medium py-2 px-3 rounded-lg"
                 >
                   Duplicate
                 </button>
@@ -129,7 +129,7 @@ export default function LessonPlanDetail() {
                     await api.del(`/api/lesson-plans/${plan.id}`);
                     navigate('/lesson-plans');
                   }}
-                  className="text-xs text-red-500 hover:text-red-700 font-medium"
+                  className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg"
                 >
                   Delete
                 </button>

@@ -242,9 +242,9 @@ export default function MyChildren() {
               <div className="text-sm text-blue-800">
                 <span className="font-semibold">{inv.invited_by_name}</span> invited you to join <span className="font-semibold">{inv.family_name}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <button onClick={() => handleAcceptInvite(inv.id)} className="btn-primary text-xs px-3 py-1.5">Accept</button>
-                <button onClick={() => handleDeclineInvite(inv.id)} className="btn-ghost text-xs px-3 py-1.5">Decline</button>
+              <div className="flex flex-wrap gap-3">
+                <button onClick={() => handleAcceptInvite(inv.id)} className="btn-primary text-xs px-4 py-2.5">Accept</button>
+                <button onClick={() => handleDeclineInvite(inv.id)} className="btn-ghost text-xs px-4 py-2.5">Decline</button>
               </div>
             </div>
           ))}
@@ -263,8 +263,8 @@ export default function MyChildren() {
                   onChange={e => setEditFamilyName(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSaveFamilyName()}
                 />
-                <button onClick={handleSaveFamilyName} className="text-xs text-cobalt font-medium">Save</button>
-                <button onClick={() => setEditingFamilyName(false)} className="text-xs text-ink/50">Cancel</button>
+                <button onClick={handleSaveFamilyName} className="text-xs text-cobalt font-medium py-2 px-3 rounded-lg">Save</button>
+                <button onClick={() => setEditingFamilyName(false)} className="text-xs text-ink/50 py-2 px-3 rounded-lg">Cancel</button>
               </div>
             ) : (
               <h2 className="text-lg font-semibold text-ink">
@@ -278,7 +278,7 @@ export default function MyChildren() {
                 </button>
               </h2>
             )}
-            <button onClick={handleLeaveFamily} className="text-xs text-ink/40 hover:text-red-600">Leave family</button>
+            <button onClick={handleLeaveFamily} className="text-xs text-ink/40 hover:text-red-600 py-2 px-3 rounded-lg">Leave family</button>
           </div>
 
           <div className="text-sm text-ink/70">

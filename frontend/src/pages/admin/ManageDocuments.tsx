@@ -341,19 +341,19 @@ export default function ManageDocuments() {
                   <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
                     <button
                       onClick={() => startEdit(t)}
-                      className="text-xs text-emerald-700 hover:text-emerald-800 font-medium"
+                      className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
                     >
                       Edit
                     </button>
                     <button
                       onClick={() => toggleActive(t)}
-                      className="text-xs text-gray-500 hover:text-gray-700 font-medium"
+                      className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg"
                     >
                       {t.active ? 'Deactivate' : 'Activate'}
                     </button>
                     <button
                       onClick={() => deleteTemplate(t)}
-                      className="text-xs text-red-500 hover:text-red-700 font-medium"
+                      className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg"
                     >
                       Delete
                     </button>
@@ -448,7 +448,7 @@ export default function ManageDocuments() {
                           setReviewingId(sub.id);
                           setReviewNotes(sub.notes ?? '');
                         }}
-                        className="text-xs text-gray-500 hover:text-gray-700 font-medium flex-shrink-0"
+                        className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg flex-shrink-0"
                       >
                         Update
                       </button>

@@ -419,9 +419,9 @@ export default function ManageSessions() {
                   {s.status}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium">Edit</button>
-                <button onClick={() => deleteSession(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium">Delete</button>
+              <div className="flex items-center gap-3">
+                <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">Edit</button>
+                <button onClick={() => deleteSession(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">Delete</button>
               </div>
             </div>
             <div className="text-xs text-gray-500">

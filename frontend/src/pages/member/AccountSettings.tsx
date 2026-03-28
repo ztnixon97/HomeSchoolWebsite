@@ -9,9 +9,9 @@ export default function AccountSettings() {
 
   // Profile
   const [displayName, setDisplayName] = useState(user?.display_name || '');
-  const [phone, setPhone] = useState((user as any)?.phone || '');
-  const [address, setAddress] = useState((user as any)?.address || '');
-  const [preferredContact, setPreferredContact] = useState((user as any)?.preferred_contact || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [address, setAddress] = useState(user?.address || '');
+  const [preferredContact, setPreferredContact] = useState(user?.preferred_contact || '');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Email
@@ -109,17 +109,17 @@ export default function AccountSettings() {
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Display Name</label>
-          <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} required className={inputClass} />
+          <input type="text" value={displayName} onChange={e => setDisplayName(e.target.value)} required autoComplete="name" className={inputClass} />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Phone</label>
-          <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} className={inputClass} placeholder="Optional" />
+          <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} autoComplete="tel" className={inputClass} placeholder="Optional" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Address</label>
-          <input type="text" value={address} onChange={e => setAddress(e.target.value)} className={inputClass} placeholder="Optional — shared with other members" />
+          <input type="text" value={address} onChange={e => setAddress(e.target.value)} autoComplete="street-address" className={inputClass} placeholder="Optional — shared with other members" />
         </div>
 
         <div>
@@ -144,12 +144,12 @@ export default function AccountSettings() {
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">New Email</label>
-          <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required className={inputClass} placeholder="new@example.com" />
+          <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} required autoComplete="email" className={inputClass} placeholder="new@example.com" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Current Password</label>
-          <input type="password" value={emailPassword} onChange={e => setEmailPassword(e.target.value)} required className={inputClass} placeholder="Confirm your password" />
+          <input type="password" value={emailPassword} onChange={e => setEmailPassword(e.target.value)} required autoComplete="current-password" className={inputClass} placeholder="Confirm your password" />
         </div>
 
         <button type="submit" disabled={savingEmail} className="btn-primary disabled:opacity-50">
@@ -163,17 +163,17 @@ export default function AccountSettings() {
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Current Password</label>
-          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required className={inputClass} />
+          <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required autoComplete="current-password" className={inputClass} />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">New Password</label>
-          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={6} className={inputClass} placeholder="8+ chars, uppercase, lowercase, number" />
+          <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required minLength={8} autoComplete="new-password" className={inputClass} placeholder="8+ chars, uppercase, lowercase, number" />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-ink/80 mb-1.5">Confirm New Password</label>
-          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={6} className={inputClass} />
+          <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8} autoComplete="new-password" className={inputClass} />
         </div>
 
         <button type="submit" disabled={savingPassword} className="btn-primary disabled:opacity-50">
