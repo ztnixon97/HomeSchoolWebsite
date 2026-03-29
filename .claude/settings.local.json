@@ -15,7 +15,8 @@
       "Bash(cargo check:*)",
       "Bash(cargo doc:*)",
       "Read(//c/Users/ztnix/.cargo/registry/src/**)",
-      "Bash(find /c/Users/ztnix/Documents/JessicasHomeSchool -type f -name *nav* -o -name *header* -o -name *menu*)"
+      "Bash(find /c/Users/ztnix/Documents/JessicasHomeSchool -type f -name *nav* -o -name *header* -o -name *menu*)",
+      "Bash(python3:*)"
     ]
   }
 }

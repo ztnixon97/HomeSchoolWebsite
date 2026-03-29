@@ -43,7 +43,8 @@ export default function Layout() {
 
           {/* Mobile menu button */}
           <button
-            className="md:hidden p-2.5 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5"
+            className="lg:hidden p-2.5 text-ink/60 hover:text-ink rounded-lg hover:bg-ink/5"
+            aria-label="Toggle menu"
             onClick={() => setMenuOpen(!menuOpen)}
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -56,7 +57,7 @@ export default function Layout() {
           </button>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1 text-sm">
+          <nav className="hidden lg:flex items-center gap-1 text-sm flex-wrap">
             <NavLinks user={user} isAdmin={isAdmin} />
             <div className="w-px h-5 bg-ink/20 mx-2" />
             {user ? (
@@ -104,7 +105,7 @@ export default function Layout() {
 
         {/* Mobile nav */}
         {menuOpen && (
-          <nav className="md:hidden border-t border-ink/10 px-4 py-4 flex flex-col gap-1 text-sm bg-cream">
+          <nav className="lg:hidden border-t border-ink/10 px-4 py-4 flex flex-col gap-1 text-sm bg-cream">
             <NavLinks user={user} isAdmin={isAdmin} onClick={() => setMenuOpen(false)} mobile />
             <div className="h-px bg-ink/10 my-2" />
             {user ? (
