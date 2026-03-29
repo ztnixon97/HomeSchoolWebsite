@@ -18,10 +18,24 @@ interface PlacedItem {
   heightPct: number;
   dataUrl?: string;
   text?: string;
+  isDefault?: boolean; // Admin-placed default field
+}
+
+interface TemplateField {
+  id: number;
+  field_type: string;
+  label: string | null;
+  page_index: number;
+  x_pct: number;
+  y_pct: number;
+  width_pct: number;
+  height_pct: number;
+  required: boolean;
 }
 
 interface Props {
   fileId: number;
+  templateId: number;
   templateTitle: string;
   signerName: string;
   onComplete: (signedFile: File, signatureFile: File) => Promise<void>;
@@ -33,10 +47,14 @@ type PlaceMode = 'view' | 'place-signature' | 'place-date' | 'place-name';
 let _id = 0;
 const nextId = () => `placed-${++_id}`;
 
+const MIN_WIDTH_PCT = 0.05;
+const MIN_HEIGHT_PCT = 0.015;
+
 /* ── Component ── */
 
 export default function DocumentSigner({
   fileId,
+  templateId,
   templateTitle,
   signerName,
   onComplete,
@@ -44,8 +62,6 @@ export default function DocumentSigner({
 }: Props) {
   // PDF state
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
-  // Memoize a copy for react-pdf — it transfers the ArrayBuffer to the worker,
-  // which detaches it. A fresh copy prevents "already detached" on re-render.
   const pdfFile = useMemo(() => pdfData ? { data: pdfData.slice() } : null, [pdfData]);
   const [numPages, setNumPages] = useState(0);
   const [pageWidth, setPageWidth] = useState(600);
@@ -66,6 +82,16 @@ export default function DocumentSigner({
     origXPct: number;
     origYPct: number;
   } | null>(null);
+  const [resizeState, setResizeState] = useState<{
+    id: string;
+    corner: string;
+    startX: number;
+    startY: number;
+    origXPct: number;
+    origYPct: number;
+    origWPct: number;
+    origHPct: number;
+  } | null>(null);
 
   // Refs
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -78,7 +104,6 @@ export default function DocumentSigner({
         const res = await fetch(`/api/files/${fileId}/download?proxy=true`, {
           credentials: 'include',
         });
-
         if (!res.ok) throw new Error(`Failed to load document (${res.status})`);
         const buf = await res.arrayBuffer();
         if (buf.byteLength === 0) throw new Error('Document is empty');
@@ -91,6 +116,32 @@ export default function DocumentSigner({
     };
     loadPdf();
   }, [fileId]);
+
+  /* ── Load default fields from admin ── */
+  useEffect(() => {
+    fetch(`/api/document-templates/${templateId}/fields`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : [])
+      .then((fields: TemplateField[]) => {
+        if (fields.length === 0) return;
+        const defaults: PlacedItem[] = fields.map(f => ({
+          id: nextId(),
+          type: f.field_type as PlacedItem['type'],
+          pageIndex: f.page_index,
+          xPct: f.x_pct,
+          yPct: f.y_pct,
+          widthPct: f.width_pct,
+          heightPct: f.height_pct,
+          isDefault: true,
+          text: f.field_type === 'date'
+            ? new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+            : f.field_type === 'name'
+              ? signerName
+              : undefined,
+        }));
+        setPlacedItems(defaults);
+      })
+      .catch(() => {});
+  }, [templateId, signerName]);
 
   /* ── Measure container width ── */
   useEffect(() => {
@@ -117,7 +168,17 @@ export default function DocumentSigner({
   const handleSignatureCapture = (dataUrl: string) => {
     setSignatureDataUrl(dataUrl);
     setShowSignaturePad(false);
-    setMode('place-signature');
+    // Fill in any default signature fields that don't have a dataUrl yet
+    setPlacedItems(prev => prev.map(item =>
+      item.type === 'signature' && !item.dataUrl
+        ? { ...item, dataUrl }
+        : item
+    ));
+    // If there are unfilled default signature spots, don't enter place mode
+    const hasUnfilled = placedItems.some(i => i.type === 'signature' && !i.dataUrl);
+    if (!hasUnfilled) {
+      setMode('place-signature');
+    }
   };
 
   const handleChangeSignature = () => {
@@ -128,7 +189,6 @@ export default function DocumentSigner({
   /* ── Place items on page click ── */
   const handlePageClick = useCallback(
     (pageIndex: number, e: React.MouseEvent<HTMLDivElement>) => {
-      // Don't place if clicking an existing item
       if ((e.target as HTMLElement).closest('[data-item]')) return;
 
       const pageEl = pageRefs.current[pageIndex];
@@ -138,7 +198,6 @@ export default function DocumentSigner({
       const yPct = (e.clientY - rect.top) / rect.height;
 
       if (mode === 'place-signature' && signatureDataUrl) {
-        // Compute aspect ratio from the signature image
         const img = new Image();
         img.src = signatureDataUrl;
         const aspect = img.naturalHeight && img.naturalWidth
@@ -197,7 +256,6 @@ export default function DocumentSigner({
         ]);
         setMode('view');
       } else {
-        // View mode — deselect
         setSelectedId(null);
       }
     },
@@ -253,12 +311,98 @@ export default function DocumentSigner({
     };
   }, [dragState, placedItems]);
 
+  /* ── Resize placed items ── */
+  const startResize = (e: React.MouseEvent | React.TouchEvent, itemId: string, corner: string) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const item = placedItems.find(i => i.id === itemId);
+    if (!item) return;
+    const cx = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const cy = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    setResizeState({
+      id: itemId,
+      corner,
+      startX: cx,
+      startY: cy,
+      origXPct: item.xPct,
+      origYPct: item.yPct,
+      origWPct: item.widthPct,
+      origHPct: item.heightPct,
+    });
+    setSelectedId(itemId);
+  };
+
+  useEffect(() => {
+    if (!resizeState) return;
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const cx = 'touches' in e ? e.touches[0].clientX : e.clientX;
+      const cy = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      const item = placedItems.find(i => i.id === resizeState.id);
+      if (!item) return;
+      const pageEl = pageRefs.current[item.pageIndex];
+      if (!pageEl) return;
+      const rect = pageEl.getBoundingClientRect();
+      const dx = (cx - resizeState.startX) / rect.width;
+      const dy = (cy - resizeState.startY) / rect.height;
+      const { corner, origXPct, origYPct, origWPct, origHPct } = resizeState;
+
+      let newX = origXPct, newY = origYPct, newW = origWPct, newH = origHPct;
+
+      if (corner === 'se') {
+        newW = Math.max(MIN_WIDTH_PCT, origWPct + dx);
+        newH = Math.max(MIN_HEIGHT_PCT, origHPct + dy);
+      } else if (corner === 'sw') {
+        newX = clamp(origXPct + dx, 0, origXPct + origWPct - MIN_WIDTH_PCT);
+        newW = Math.max(MIN_WIDTH_PCT, origWPct - dx);
+        newH = Math.max(MIN_HEIGHT_PCT, origHPct + dy);
+      } else if (corner === 'ne') {
+        newY = clamp(origYPct + dy, 0, origYPct + origHPct - MIN_HEIGHT_PCT);
+        newW = Math.max(MIN_WIDTH_PCT, origWPct + dx);
+        newH = Math.max(MIN_HEIGHT_PCT, origHPct - dy);
+      } else if (corner === 'nw') {
+        newX = clamp(origXPct + dx, 0, origXPct + origWPct - MIN_WIDTH_PCT);
+        newY = clamp(origYPct + dy, 0, origYPct + origHPct - MIN_HEIGHT_PCT);
+        newW = Math.max(MIN_WIDTH_PCT, origWPct - dx);
+        newH = Math.max(MIN_HEIGHT_PCT, origHPct - dy);
+      }
+
+      // Clamp to page bounds
+      newW = Math.min(newW, 1 - newX);
+      newH = Math.min(newH, 1 - newY);
+
+      setPlacedItems(prev =>
+        prev.map(i =>
+          i.id === resizeState.id
+            ? { ...i, xPct: newX, yPct: newY, widthPct: newW, heightPct: newH }
+            : i,
+        ),
+      );
+    };
+    const onUp = () => setResizeState(null);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [resizeState, placedItems]);
+
   /* ── Generate signed PDF ── */
   const handleSubmit = async () => {
     if (!pdfData) return;
     const sigs = placedItems.filter(i => i.type === 'signature');
+    // Check that all signature fields have data
+    const unfilledSigs = sigs.filter(s => !s.dataUrl);
     if (sigs.length === 0) {
       setError('Please place your signature on the document before submitting.');
+      return;
+    }
+    if (unfilledSigs.length > 0) {
+      setError('Please add your signature — some signature fields are still empty.');
       return;
     }
 
@@ -275,7 +419,6 @@ export default function DocumentSigner({
         if (!page) continue;
         const { width: pw, height: ph } = page.getSize();
         const pdfX = item.xPct * pw;
-        // Screen y is top-down, PDF y is bottom-up
         const itemH = item.heightPct * ph;
         const pdfY = ph - item.yPct * ph - itemH;
 
@@ -308,7 +451,6 @@ export default function DocumentSigner({
         { type: 'application/pdf' },
       );
 
-      // Also create standalone signature file for records
       const sigDataUrl = sigs[0].dataUrl!;
       const sigBlobRes = await fetch(sigDataUrl);
       const sigBlob = await sigBlobRes.blob();
@@ -354,6 +496,9 @@ export default function DocumentSigner({
     'place-name': 'Click on the document to place your name',
   };
 
+  // Count unfilled default signature spots
+  const unfilledDefaults = placedItems.filter(i => i.isDefault && i.type === 'signature' && !i.dataUrl).length;
+
   return (
     <div className="fixed inset-0 z-50 bg-gray-100 flex flex-col">
       {/* ── Top toolbar ── */}
@@ -378,6 +523,11 @@ export default function DocumentSigner({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
               </svg>
               <span className="hidden sm:inline">Signature</span>
+              {unfilledDefaults > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-1">
+                  {unfilledDefaults}
+                </span>
+              )}
             </button>
 
             {/* Date button */}
@@ -482,6 +632,16 @@ export default function DocumentSigner({
         </div>
       )}
 
+      {/* ── Unfilled defaults banner ── */}
+      {unfilledDefaults > 0 && mode === 'view' && !signatureDataUrl && (
+        <div className="bg-blue-50 border-b border-blue-200 px-4 py-2 text-center flex-shrink-0">
+          <p className="text-sm text-blue-800">
+            This document has {unfilledDefaults} signature {unfilledDefaults === 1 ? 'spot' : 'spots'} to fill.
+            Click <strong>Signature</strong> to draw or type your signature.
+          </p>
+        </div>
+      )}
+
       {/* ── Error banner ── */}
       {error && (
         <div className="bg-red-50 border-b border-red-200 px-4 py-2 text-center flex-shrink-0">
@@ -543,11 +703,11 @@ export default function DocumentSigner({
                         <div
                           key={item.id}
                           data-item
-                          className={`absolute select-none ${
+                          className={`absolute select-none group ${
                             selectedId === item.id
                               ? 'ring-2 ring-emerald-500 ring-offset-1'
                               : 'hover:ring-2 hover:ring-gray-300'
-                          }`}
+                          } ${item.isDefault && !item.dataUrl && item.type === 'signature' ? 'bg-emerald-50/80 border-2 border-dashed border-emerald-400' : ''}`}
                           style={{
                             left: `${item.xPct * 100}%`,
                             top: `${item.yPct * 100}%`,
@@ -570,6 +730,13 @@ export default function DocumentSigner({
                               draggable={false}
                             />
                           )}
+                          {item.type === 'signature' && !item.dataUrl && (
+                            <div className="w-full h-full flex items-center justify-center pointer-events-none">
+                              <span className="text-xs text-emerald-600 font-medium">
+                                {item.isDefault ? 'Sign here' : 'Signature'}
+                              </span>
+                            </div>
+                          )}
                           {item.type === 'date' && (
                             <span className="text-xs sm:text-sm font-medium text-ink leading-none whitespace-nowrap pointer-events-none">
                               {item.text}
@@ -579,6 +746,27 @@ export default function DocumentSigner({
                             <span className="text-xs sm:text-sm font-medium text-ink leading-none whitespace-nowrap pointer-events-none">
                               {item.text}
                             </span>
+                          )}
+
+                          {/* Resize handles — show on hover or when selected */}
+                          {(selectedId === item.id) && (
+                            <>
+                              {['nw', 'ne', 'sw', 'se'].map(corner => (
+                                <div
+                                  key={corner}
+                                  className="absolute w-3 h-3 bg-white border-2 border-emerald-500 rounded-full z-10"
+                                  style={{
+                                    top: corner.startsWith('n') ? -6 : undefined,
+                                    bottom: corner.startsWith('s') ? -6 : undefined,
+                                    left: corner.endsWith('w') ? -6 : undefined,
+                                    right: corner.endsWith('e') ? -6 : undefined,
+                                    cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize',
+                                  }}
+                                  onMouseDown={e => startResize(e, item.id, corner)}
+                                  onTouchStart={e => startResize(e, item.id, corner)}
+                                />
+                              ))}
+                            </>
                           )}
                         </div>
                       ))}

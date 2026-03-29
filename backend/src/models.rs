@@ -1031,6 +1031,25 @@ pub struct ReviewSubmissionRequest {
     pub notes: Option<String>,
 }
 
+// ── Document Template Fields ──
+
+#[derive(Debug, Deserialize)]
+pub struct SaveTemplateFieldsRequest {
+    pub fields: Vec<TemplateFieldInput>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TemplateFieldInput {
+    pub field_type: String,
+    pub label: Option<String>,
+    pub page_index: i64,
+    pub x_pct: f64,
+    pub y_pct: f64,
+    pub width_pct: f64,
+    pub height_pct: f64,
+    pub required: Option<bool>,
+}
+
 // ── Standards ──
 
 #[derive(Debug, Deserialize)]

@@ -55,6 +55,7 @@ export default function MyDocuments() {
   const [uploading, setUploading] = useState<number | null>(null);
   const [signingTemplateId, setSigningTemplateId] = useState<number | null>(null);
   const [previewTemplateId, setPreviewTemplateId] = useState<number | null>(null);
+  const [viewingFileId, setViewingFileId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const { showToast } = useToast();
 
@@ -142,6 +143,7 @@ export default function MyDocuments() {
       >
         <DocumentSigner
           fileId={signingTemplate.file_id}
+          templateId={signingTemplate.id}
           templateTitle={signingTemplate.title}
           signerName={user?.display_name ?? ''}
           onComplete={(signedFile, sigFile) =>
@@ -303,20 +305,29 @@ export default function MyDocuments() {
                         <div className="mt-3 space-y-2">
                           <div className="flex items-center gap-3 flex-wrap">
                             {submission.file_id && (
-                              <a
-                                href={`/api/files/${submission.file_id}/download`}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                type="button"
+                                onClick={() => setViewingFileId(viewingFileId === submission.file_id ? null : submission.file_id)}
                                 className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg inline-flex items-center gap-1.5"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                {submission.signature_file_id ? 'View Signed Document' : 'View Submitted File'}
-                              </a>
+                                {viewingFileId === submission.file_id ? 'Hide Document' : (submission.signature_file_id ? 'View Signed Document' : 'View Submitted File')}
+                              </button>
                             )}
                             <span className="text-xs text-gray-400">
                               Submitted {new Date(submission.created_at).toLocaleDateString()}
                             </span>
                           </div>
+                          {viewingFileId === submission.file_id && submission.file_id && (
+                            <div className="border border-gray-200 rounded-lg overflow-hidden">
+                              <iframe
+                                src={`/api/files/${submission.file_id}/download`}
+                                className="w-full border-0"
+                                style={{ height: '500px' }}
+                                title={`Submitted: ${template.title}`}
+                              />
+                            </div>
+                          )}
                         </div>
                       )}
 

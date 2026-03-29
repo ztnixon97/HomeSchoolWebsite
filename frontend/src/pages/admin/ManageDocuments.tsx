@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+
+const FieldEditor = lazy(() => import('../../components/FieldEditor'));
 
 interface DocumentTemplate {
   id: number;
@@ -78,6 +80,9 @@ export default function ManageDocuments() {
 
   // Submission viewing state
   const [viewingSignatureId, setViewingSignatureId] = useState<number | null>(null);
+
+  // Field editor state
+  const [editingFieldsTemplate, setEditingFieldsTemplate] = useState<DocumentTemplate | null>(null);
 
   // Filter state
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('');
@@ -412,6 +417,14 @@ export default function ManageDocuments() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 flex-shrink-0">
+                    {t.file_id && (
+                      <button
+                        onClick={() => setEditingFieldsTemplate(t)}
+                        className="text-xs text-blue-600 hover:text-blue-800 font-medium py-2 px-3 rounded-lg"
+                      >
+                        Signature Spots
+                      </button>
+                    )}
                     <button
                       onClick={() => startEdit(t)}
                       className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg"
@@ -611,6 +624,23 @@ export default function ManageDocuments() {
             </div>
           )}
         </div>
+      )}
+      {/* Field Editor Modal */}
+      {editingFieldsTemplate && editingFieldsTemplate.file_id && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-50 bg-gray-100 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
+            </div>
+          }
+        >
+          <FieldEditor
+            templateId={editingFieldsTemplate.id}
+            fileId={editingFieldsTemplate.file_id}
+            templateTitle={editingFieldsTemplate.title}
+            onClose={() => setEditingFieldsTemplate(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

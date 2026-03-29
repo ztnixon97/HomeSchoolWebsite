@@ -42,6 +42,76 @@ pub async fn list_document_types(
     Ok(Json(rows))
 }
 
+/// GET /api/document-templates/{id}/fields — get default signature fields for a template
+pub async fn list_template_fields(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+    Path(template_id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "documents")?;
+    let conn = state.db.get()?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, field_type, label, page_index, x_pct, y_pct, width_pct, height_pct, required
+         FROM document_template_fields
+         WHERE template_id = ?1
+         ORDER BY sort_order, id",
+    )?;
+    let rows: Vec<serde_json::Value> = stmt
+        .query_map(params![template_id], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "field_type": row.get::<_, String>(1)?,
+                "label": row.get::<_, Option<String>>(2)?,
+                "page_index": row.get::<_, i64>(3)?,
+                "x_pct": row.get::<_, f64>(4)?,
+                "y_pct": row.get::<_, f64>(5)?,
+                "width_pct": row.get::<_, f64>(6)?,
+                "height_pct": row.get::<_, f64>(7)?,
+                "required": row.get::<_, bool>(8)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+
+    Ok(Json(rows))
+}
+
+/// PUT /api/admin/document-templates/{id}/fields — save all fields (replace)
+pub async fn admin_save_template_fields(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(template_id): Path<i64>,
+    Json(req): Json<SaveTemplateFieldsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "documents")?;
+    let conn = state.db.get()?;
+
+    // Delete existing fields and replace with new set
+    conn.execute("DELETE FROM document_template_fields WHERE template_id = ?1", params![template_id])?;
+
+    for (i, field) in req.fields.iter().enumerate() {
+        conn.execute(
+            "INSERT INTO document_template_fields (template_id, field_type, label, page_index, x_pct, y_pct, width_pct, height_pct, required, sort_order)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![
+                template_id,
+                field.field_type,
+                field.label,
+                field.page_index,
+                field.x_pct,
+                field.y_pct,
+                field.width_pct,
+                field.height_pct,
+                field.required.unwrap_or(true),
+                i as i64,
+            ],
+        )?;
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true, "count": req.fields.len() })))
+}
+
 /// GET /api/my-documents — list user's submissions with template info and status
 pub async fn list_my_documents(
     RequireAuth(user): RequireAuth,

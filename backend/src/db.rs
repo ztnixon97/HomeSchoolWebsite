@@ -507,6 +507,23 @@ fn run_migrations(pool: &DbPool) {
     // Document signature support
     let _ = conn.execute("ALTER TABLE document_submissions ADD COLUMN signature_file_id INTEGER REFERENCES files(id)", []);
 
+    // Document template fields — admin-defined signature/date/name spots
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS document_template_fields (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            template_id INTEGER NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
+            field_type TEXT NOT NULL DEFAULT 'signature',
+            label TEXT,
+            page_index INTEGER NOT NULL DEFAULT 0,
+            x_pct REAL NOT NULL,
+            y_pct REAL NOT NULL,
+            width_pct REAL NOT NULL,
+            height_pct REAL NOT NULL,
+            required INTEGER NOT NULL DEFAULT 1,
+            sort_order INTEGER NOT NULL DEFAULT 0
+        );
+    ").ok();
+
     // Seed default session types if missing
     let _ = conn.execute(
         "INSERT OR IGNORE INTO session_types (name, label, sort_order, hostable, rsvpable, multi_day, allow_supplies, allow_attendance, allow_photos) VALUES
