@@ -79,7 +79,7 @@ export default function ClassSessions() {
     if (features.class_groups) {
       api.get<ClassGroup[]>('/api/class-groups').then(setClassGroups).catch(() => {});
     }
-  }, []);
+  }, [features.class_groups]);
 
   // Load paginated sessions for list view
   const [listSessions, setListSessions] = useState<Session[]>([]);
@@ -88,7 +88,6 @@ export default function ClassSessions() {
     const params = new URLSearchParams();
     params.set('page', String(listPage));
     params.set('page_size', String(PAGE_SIZE));
-    params.set('date_from', new Date().toISOString().split('T')[0]);
     if (search) params.set('q', search);
     if (statusFilter) params.set('status', statusFilter);
     if (groupFilter) params.set('class_group_id', groupFilter);
