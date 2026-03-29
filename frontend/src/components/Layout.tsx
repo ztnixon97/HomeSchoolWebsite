@@ -34,7 +34,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen flex flex-col bg-cream text-ink">
-      <header className="bg-cream/90 backdrop-blur border-b border-cobalt/20">
+      <header className="bg-cream/90 backdrop-blur border-b border-cobalt/20 relative z-50">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-3 no-underline group">
             <div className="china-crest" />

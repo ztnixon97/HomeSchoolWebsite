@@ -70,19 +70,33 @@ export default function DocumentSigner({
 
   /* ── Load PDF ── */
   useEffect(() => {
-    fetch(`/api/files/${fileId}/download?proxy=true`, { credentials: 'include' })
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load document');
-        return res.arrayBuffer();
-      })
-      .then(buf => {
+    const loadPdf = async () => {
+      try {
+        // Try proxy mode first (avoids CORS issues with R2 redirects)
+        let res = await fetch(`/api/files/${fileId}/download?proxy=true`, {
+          credentials: 'include',
+        });
+
+        // If proxy not supported (older backend), fall back to redirect mode
+        // and manually follow the redirect by fetching the presigned URL
+        if (!res.ok && res.status !== 302) {
+          res = await fetch(`/api/files/${fileId}/download`, {
+            credentials: 'include',
+            redirect: 'follow',
+          });
+        }
+
+        if (!res.ok) throw new Error(`Failed to load document (${res.status})`);
+        const buf = await res.arrayBuffer();
+        if (buf.byteLength === 0) throw new Error('Document is empty');
         setPdfData(new Uint8Array(buf));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load document');
+      } finally {
         setLoading(false);
-      })
-      .catch(err => {
-        setError(err.message);
-        setLoading(false);
-      });
+      }
+    };
+    loadPdf();
   }, [fileId]);
 
   /* ── Measure container width ── */
@@ -489,6 +503,7 @@ export default function DocumentSigner({
             <Document
               file={{ data: pdfData }}
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+              onLoadError={(err) => setError(`PDF render error: ${err.message}`)}
               loading={
                 <div className="flex justify-center py-20">
                   <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
