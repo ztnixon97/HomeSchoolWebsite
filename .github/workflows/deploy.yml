@@ -17,7 +17,7 @@ jobs:
         run: |
           for attempt in 1 2 3; do
             echo "Deploy attempt $attempt..."
-            if flyctl deploy --remote-only --build-timeout 1200; then
+            if flyctl deploy --remote-only; then
               echo "Deploy succeeded on attempt $attempt"
               exit 0
             fi
