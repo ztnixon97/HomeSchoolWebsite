@@ -1003,6 +1003,7 @@ pub struct CreateConversationRequest {
 pub struct SubmitDocumentRequest {
     pub file_id: Option<i64>,
     pub student_id: Option<i64>,
+    pub signature_file_id: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
