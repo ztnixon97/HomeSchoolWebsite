@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import SignaturePad from './SignaturePad';
@@ -44,6 +44,9 @@ export default function DocumentSigner({
 }: Props) {
   // PDF state
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  // Memoize a copy for react-pdf — it transfers the ArrayBuffer to the worker,
+  // which detaches it. A fresh copy prevents "already detached" on re-render.
+  const pdfFile = useMemo(() => pdfData ? { data: pdfData.slice() } : null, [pdfData]);
   const [numPages, setNumPages] = useState(0);
   const [pageWidth, setPageWidth] = useState(600);
   const [loading, setLoading] = useState(true);
@@ -72,40 +75,13 @@ export default function DocumentSigner({
   useEffect(() => {
     const loadPdf = async () => {
       try {
-        // Proxy mode: backend streams file bytes directly (avoids CORS with R2 redirects)
         const res = await fetch(`/api/files/${fileId}/download?proxy=true`, {
           credentials: 'include',
-          redirect: 'manual', // Don't follow redirects — we need the bytes
         });
 
-        // If we got a redirect (302), the backend didn't honor ?proxy=true.
-        // Fetch the presigned URL from the Location header directly.
-        if (res.type === 'opaqueredirect' || res.status === 302) {
-          // Can't read Location from opaque redirect, fetch without redirect:manual
-          const res2 = await fetch(`/api/files/${fileId}/download?proxy=true`, {
-            credentials: 'include',
-          });
-          if (!res2.ok) throw new Error(`Failed to load document (${res2.status})`);
-          const buf = await res2.arrayBuffer();
-          if (buf.byteLength === 0) throw new Error('Document is empty');
-          setPdfData(new Uint8Array(buf));
-          return;
-        }
-
         if (!res.ok) throw new Error(`Failed to load document (${res.status})`);
-
-        // Verify we got a PDF, not an error page
-        const contentType = res.headers.get('content-type') || '';
         const buf = await res.arrayBuffer();
         if (buf.byteLength === 0) throw new Error('Document is empty');
-
-        // Quick check: PDFs start with %PDF
-        const header = new Uint8Array(buf.slice(0, 5));
-        const headerStr = String.fromCharCode(...header);
-        if (!headerStr.startsWith('%PDF') && !contentType.includes('pdf')) {
-          throw new Error('Server returned non-PDF response');
-        }
-
         setPdfData(new Uint8Array(buf));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load document');
@@ -516,9 +492,9 @@ export default function DocumentSigner({
       {/* ── Scrollable PDF area ── */}
       <div className="flex-1 overflow-auto" ref={scrollRef}>
         <div className="max-w-[840px] mx-auto py-4 px-4">
-          {pdfData && (
+          {pdfFile && (
             <Document
-              file={{ data: pdfData }}
+              file={pdfFile}
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
               onLoadError={(err) => setError(`PDF render error: ${err.message}`)}
               error={
