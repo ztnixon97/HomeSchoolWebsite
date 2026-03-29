@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
@@ -57,7 +57,7 @@ export default function Layout() {
           </button>
 
           {/* Desktop nav */}
-          <nav className="hidden lg:flex items-center gap-1 text-sm flex-wrap">
+          <nav className="hidden lg:flex items-center gap-1 text-sm">
             <NavLinks user={user} isAdmin={isAdmin} />
             <div className="w-px h-5 bg-ink/20 mx-2" />
             {user ? (
@@ -180,6 +180,54 @@ export default function Layout() {
   );
 }
 
+function NavDropdown({ label, children, mobile, onClick }: {
+  label: string;
+  children: React.ReactNode;
+  mobile?: boolean;
+  onClick?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handle = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [open]);
+
+  if (mobile) {
+    return <>{children}</>;
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-ink/70 hover:text-ink hover:bg-ink/5 transition-colors text-sm"
+      >
+        {label}
+        <svg className={`w-3.5 h-3.5 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white rounded-lg shadow-lg border border-ink/10 py-1 min-w-[160px] z-50">
+          {React.Children.map(children, child => {
+            if (!React.isValidElement(child)) return null;
+            return React.cloneElement(child as React.ReactElement<{ className?: string; onClick?: () => void }>, {
+              className: "block px-4 py-2 text-sm text-ink/70 hover:text-ink hover:bg-ink/5 no-underline transition-colors whitespace-nowrap",
+              onClick: () => { onClick?.(); setOpen(false); },
+            });
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function NavLinks({ user, isAdmin, onClick, mobile }: {
   user: ReturnType<typeof useAuth>['user'];
   isAdmin: boolean;
@@ -190,11 +238,25 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
   const base = mobile
     ? "block px-3 py-1.5 rounded-lg text-ink/70 hover:text-ink hover:bg-ink/5 no-underline transition-colors"
     : "px-3 py-1.5 rounded-lg text-ink/70 hover:text-ink hover:bg-ink/5 no-underline transition-colors";
+
+  // Collect dropdown items, filtering by feature gates
+  const myItems: React.ReactNode[] = [];
+  if (features.my_children) myItems.push(<Link key="children" to="/my-children" onClick={onClick}>My Children</Link>);
+  if (features.my_rsvps) myItems.push(<Link key="rsvps" to="/my-rsvps" onClick={onClick}>My RSVPs</Link>);
+  if (features.class_groups) myItems.push(<Link key="classes" to="/my-classes" onClick={onClick}>My Classes</Link>);
+  if (features.documents) myItems.push(<Link key="docs" to="/my-documents" onClick={onClick}>Documents</Link>);
+  if (features.payments) myItems.push(<Link key="pay" to="/my-payments" onClick={onClick}>Payments</Link>);
+
+  const communityItems: React.ReactNode[] = [];
+  if (features.member_directory) communityItems.push(<Link key="members" to="/members" onClick={onClick}>Members</Link>);
+  if (features.lesson_plans) communityItems.push(<Link key="lessons" to="/lesson-plans" onClick={onClick}>Lessons</Link>);
+  if (features.blog) communityItems.push(<Link key="blog" to="/blog" onClick={onClick}>Blog</Link>);
+  if (features.resources) communityItems.push(<Link key="resources" to="/resources" onClick={onClick}>Resources</Link>);
+  if (features.messaging) communityItems.push(<Link key="inbox" to="/inbox" onClick={onClick}>Inbox</Link>);
+
   return (
     <>
       <Link to="/schedule" className={base} onClick={onClick}>Schedule</Link>
-      {features.blog && <Link to="/blog" className={base} onClick={onClick}>Blog</Link>}
-      {features.resources && <Link to="/resources" className={base} onClick={onClick}>Resources</Link>}
       <Link to="/about" className={base} onClick={onClick}>About</Link>
       <Link to="/contact" className={base} onClick={onClick}>Contact</Link>
       {user && (
@@ -202,15 +264,30 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
           {mobile && <div className="h-px bg-gray-100 my-1" />}
           {!mobile && <div className="w-px h-5 bg-ink/20 mx-1" />}
           <Link to="/dashboard" className={base} onClick={onClick}>Dashboard</Link>
-          {features.my_children && <Link to="/my-children" className={base} onClick={onClick}>My Children</Link>}
-          {features.my_rsvps && <Link to="/my-rsvps" className={base} onClick={onClick}>My RSVPs</Link>}
-          {features.member_directory && <Link to="/members" className={base} onClick={onClick}>Members</Link>}
-          {features.lesson_plans && <Link to="/lesson-plans" className={base} onClick={onClick}>Lessons</Link>}
-          {features.class_groups && <Link to="/my-classes" className={base} onClick={onClick}>My Classes</Link>}
-          {features.messaging && <Link to="/inbox" className={base} onClick={onClick}>Inbox</Link>}
-          {features.documents && <Link to="/my-documents" className={base} onClick={onClick}>Documents</Link>}
-          {features.payments && <Link to="/my-payments" className={base} onClick={onClick}>Payments</Link>}
-          {features.notifications && <Link to="/notifications" className={base} onClick={onClick}>Notifications</Link>}
+          {myItems.length > 0 && (
+            mobile ? (
+              <>
+                <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink/40">My Stuff</div>
+                {myItems.map(item => React.isValidElement(item) ? React.cloneElement(item as React.ReactElement<{ className?: string }>, { className: base }) : null)}
+              </>
+            ) : (
+              <NavDropdown label="My Stuff" mobile={false} onClick={onClick}>
+                {myItems}
+              </NavDropdown>
+            )
+          )}
+          {communityItems.length > 0 && (
+            mobile ? (
+              <>
+                <div className="px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink/40">Community</div>
+                {communityItems.map(item => React.isValidElement(item) ? React.cloneElement(item as React.ReactElement<{ className?: string }>, { className: base }) : null)}
+              </>
+            ) : (
+              <NavDropdown label="Community" mobile={false} onClick={onClick}>
+                {communityItems}
+              </NavDropdown>
+            )
+          )}
         </>
       )}
       {isAdmin && (
