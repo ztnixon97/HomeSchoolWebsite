@@ -1,146 +1,133 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
+import SignatureCanvas from 'react-signature-canvas';
 
 interface Props {
-  onSign: (signatureDataUrl: string) => void;
+  onSave: (dataUrl: string) => void;
   onCancel: () => void;
+  signerName?: string;
 }
 
-export default function SignaturePad({ onSign, onCancel }: Props) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [drawing, setDrawing] = useState(false);
-  const [hasDrawn, setHasDrawn] = useState(false);
+export default function SignaturePad({ onSave, onCancel, signerName }: Props) {
+  const sigRef = useRef<SignatureCanvas | null>(null);
+  const [mode, setMode] = useState<'draw' | 'type'>('draw');
+  const [typedName, setTypedName] = useState(signerName || '');
+  const [isEmpty, setIsEmpty] = useState(true);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+  const handleClear = () => {
+    sigRef.current?.clear();
+    setIsEmpty(true);
+  };
 
-    // Set canvas size
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * 2;
-    canvas.height = rect.height * 2;
-    ctx.scale(2, 2);
-
-    // White background
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, rect.width, rect.height);
-
-    // Signature line
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(20, rect.height - 30);
-    ctx.lineTo(rect.width - 20, rect.height - 30);
-    ctx.stroke();
-
-    // "Sign here" label
-    ctx.fillStyle = '#9ca3af';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Sign above this line', 20, rect.height - 12);
-
-    // Drawing style
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-  }, []);
-
-  const getPos = (e: React.MouseEvent | React.TouchEvent) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
-    if ('touches' in e) {
-      const touch = e.touches[0];
-      return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  const handleSave = () => {
+    if (mode === 'draw') {
+      if (sigRef.current?.isEmpty()) return;
+      const dataUrl = sigRef.current!.getTrimmedCanvas().toDataURL('image/png');
+      onSave(dataUrl);
+    } else {
+      if (!typedName.trim()) return;
+      // Render typed name to canvas
+      const canvas = document.createElement('canvas');
+      canvas.width = 400;
+      canvas.height = 100;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 400, 100);
+      ctx.fillStyle = '#1e2a35';
+      ctx.font = 'italic 36px "Georgia", "Times New Roman", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(typedName.trim(), 200, 50);
+      onSave(canvas.toDataURL('image/png'));
     }
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
-  };
-
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault();
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    setDrawing(true);
-    const pos = getPos(e);
-    ctx.beginPath();
-    ctx.moveTo(pos.x, pos.y);
-  };
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!drawing) return;
-    e.preventDefault();
-    const ctx = canvasRef.current?.getContext('2d');
-    if (!ctx) return;
-    const pos = getPos(e);
-    ctx.lineTo(pos.x, pos.y);
-    ctx.stroke();
-    setHasDrawn(true);
-  };
-
-  const endDraw = () => setDrawing(false);
-
-  const clear = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.strokeStyle = '#e5e7eb';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(20, rect.height - 30);
-    ctx.lineTo(rect.width - 20, rect.height - 30);
-    ctx.stroke();
-    ctx.fillStyle = '#9ca3af';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Sign above this line', 20, rect.height - 12);
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    setHasDrawn(false);
-  };
-
-  const submit = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !hasDrawn) return;
-    onSign(canvas.toDataURL('image/png'));
   };
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-6 space-y-4">
-      <h3 className="text-lg font-semibold text-gray-900">Sign Document</h3>
-      <p className="text-sm text-gray-500">Draw your signature below using your mouse or finger.</p>
+    <div className="space-y-4">
+      {/* Mode toggle */}
+      <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+        <button
+          type="button"
+          onClick={() => setMode('draw')}
+          className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+            mode === 'draw' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Draw Signature
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode('type')}
+          className={`flex-1 py-2 px-3 rounded-md text-sm font-medium transition-colors ${
+            mode === 'type' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Type Signature
+        </button>
+      </div>
 
-      <canvas
-        ref={canvasRef}
-        className="w-full h-40 border border-gray-200 rounded-lg cursor-crosshair touch-none"
-        onMouseDown={startDraw}
-        onMouseMove={draw}
-        onMouseUp={endDraw}
-        onMouseLeave={endDraw}
-        onTouchStart={startDraw}
-        onTouchMove={draw}
-        onTouchEnd={endDraw}
-      />
+      {mode === 'draw' ? (
+        <div>
+          <div className="border-2 border-dashed border-gray-300 rounded-lg bg-white overflow-hidden">
+            <SignatureCanvas
+              ref={sigRef}
+              penColor="#1e2a35"
+              canvasProps={{
+                className: 'w-full',
+                style: { height: '160px', width: '100%' },
+              }}
+              onBegin={() => setIsEmpty(false)}
+            />
+          </div>
+          <div className="flex items-center justify-between mt-2">
+            <p className="text-xs text-gray-400">Sign above using your mouse or finger</p>
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-xs text-gray-500 hover:text-gray-700 py-1 px-2 rounded"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div>
+          <input
+            type="text"
+            value={typedName}
+            onChange={e => setTypedName(e.target.value)}
+            placeholder="Type your full name"
+            className="w-full px-4 py-3 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          />
+          {typedName.trim() && (
+            <div className="mt-3 border border-gray-200 rounded-lg bg-white p-4 text-center">
+              <p className="text-3xl italic text-ink" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                {typedName}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* Date stamp */}
+      <p className="text-xs text-gray-500">
+        Date: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+      </p>
+
+      {/* Actions */}
       <div className="flex gap-3">
         <button
-          onClick={submit}
-          disabled={!hasDrawn}
+          type="button"
+          onClick={handleSave}
+          disabled={mode === 'draw' ? isEmpty : !typedName.trim()}
           className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50"
         >
-          Submit Signature
+          Apply Signature
         </button>
-        <button onClick={clear} className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50">
-          Clear
-        </button>
-        <button onClick={onCancel} className="px-4 py-2.5 text-sm text-gray-500 hover:text-gray-700">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-5 py-2.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+        >
           Cancel
         </button>
       </div>

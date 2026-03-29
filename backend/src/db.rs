@@ -504,6 +504,9 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE class_grades ADD COLUMN status TEXT NOT NULL DEFAULT 'graded'", []);
     let _ = conn.execute("ALTER TABLE grade_category_weights ADD COLUMN drop_lowest INTEGER NOT NULL DEFAULT 0", []);
 
+    // Document signature support
+    let _ = conn.execute("ALTER TABLE document_submissions ADD COLUMN signature_file_id INTEGER REFERENCES files(id)", []);
+
     // Seed default session types if missing
     let _ = conn.execute(
         "INSERT OR IGNORE INTO session_types (name, label, sort_order, hostable, rsvpable, multi_day, allow_supplies, allow_attendance, allow_photos) VALUES

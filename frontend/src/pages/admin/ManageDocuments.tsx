@@ -24,6 +24,7 @@ interface DocumentSubmission {
   user_name: string;
   student_id: number | null;
   file_id: number | null;
+  signature_file_id: number | null;
   status: 'pending' | 'approved' | 'rejected';
   reviewed_by: number | null;
   reviewed_by_name: string | null;
@@ -74,6 +75,9 @@ export default function ManageDocuments() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
+
+  // Submission viewing state
+  const [viewingSignatureId, setViewingSignatureId] = useState<number | null>(null);
 
   // Filter state
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('');
@@ -157,6 +161,20 @@ export default function ManageDocuments() {
       refresh();
     } catch (err: any) {
       showToast(err.message || 'Failed to delete template', 'error');
+    }
+  };
+
+  const handleTemplateFileUpload = async (file: File) => {
+    setUploadingFile(true);
+    try {
+      const uploaded = await api.upload(file);
+      setFormFileId(uploaded.id);
+      setFormFileName(file.name);
+      showToast('File uploaded', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to upload file', 'error');
+    } finally {
+      setUploadingFile(false);
     }
   };
 
@@ -287,38 +305,44 @@ export default function ManageDocuments() {
               </label>
             </div>
 
-            {/* Template file upload (PDF/document for parents to download and sign) */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Template Document <span className="text-gray-400 font-normal">(PDF, DOC — parents will download and sign this)</span>
+                Template PDF <span className="text-gray-400 font-normal">(optional — members can view and sign this)</span>
               </label>
               <div className="flex items-center gap-3">
-                {formFileId ? (
-                  <div className="flex items-center gap-2 text-sm">
-                    <a href={`/api/files/${formFileId}/download`} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:text-emerald-800 font-medium">
-                      {formFileName || 'Download attached file'}
-                    </a>
-                    <button type="button" onClick={() => { setFormFileId(null); setFormFileName(''); }} className="text-xs text-red-500 hover:text-red-700">Remove</button>
-                  </div>
-                ) : (
-                  <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
-                    {uploadingFile ? 'Uploading...' : 'Attach Document'}
-                    <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={async (e) => {
+                <label className={`cursor-pointer inline-flex items-center gap-1.5 px-4 py-2.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition-colors ${uploadingFile ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                  {uploadingFile ? 'Uploading...' : 'Choose File'}
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept=".pdf"
+                    onChange={e => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
-                      setUploadingFile(true);
-                      try {
-                        const res = await api.upload(file, 'document_template');
-                        setFormFileId(res.id);
-                        setFormFileName(file.name);
-                      } catch {
-                        showToast('Failed to upload file', 'error');
-                      } finally {
-                        setUploadingFile(false);
-                        e.target.value = '';
-                      }
-                    }} />
-                  </label>
+                      if (file) handleTemplateFileUpload(file);
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+                {formFileId && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">{formFileName}</span>
+                    <a
+                      href={`/api/files/${formFileId}/download`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium py-1 px-2"
+                    >
+                      Preview
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => { setFormFileId(null); setFormFileName(''); }}
+                      className="text-xs text-red-500 hover:text-red-700 font-medium py-1 px-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -366,6 +390,11 @@ export default function ManageDocuments() {
                       {t.required && (
                         <span className="text-xs bg-red-50 text-red-600 border border-red-100 px-2 py-0.5 rounded-full">
                           Required
+                        </span>
+                      )}
+                      {t.file_id && (
+                        <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-full">
+                          PDF
                         </span>
                       )}
                       {!t.active && (
@@ -465,6 +494,42 @@ export default function ManageDocuments() {
                           </span>
                         )}
                       </div>
+                      {/* File and signature links */}
+                      {(sub.file_id || sub.signature_file_id) && (
+                        <div className="mt-2 flex items-center gap-3 flex-wrap">
+                          {sub.file_id && (
+                            <a
+                              href={`/api/files/${sub.file_id}/download`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium py-2 px-3 rounded-lg inline-flex items-center gap-1.5"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                              View File
+                            </a>
+                          )}
+                          {sub.signature_file_id && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingSignatureId(viewingSignatureId === sub.id ? null : sub.id)}
+                              className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg inline-flex items-center gap-1.5"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                              {viewingSignatureId === sub.id ? 'Hide Signature' : 'View Signature'}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {viewingSignatureId === sub.id && sub.signature_file_id && (
+                        <div className="mt-2 border border-gray-200 rounded-lg bg-gray-50 p-3">
+                          <p className="text-xs text-gray-500 mb-2 font-medium">Signature:</p>
+                          <img
+                            src={`/api/files/${sub.signature_file_id}/download`}
+                            alt={`${sub.user_name}'s signature`}
+                            className="max-h-24 border border-gray-200 rounded bg-white p-2"
+                          />
+                        </div>
+                      )}
                       {sub.notes && (
                         <div className="mt-2 bg-gray-50 rounded-lg px-3 py-2 text-xs text-gray-600">
                           <span className="font-medium">Notes:</span> {sub.notes}

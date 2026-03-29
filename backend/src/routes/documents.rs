@@ -52,7 +52,8 @@ pub async fn list_my_documents(
 
     let mut stmt = conn.prepare(
         "SELECT ds.id, ds.template_id, dt.title as template_title, dt.category,
-                ds.file_id, ds.status, ds.notes, ds.created_at, ds.reviewed_at
+                ds.file_id, ds.status, ds.notes, ds.created_at, ds.reviewed_at,
+                ds.signature_file_id
          FROM document_submissions ds
          JOIN document_templates dt ON ds.template_id = dt.id
          WHERE ds.user_id = ?1
@@ -70,6 +71,7 @@ pub async fn list_my_documents(
                 "notes": row.get::<_, Option<String>>(6)?,
                 "created_at": row.get::<_, String>(7)?,
                 "reviewed_at": row.get::<_, Option<String>>(8)?,
+                "signature_file_id": row.get::<_, Option<i64>>(9)?,
             }))
         })?
         .filter_map(|r| r.ok())
@@ -101,9 +103,9 @@ pub async fn submit_document(
     }
 
     conn.execute(
-        "INSERT OR REPLACE INTO document_submissions (template_id, user_id, student_id, file_id, status)
-         VALUES (?1, ?2, ?3, ?4, 'submitted')",
-        params![template_id, user.id, req.student_id, req.file_id],
+        "INSERT OR REPLACE INTO document_submissions (template_id, user_id, student_id, file_id, signature_file_id, status)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'submitted')",
+        params![template_id, user.id, req.student_id, req.file_id, req.signature_file_id],
     )?;
     let id = conn.last_insert_rowid();
 
@@ -244,7 +246,7 @@ pub async fn admin_list_submissions(
                 ds.user_id, u.display_name as user_name,
                 ds.student_id, ds.file_id, ds.status, ds.reviewed_by,
                 ru.display_name as reviewed_by_name,
-                ds.reviewed_at, ds.notes, ds.created_at
+                ds.reviewed_at, ds.notes, ds.created_at, ds.signature_file_id
          FROM document_submissions ds
          JOIN document_templates dt ON ds.template_id = dt.id
          JOIN users u ON ds.user_id = u.id
@@ -267,6 +269,7 @@ pub async fn admin_list_submissions(
                 "reviewed_at": row.get::<_, Option<String>>(10)?,
                 "notes": row.get::<_, Option<String>>(11)?,
                 "created_at": row.get::<_, String>(12)?,
+                "signature_file_id": row.get::<_, Option<i64>>(13)?,
             }))
         })?
         .filter_map(|r| r.ok())
