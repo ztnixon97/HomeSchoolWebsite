@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
-import SignaturePad from '../../components/SignaturePad';
+// SignaturePad removed — using print-sign-upload flow instead
 
 interface DocumentTemplate {
   id: number;
@@ -47,7 +47,6 @@ export default function MyDocuments() {
   const [submissions, setSubmissions] = useState<MyDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<number | null>(null);
-  const [signingTemplateId, setSigningTemplateId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const { showToast } = useToast();
 
@@ -89,24 +88,6 @@ export default function MyDocuments() {
     fileInputRefs.current[templateId]?.click();
   };
 
-  const handleSign = async (templateId: number, signatureDataUrl: string) => {
-    setUploading(templateId);
-    try {
-      // Convert data URL to blob/file
-      const res = await fetch(signatureDataUrl);
-      const blob = await res.blob();
-      const file = new File([blob], 'signature.png', { type: 'image/png' });
-      const uploaded = await api.upload(file, 'document_signature');
-      await api.post(`/api/documents/${templateId}/submit`, { file_id: uploaded.id });
-      showToast('Document signed and submitted', 'success');
-      setSigningTemplateId(null);
-      refresh();
-    } catch (err: any) {
-      showToast(err.message || 'Failed to submit signature', 'error');
-    } finally {
-      setUploading(null);
-    }
-  };
 
   // Group templates by category
   const categories = Array.from(new Set(templates.map(t => t.category)));
@@ -172,16 +153,6 @@ export default function MyDocuments() {
                           {template.description && (
                             <p className="text-sm text-gray-500 mt-1">{template.description}</p>
                           )}
-                          {template.file_id && (
-                            <a
-                              href={`/api/files/${template.file_id}/download`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-medium mt-1"
-                            >
-                              Download template to sign
-                            </a>
-                          )}
                         </div>
 
                         <div className="flex-shrink-0 flex items-center gap-2">
@@ -205,59 +176,60 @@ export default function MyDocuments() {
                         </div>
                       )}
 
-                      {/* Signature pad */}
-                      {signingTemplateId === template.id && (
-                        <div className="mt-4">
-                          <SignaturePad
-                            onSign={(dataUrl) => handleSign(template.id, dataUrl)}
-                            onCancel={() => setSigningTemplateId(null)}
-                          />
-                        </div>
-                      )}
-
-                      {/* Actions */}
-                      {signingTemplateId !== template.id && (
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                          <input
-                            ref={el => { fileInputRefs.current[template.id] = el; }}
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            onChange={e => {
-                              const file = e.target.files?.[0];
-                              if (file) handleUpload(template, file);
-                            }}
-                          />
-                          {(!submission || submission.status === 'rejected') && (
-                            <>
-                              <button
-                                onClick={() => setSigningTemplateId(template.id)}
-                                disabled={isUploading}
-                                className="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50"
-                              >
-                                Sign Document
-                              </button>
-                              <button
-                                onClick={() => triggerFileInput(template.id)}
-                                disabled={isUploading}
-                                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                              >
-                                {isUploading ? 'Uploading...' : 'Upload Signed Copy'}
-                              </button>
-                            </>
-                          )}
-                          {submission?.status === 'pending' && (
+                      {/* Actions: download template → print → sign → scan/photo → upload */}
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <input
+                          ref={el => { fileInputRefs.current[template.id] = el; }}
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUpload(template, file);
+                          }}
+                        />
+                        {template.file_id && (
+                          <a
+                            href={`/api/files/${template.file_id}/download`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="px-4 py-2 border border-emerald-200 rounded-lg text-sm text-emerald-700 hover:bg-emerald-50 font-medium transition-colors"
+                          >
+                            1. Download Form
+                          </a>
+                        )}
+                        {(!submission || submission.status === 'rejected') && (
+                          <button
+                            onClick={() => triggerFileInput(template.id)}
+                            disabled={isUploading}
+                            className="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50"
+                          >
+                            {isUploading ? 'Uploading...' : template.file_id ? '2. Upload Signed Copy' : 'Upload Document'}
+                          </button>
+                        )}
+                        {submission?.status === 'pending' && (
+                          <>
                             <span className="text-xs bg-amber-50 text-amber-700 px-2 py-1 rounded">Awaiting review</span>
-                          )}
-                          {submission?.status === 'approved' && (
-                            <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Signed and approved</span>
-                          )}
-                          {submission && (
-                            <span className="text-xs text-gray-400">
-                              Submitted {new Date(submission.created_at).toLocaleDateString()}
-                            </span>
-                          )}
-                        </div>
+                            <button
+                              onClick={() => triggerFileInput(template.id)}
+                              disabled={isUploading}
+                              className="text-xs text-gray-500 hover:text-gray-700"
+                            >
+                              Replace
+                            </button>
+                          </>
+                        )}
+                        {submission?.status === 'approved' && (
+                          <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-1 rounded">Approved</span>
+                        )}
+                        {submission && (
+                          <span className="text-xs text-gray-400">
+                            Submitted {new Date(submission.created_at).toLocaleDateString()}
+                          </span>
+                        )}
+                      </div>
+                      {template.file_id && (!submission || submission.status === 'rejected') && (
+                        <p className="mt-2 text-xs text-gray-400">Download the form, print it, sign it, then scan or photograph it and upload.</p>
                       )}
                     </div>
                   );
