@@ -1,6 +1,6 @@
 use axum::{
     body::Body,
-    extract::{Multipart, Path, State},
+    extract::{Multipart, Path, Query, State},
     http::{header, StatusCode},
     response::Response,
     Json,
@@ -129,10 +129,17 @@ pub async fn get_file_info(
     Ok(Json(file))
 }
 
+#[derive(serde::Deserialize, Default)]
+pub struct DownloadQuery {
+    #[serde(default)]
+    pub proxy: bool,
+}
+
 pub async fn download_file(
     RequireAuth(_user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Query(query): Query<DownloadQuery>,
 ) -> Result<Response, AppError> {
     let conn = state.db.get()?;
     let (filename, storage_path, mime_type, _size_bytes): (String, String, String, i64) = conn
@@ -143,8 +150,9 @@ pub async fn download_file(
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
 
-    // If storage supports presigned URLs (R2), redirect directly — zero bandwidth through our server
-    if state.storage.supports_redirect() {
+    // If storage supports presigned URLs (R2), redirect directly — zero bandwidth through our server.
+    // Use ?proxy=true to force proxying through backend (needed for in-browser fetch/CORS).
+    if state.storage.supports_redirect() && !query.proxy {
         let presigned_url = state.storage.serve_url(&storage_path)
             .await
             .map_err(|e| AppError::Internal(format!("Failed to generate download URL: {}", e)))?;

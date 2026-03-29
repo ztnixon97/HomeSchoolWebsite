@@ -70,7 +70,7 @@ export default function DocumentSigner({
 
   /* ── Load PDF ── */
   useEffect(() => {
-    fetch(`/api/files/${fileId}/download`, { credentials: 'include' })
+    fetch(`/api/files/${fileId}/download?proxy=true`, { credentials: 'include' })
       .then(res => {
         if (!res.ok) throw new Error('Failed to load document');
         return res.arrayBuffer();
