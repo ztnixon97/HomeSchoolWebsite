@@ -3,8 +3,8 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import SignaturePad from './SignaturePad';
 
-// PDF.js worker — serve from public/ to avoid CDN version mismatches
-pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// PDF.js worker — serve from public/ as .js (tower_http's mime_guess doesn't know .mjs)
+pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 /* ── Types ── */
 
