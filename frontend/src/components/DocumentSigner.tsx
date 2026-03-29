@@ -72,23 +72,40 @@ export default function DocumentSigner({
   useEffect(() => {
     const loadPdf = async () => {
       try {
-        // Try proxy mode first (avoids CORS issues with R2 redirects)
-        let res = await fetch(`/api/files/${fileId}/download?proxy=true`, {
+        // Proxy mode: backend streams file bytes directly (avoids CORS with R2 redirects)
+        const res = await fetch(`/api/files/${fileId}/download?proxy=true`, {
           credentials: 'include',
+          redirect: 'manual', // Don't follow redirects — we need the bytes
         });
 
-        // If proxy not supported (older backend), fall back to redirect mode
-        // and manually follow the redirect by fetching the presigned URL
-        if (!res.ok && res.status !== 302) {
-          res = await fetch(`/api/files/${fileId}/download`, {
+        // If we got a redirect (302), the backend didn't honor ?proxy=true.
+        // Fetch the presigned URL from the Location header directly.
+        if (res.type === 'opaqueredirect' || res.status === 302) {
+          // Can't read Location from opaque redirect, fetch without redirect:manual
+          const res2 = await fetch(`/api/files/${fileId}/download?proxy=true`, {
             credentials: 'include',
-            redirect: 'follow',
           });
+          if (!res2.ok) throw new Error(`Failed to load document (${res2.status})`);
+          const buf = await res2.arrayBuffer();
+          if (buf.byteLength === 0) throw new Error('Document is empty');
+          setPdfData(new Uint8Array(buf));
+          return;
         }
 
         if (!res.ok) throw new Error(`Failed to load document (${res.status})`);
+
+        // Verify we got a PDF, not an error page
+        const contentType = res.headers.get('content-type') || '';
         const buf = await res.arrayBuffer();
         if (buf.byteLength === 0) throw new Error('Document is empty');
+
+        // Quick check: PDFs start with %PDF
+        const header = new Uint8Array(buf.slice(0, 5));
+        const headerStr = String.fromCharCode(...header);
+        if (!headerStr.startsWith('%PDF') && !contentType.includes('pdf')) {
+          throw new Error('Server returned non-PDF response');
+        }
+
         setPdfData(new Uint8Array(buf));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load document');
@@ -504,6 +521,14 @@ export default function DocumentSigner({
               file={{ data: pdfData }}
               onLoadSuccess={({ numPages: n }) => setNumPages(n)}
               onLoadError={(err) => setError(`PDF render error: ${err.message}`)}
+              error={
+                <div className="text-center py-20">
+                  <p className="text-red-600 font-medium">Failed to load PDF file.</p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {error || 'The document could not be rendered. Try refreshing the page.'}
+                  </p>
+                </div>
+              }
               loading={
                 <div className="flex justify-center py-20">
                   <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin" />
