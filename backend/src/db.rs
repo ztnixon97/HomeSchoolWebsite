@@ -447,6 +447,12 @@ fn run_migrations(pool: &DbPool) {
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS session_required_documents (
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id) ON DELETE CASCADE,
+            template_id INTEGER NOT NULL REFERENCES document_templates(id) ON DELETE CASCADE,
+            PRIMARY KEY (session_id, template_id)
+        );
+
         CREATE TABLE IF NOT EXISTS sessions_store (
             id TEXT PRIMARY KEY,
             data BLOB NOT NULL,

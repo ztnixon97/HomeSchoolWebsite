@@ -65,6 +65,9 @@ export default function ManageDocuments() {
   const [formDescription, setFormDescription] = useState('');
   const [formCategory, setFormCategory] = useState<Category>('waiver');
   const [formRequired, setFormRequired] = useState(false);
+  const [formFileId, setFormFileId] = useState<number | null>(null);
+  const [formFileName, setFormFileName] = useState('');
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Submission review state
@@ -93,6 +96,8 @@ export default function ManageDocuments() {
     setFormDescription('');
     setFormCategory('waiver');
     setFormRequired(false);
+    setFormFileId(null);
+    setFormFileName('');
   };
 
   const startEdit = (t: DocumentTemplate) => {
@@ -101,6 +106,8 @@ export default function ManageDocuments() {
     setFormDescription(t.description ?? '');
     setFormCategory((CATEGORIES.includes(t.category as Category) ? t.category : 'other') as Category);
     setFormRequired(t.required);
+    setFormFileId(t.file_id);
+    setFormFileName(t.file_id ? 'Existing file' : '');
     setActiveTab('templates');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -115,6 +122,7 @@ export default function ManageDocuments() {
         description: formDescription.trim() || undefined,
         category: formCategory,
         required: formRequired,
+        file_id: formFileId,
       };
       if (editingTemplate) {
         await api.put(`/api/admin/document-templates/${editingTemplate.id}`, body);
@@ -277,6 +285,42 @@ export default function ManageDocuments() {
               <label htmlFor="form-required" className="text-sm font-medium text-gray-700">
                 Required for all members
               </label>
+            </div>
+
+            {/* Template file upload (PDF/document for parents to download and sign) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Template Document <span className="text-gray-400 font-normal">(PDF, DOC — parents will download and sign this)</span>
+              </label>
+              <div className="flex items-center gap-3">
+                {formFileId ? (
+                  <div className="flex items-center gap-2 text-sm">
+                    <a href={`/api/files/${formFileId}/download`} target="_blank" rel="noopener noreferrer" className="text-emerald-700 hover:text-emerald-800 font-medium">
+                      {formFileName || 'Download attached file'}
+                    </a>
+                    <button type="button" onClick={() => { setFormFileId(null); setFormFileName(''); }} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                  </div>
+                ) : (
+                  <label className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 cursor-pointer transition-colors">
+                    {uploadingFile ? 'Uploading...' : 'Attach Document'}
+                    <input type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setUploadingFile(true);
+                      try {
+                        const res = await api.upload(file, 'document_template');
+                        setFormFileId(res.id);
+                        setFormFileName(file.name);
+                      } catch {
+                        showToast('Failed to upload file', 'error');
+                      } finally {
+                        setUploadingFile(false);
+                        e.target.value = '';
+                      }
+                    }} />
+                  </label>
+                )}
+              </div>
             </div>
 
             <div className="flex gap-3">
