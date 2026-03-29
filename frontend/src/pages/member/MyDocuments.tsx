@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PDFDocument, rgb } from 'pdf-lib';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useToast } from '../../components/Toast';
-import SignaturePad from '../../components/SignaturePad';
+
+const DocumentSigner = lazy(() => import('../../components/DocumentSigner'));
 
 interface DocumentTemplate {
   id: number;
@@ -92,65 +92,17 @@ export default function MyDocuments() {
     }
   };
 
-  const handleSignAndSubmit = async (templateId: number, signatureDataUrl: string) => {
-    const template = templates.find(t => t.id === templateId);
-    if (!template?.file_id) return;
-
-    setUploading(templateId);
+  const handleSigningComplete = async (
+    templateId: number,
+    signedFile: File,
+    signatureFile: File,
+  ) => {
     try {
-      // 1. Fetch the template PDF
-      const pdfRes = await fetch(`/api/files/${template.file_id}/download`, { credentials: 'include' });
-      const pdfBytes = await pdfRes.arrayBuffer();
-
-      // 2. Load the PDF and embed the signature image
-      const pdfDoc = await PDFDocument.load(pdfBytes);
-      const sigRes = await fetch(signatureDataUrl);
-      const sigBytes = new Uint8Array(await sigRes.arrayBuffer());
-      const sigImage = await pdfDoc.embedPng(sigBytes);
-
-      // 3. Draw the signature on the last page
-      const lastPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
-      const { width } = lastPage.getSize();
-      const sigWidth = 200;
-      const sigHeight = (sigImage.height / sigImage.width) * sigWidth;
-      const sigX = width / 2 - sigWidth / 2;
-      const sigY = 80;
-
-      lastPage.drawImage(sigImage, {
-        x: sigX,
-        y: sigY,
-        width: sigWidth,
-        height: sigHeight,
-      });
-
-      // 4. Add signer name and date below the signature
-      const dateStr = new Date().toLocaleDateString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric',
-      });
-      const signerLine = user?.display_name
-        ? `${user.display_name} — ${dateStr}`
-        : dateStr;
-
-      lastPage.drawText(signerLine, {
-        x: sigX,
-        y: sigY - 14,
-        size: 10,
-        color: rgb(0.12, 0.16, 0.21),
-      });
-
-      // 5. Save signed PDF and upload
-      const signedPdfBytes = await pdfDoc.save();
-      const signedBlob = new Blob([signedPdfBytes], { type: 'application/pdf' });
-      const signedFile = new File([signedBlob], `${template.title} - Signed.pdf`, { type: 'application/pdf' });
+      // Upload the signed PDF
       const uploaded = await api.upload(signedFile);
+      // Upload the raw signature for records
+      const sigUploaded = await api.upload(signatureFile);
 
-      // 6. Also upload the raw signature image for record-keeping
-      const rawSigRes = await fetch(signatureDataUrl);
-      const rawSigBlob = await rawSigRes.blob();
-      const rawSigFile = new File([rawSigBlob], 'signature.png', { type: 'image/png' });
-      const sigUploaded = await api.upload(rawSigFile);
-
-      // 7. Submit with both the signed PDF and the raw signature
       await api.post(`/api/documents/${templateId}/submit`, {
         file_id: uploaded.id,
         signature_file_id: sigUploaded.id,
@@ -160,9 +112,7 @@ export default function MyDocuments() {
       setSigningTemplateId(null);
       refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to sign document', 'error');
-    } finally {
-      setUploading(null);
+      showToast(err.message || 'Failed to submit signed document', 'error');
     }
   };
 
@@ -172,6 +122,36 @@ export default function MyDocuments() {
 
   // Group templates by category
   const categories = Array.from(new Set(templates.map(t => t.category)));
+
+  // If signing a document, show the full-screen DocumentSigner
+  const signingTemplate = signingTemplateId
+    ? templates.find(t => t.id === signingTemplateId)
+    : null;
+
+  if (signingTemplate?.file_id) {
+    return (
+      <Suspense
+        fallback={
+          <div className="fixed inset-0 z-50 bg-gray-100 flex items-center justify-center">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm text-gray-600">Loading document signer...</p>
+            </div>
+          </div>
+        }
+      >
+        <DocumentSigner
+          fileId={signingTemplate.file_id}
+          templateTitle={signingTemplate.title}
+          signerName={user?.display_name ?? ''}
+          onComplete={(signedFile, sigFile) =>
+            handleSigningComplete(signingTemplate.id, signedFile, sigFile)
+          }
+          onCancel={() => setSigningTemplateId(null)}
+        />
+      </Suspense>
+    );
+  }
 
   if (loading) {
     return (
@@ -239,7 +219,6 @@ export default function MyDocuments() {
                 {categoryTemplates.map(template => {
                   const submission = submissionByTemplate(template.id);
                   const isUploading = uploading === template.id;
-                  const isSigning = signingTemplateId === template.id;
                   const isPreviewing = previewTemplateId === template.id;
                   const canSubmit = !submission || submission.status === 'rejected';
                   const canResubmit = submission?.status === 'submitted' || submission?.status === 'pending';
@@ -349,105 +328,70 @@ export default function MyDocuments() {
                         </div>
                       )}
 
-                      {/* Signing flow: show document + signature pad */}
-                      {isSigning && hasTemplateFile && (
-                        <div className="mt-4 space-y-4">
-                          {/* Document to read before signing */}
-                          <div>
-                            <p className="text-sm font-medium text-gray-700 mb-2">
-                              Please review the document below, then sign at the bottom.
-                            </p>
-                            <div className="border border-gray-200 rounded-lg overflow-hidden">
-                              <iframe
-                                src={`/api/files/${template.file_id}/download`}
-                                className="w-full border-0"
-                                style={{ height: '500px' }}
-                                title={`Review: ${template.title}`}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Signature pad */}
-                          <div className="border border-emerald-200 bg-emerald-50/50 rounded-xl p-5">
-                            <h4 className="text-sm font-semibold text-gray-900 mb-1">Sign this document</h4>
-                            <p className="text-xs text-gray-500 mb-3">
-                              Your signature will be placed on the last page of the document.
-                            </p>
-                            <SignaturePad
-                              signerName={user?.display_name}
-                              onSave={(dataUrl) => handleSignAndSubmit(template.id, dataUrl)}
-                              onCancel={() => setSigningTemplateId(null)}
-                            />
-                          </div>
-                        </div>
-                      )}
-
                       {/* Action buttons */}
-                      {!isSigning && (
-                        <div className="mt-4 flex items-center gap-3 flex-wrap">
-                          <input
-                            ref={el => { fileInputRefs.current[template.id] = el; }}
-                            type="file"
-                            className="hidden"
-                            accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                            onChange={e => {
-                              const file = e.target.files?.[0];
-                              if (file) handleUpload(template, file);
-                            }}
-                          />
+                      <div className="mt-4 flex items-center gap-3 flex-wrap">
+                        <input
+                          ref={el => { fileInputRefs.current[template.id] = el; }}
+                          type="file"
+                          className="hidden"
+                          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                          onChange={e => {
+                            const file = e.target.files?.[0];
+                            if (file) handleUpload(template, file);
+                          }}
+                        />
 
-                          {/* Sign button (for templates with a PDF to sign) */}
-                          {hasTemplateFile && canSubmit && (
-                            <button
-                              onClick={() => setSigningTemplateId(template.id)}
-                              disabled={isUploading}
-                              className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                              {submission ? 'Re-sign Document' : 'Sign Document'}
-                            </button>
-                          )}
+                        {/* Sign button — opens full-screen signer */}
+                        {hasTemplateFile && canSubmit && (
+                          <button
+                            onClick={() => setSigningTemplateId(template.id)}
+                            disabled={isUploading}
+                            className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            {submission ? 'Re-sign Document' : 'Sign Document'}
+                          </button>
+                        )}
 
-                          {/* Upload button */}
-                          {canSubmit && (
+                        {/* Upload button */}
+                        {canSubmit && (
+                          <button
+                            onClick={() => triggerFileInput(template.id)}
+                            disabled={isUploading}
+                            className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 ${
+                              hasTemplateFile
+                                ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
+                                : 'bg-emerald-700 text-white hover:bg-emerald-800'
+                            }`}
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+                            {isUploading ? 'Uploading...' : submission ? 'Upload New File' : 'Upload Document'}
+                          </button>
+                        )}
+
+                        {/* Resubmit for pending */}
+                        {canResubmit && (
+                          <>
+                            {hasTemplateFile && (
+                              <button
+                                onClick={() => setSigningTemplateId(template.id)}
+                                disabled={isUploading}
+                                className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                Re-sign
+                              </button>
+                            )}
                             <button
                               onClick={() => triggerFileInput(template.id)}
                               disabled={isUploading}
-                              className={`px-4 py-2.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-1.5 ${
-                                hasTemplateFile
-                                  ? 'border border-gray-200 text-gray-600 hover:bg-gray-50'
-                                  : 'bg-emerald-700 text-white hover:bg-emerald-800'
-                              }`}
+                              className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
-                              {isUploading ? 'Uploading...' : submission ? 'Upload New File' : 'Upload Document'}
+                              {isUploading ? 'Uploading...' : 'Replace File'}
                             </button>
-                          )}
-
-                          {/* Resubmit for pending */}
-                          {canResubmit && (
-                            <>
-                              {hasTemplateFile && (
-                                <button
-                                  onClick={() => setSigningTemplateId(template.id)}
-                                  disabled={isUploading}
-                                  className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50 inline-flex items-center gap-1.5"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                  Re-sign
-                                </button>
-                              )}
-                              <button
-                                onClick={() => triggerFileInput(template.id)}
-                                disabled={isUploading}
-                                className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
-                              >
-                                {isUploading ? 'Uploading...' : 'Replace File'}
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
