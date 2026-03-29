@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useToast } from '../../components/Toast';
@@ -54,7 +55,6 @@ export default function MyDocuments() {
   const [uploading, setUploading] = useState<number | null>(null);
   const [signingTemplateId, setSigningTemplateId] = useState<number | null>(null);
   const [previewTemplateId, setPreviewTemplateId] = useState<number | null>(null);
-  const [viewSubmissionId, setViewSubmissionId] = useState<number | null>(null);
   const fileInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
   const { showToast } = useToast();
 
@@ -93,27 +93,74 @@ export default function MyDocuments() {
   };
 
   const handleSignAndSubmit = async (templateId: number, signatureDataUrl: string) => {
+    const template = templates.find(t => t.id === templateId);
+    if (!template?.file_id) return;
+
     setUploading(templateId);
     try {
-      // Convert data URL to blob
-      const res = await fetch(signatureDataUrl);
-      const blob = await res.blob();
-      const sigFile = new File([blob], 'signature.png', { type: 'image/png' });
+      // 1. Fetch the template PDF
+      const pdfRes = await fetch(`/api/files/${template.file_id}/download`, { credentials: 'include' });
+      const pdfBytes = await pdfRes.arrayBuffer();
 
-      // Upload signature image
-      const uploaded = await api.upload(sigFile);
+      // 2. Load the PDF and embed the signature image
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const sigRes = await fetch(signatureDataUrl);
+      const sigBytes = new Uint8Array(await sigRes.arrayBuffer());
+      const sigImage = await pdfDoc.embedPng(sigBytes);
 
-      // Submit with signature
+      // 3. Draw the signature on the last page
+      const lastPage = pdfDoc.getPages()[pdfDoc.getPageCount() - 1];
+      const { width } = lastPage.getSize();
+      const sigWidth = 200;
+      const sigHeight = (sigImage.height / sigImage.width) * sigWidth;
+      const sigX = width / 2 - sigWidth / 2;
+      const sigY = 80;
+
+      lastPage.drawImage(sigImage, {
+        x: sigX,
+        y: sigY,
+        width: sigWidth,
+        height: sigHeight,
+      });
+
+      // 4. Add signer name and date below the signature
+      const dateStr = new Date().toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric',
+      });
+      const signerLine = user?.display_name
+        ? `${user.display_name} — ${dateStr}`
+        : dateStr;
+
+      lastPage.drawText(signerLine, {
+        x: sigX,
+        y: sigY - 14,
+        size: 10,
+        color: rgb(0.12, 0.16, 0.21),
+      });
+
+      // 5. Save signed PDF and upload
+      const signedPdfBytes = await pdfDoc.save();
+      const signedBlob = new Blob([signedPdfBytes], { type: 'application/pdf' });
+      const signedFile = new File([signedBlob], `${template.title} - Signed.pdf`, { type: 'application/pdf' });
+      const uploaded = await api.upload(signedFile);
+
+      // 6. Also upload the raw signature image for record-keeping
+      const rawSigRes = await fetch(signatureDataUrl);
+      const rawSigBlob = await rawSigRes.blob();
+      const rawSigFile = new File([rawSigBlob], 'signature.png', { type: 'image/png' });
+      const sigUploaded = await api.upload(rawSigFile);
+
+      // 7. Submit with both the signed PDF and the raw signature
       await api.post(`/api/documents/${templateId}/submit`, {
-        file_id: null,
-        signature_file_id: uploaded.id,
+        file_id: uploaded.id,
+        signature_file_id: sigUploaded.id,
       });
 
       showToast('Document signed and submitted', 'success');
       setSigningTemplateId(null);
       refresh();
     } catch (err: any) {
-      showToast(err.message || 'Failed to submit signature', 'error');
+      showToast(err.message || 'Failed to sign document', 'error');
     } finally {
       setUploading(null);
     }
@@ -194,7 +241,6 @@ export default function MyDocuments() {
                   const isUploading = uploading === template.id;
                   const isSigning = signingTemplateId === template.id;
                   const isPreviewing = previewTemplateId === template.id;
-                  const isViewingSubmission = viewSubmissionId === template.id;
                   const canSubmit = !submission || submission.status === 'rejected';
                   const canResubmit = submission?.status === 'submitted' || submission?.status === 'pending';
                   const hasTemplateFile = template.file_id != null;
@@ -276,7 +322,6 @@ export default function MyDocuments() {
                       {/* Submission details */}
                       {submission && (
                         <div className="mt-3 space-y-2">
-                          {/* View submitted file / signature */}
                           <div className="flex items-center gap-3 flex-wrap">
                             {submission.file_id && (
                               <a
@@ -286,35 +331,13 @@ export default function MyDocuments() {
                                 className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg inline-flex items-center gap-1.5"
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                View Submitted File
+                                {submission.signature_file_id ? 'View Signed Document' : 'View Submitted File'}
                               </a>
-                            )}
-                            {submission.signature_file_id && (
-                              <button
-                                type="button"
-                                onClick={() => setViewSubmissionId(isViewingSubmission ? null : template.id)}
-                                className="text-xs text-emerald-700 hover:text-emerald-800 font-medium py-2 px-3 rounded-lg inline-flex items-center gap-1.5"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                                {isViewingSubmission ? 'Hide Signature' : 'View Signature'}
-                              </button>
                             )}
                             <span className="text-xs text-gray-400">
                               Submitted {new Date(submission.created_at).toLocaleDateString()}
                             </span>
                           </div>
-
-                          {/* Show signature image */}
-                          {isViewingSubmission && submission.signature_file_id && (
-                            <div className="border border-gray-200 rounded-lg bg-gray-50 p-4">
-                              <p className="text-xs text-gray-500 mb-2 font-medium">Your signature:</p>
-                              <img
-                                src={`/api/files/${submission.signature_file_id}/download`}
-                                alt="Your signature"
-                                className="max-h-24 border border-gray-200 rounded bg-white p-2"
-                              />
-                            </div>
-                          )}
                         </div>
                       )}
 
@@ -326,15 +349,36 @@ export default function MyDocuments() {
                         </div>
                       )}
 
-                      {/* Signature Pad */}
-                      {isSigning && (
-                        <div className="mt-4 border border-emerald-200 bg-emerald-50/50 rounded-xl p-5">
-                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Sign this document</h4>
-                          <SignaturePad
-                            signerName={user?.display_name}
-                            onSave={(dataUrl) => handleSignAndSubmit(template.id, dataUrl)}
-                            onCancel={() => setSigningTemplateId(null)}
-                          />
+                      {/* Signing flow: show document + signature pad */}
+                      {isSigning && hasTemplateFile && (
+                        <div className="mt-4 space-y-4">
+                          {/* Document to read before signing */}
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">
+                              Please review the document below, then sign at the bottom.
+                            </p>
+                            <div className="border border-gray-200 rounded-lg overflow-hidden">
+                              <iframe
+                                src={`/api/files/${template.file_id}/download`}
+                                className="w-full border-0"
+                                style={{ height: '500px' }}
+                                title={`Review: ${template.title}`}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Signature pad */}
+                          <div className="border border-emerald-200 bg-emerald-50/50 rounded-xl p-5">
+                            <h4 className="text-sm font-semibold text-gray-900 mb-1">Sign this document</h4>
+                            <p className="text-xs text-gray-500 mb-3">
+                              Your signature will be placed on the last page of the document.
+                            </p>
+                            <SignaturePad
+                              signerName={user?.display_name}
+                              onSave={(dataUrl) => handleSignAndSubmit(template.id, dataUrl)}
+                              onCancel={() => setSigningTemplateId(null)}
+                            />
+                          </div>
                         </div>
                       )}
 
