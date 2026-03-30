@@ -73,9 +73,15 @@ pub async fn upload_file(
     }
 
     let size_bytes = data.len() as i64;
+    // Organize files into folders by linked_type (documents/, sessions/, lesson_plans/, etc.)
+    let storage_filename = if let Some(ref lt) = linked_type {
+        format!("{}/{}", lt, filename)
+    } else {
+        filename.clone()
+    };
     let storage_path = state
         .storage
-        .save(&filename, &data)
+        .save(&storage_filename, &data)
         .await
         .map_err(|e| AppError::Internal(e.0))?;
 

@@ -85,7 +85,7 @@ export default function MyDocuments() {
       const safeTitle = template.title.replace(/[^a-zA-Z0-9]/g, '_');
       const ext = file.name.split('.').pop() || 'pdf';
       const renamedFile = new File([file], `${safeName}_${safeTitle}.${ext}`, { type: file.type });
-      const uploaded = await api.upload(renamedFile);
+      const uploaded = await api.upload(renamedFile, 'document');
       await api.post(`/api/documents/${template.id}/submit`, { file_id: uploaded.id });
       showToast('Document submitted successfully', 'success');
       refresh();
@@ -111,10 +111,10 @@ export default function MyDocuments() {
       const renamedFile = new File([signedFile], `${safeName}_${safeTitle}.pdf`, { type: signedFile.type });
       const renamedSig = new File([signatureFile], `${safeName}_signature.png`, { type: signatureFile.type });
 
-      // Upload the signed PDF
-      const uploaded = await api.upload(renamedFile);
-      // Upload the raw signature for records
-      const sigUploaded = await api.upload(renamedSig);
+      // Upload the signed PDF to documents/ folder
+      const uploaded = await api.upload(renamedFile, 'document');
+      // Upload the raw signature to document_signature/ folder
+      const sigUploaded = await api.upload(renamedSig, 'document_signature');
 
       await api.post(`/api/documents/${templateId}/submit`, {
         file_id: uploaded.id,

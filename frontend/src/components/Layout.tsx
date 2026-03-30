@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, Outlet, useNavigate } from 'react-router-dom';
+import { Link, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth';
 import { api } from '../api';
 import { useFeatures } from '../features';
@@ -350,12 +350,14 @@ function AnnouncementBanner() {
 
 function PendingDocumentsBanner() {
   const [pending, setPending] = useState(0);
+  const location = useLocation();
 
+  // Re-check on every navigation (catches post-submission redirects)
   useEffect(() => {
     api.get<{ count: number }>('/api/my-pending-documents')
       .then(data => setPending(data.count))
       .catch(() => {});
-  }, []);
+  }, [location.pathname]);
 
   if (pending <= 0) return null;
 

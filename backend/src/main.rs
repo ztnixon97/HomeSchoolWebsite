@@ -472,6 +472,7 @@ async fn main() {
         .route("/api/admin/document-templates/{id}/fields", put(routes::documents::admin_save_template_fields))
         .route("/api/admin/sessions/{id}/required-documents", post(routes::documents::set_session_required_documents))
         .route("/api/admin/document-submissions", get(routes::documents::admin_list_submissions))
+        .route("/api/admin/document-submissions/pending-count", get(routes::documents::admin_pending_submissions_count))
         .route("/api/admin/document-submissions/{id}", put(routes::documents::admin_review_submission))
         // Standards
         .route("/api/standards", get(routes::standards::list_standards))

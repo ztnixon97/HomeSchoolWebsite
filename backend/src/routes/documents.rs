@@ -389,15 +389,29 @@ pub async fn my_pending_required_documents(
         [], |row| row.get(0),
     ).unwrap_or(0);
 
-    let approved: i64 = conn.query_row(
+    // Count templates where user has submitted OR approved (not rejected)
+    let completed: i64 = conn.query_row(
         "SELECT COUNT(DISTINCT ds.template_id) FROM document_submissions ds
          JOIN document_templates dt ON ds.template_id = dt.id
-         WHERE ds.user_id = ?1 AND ds.status = 'approved' AND dt.required = 1 AND dt.active = 1",
+         WHERE ds.user_id = ?1 AND ds.status IN ('submitted', 'pending', 'approved') AND dt.required = 1 AND dt.active = 1",
         params![user.id], |row| row.get(0),
     ).unwrap_or(0);
 
-    let pending = total_required - approved;
+    let pending = total_required - completed;
     Ok(Json(serde_json::json!({ "count": pending, "total": total_required })))
+}
+
+/// GET /api/admin/document-submissions/pending-count
+pub async fn admin_pending_submissions_count(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM document_submissions WHERE status IN ('submitted', 'pending')",
+        [], |row| row.get(0),
+    ).unwrap_or(0);
+    Ok(Json(serde_json::json!({ "count": count })))
 }
 
 /// GET /api/sessions/{id}/required-documents — list documents required for a session

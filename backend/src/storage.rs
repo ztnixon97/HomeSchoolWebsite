@@ -45,11 +45,24 @@ impl LocalStorage {
 impl StorageBackend for LocalStorage {
     async fn save(&self, filename: &str, data: &[u8]) -> Result<String, StorageError> {
         // Generate a unique filename to avoid collisions
-        let ext = Path::new(filename)
+        // If filename contains '/', treat everything before the last '/' as a subfolder
+        let (folder, basename) = if let Some(pos) = filename.rfind('/') {
+            (Some(&filename[..pos]), &filename[pos + 1..])
+        } else {
+            (None, filename)
+        };
+        let ext = Path::new(basename)
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("bin");
         let unique_name = format!("{}_{}.{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), uuid::Uuid::new_v4(), ext);
+        let unique_name = if let Some(f) = folder {
+            let dir = self.base_dir.join(f);
+            std::fs::create_dir_all(&dir).map_err(|e| StorageError(e.to_string()))?;
+            format!("{}/{}", f, unique_name)
+        } else {
+            unique_name
+        };
 
         let file_path = self.base_dir.join(&unique_name);
         tokio::fs::write(&file_path, data)
@@ -133,11 +146,18 @@ impl R2Storage {
 #[async_trait]
 impl StorageBackend for R2Storage {
     async fn save(&self, filename: &str, data: &[u8]) -> Result<String, StorageError> {
-        let ext = Path::new(filename)
+        // Support folder prefixes: "documents/file.pdf" → key "documents/timestamp_uuid.pdf"
+        let (folder, basename) = if let Some(pos) = filename.rfind('/') {
+            (Some(&filename[..pos]), &filename[pos + 1..])
+        } else {
+            (None, filename)
+        };
+        let ext = Path::new(basename)
             .extension()
             .and_then(|e| e.to_str())
             .unwrap_or("bin");
-        let key = format!("{}_{}.{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), uuid::Uuid::new_v4(), ext);
+        let unique = format!("{}_{}.{}", chrono::Utc::now().format("%Y%m%d%H%M%S"), uuid::Uuid::new_v4(), ext);
+        let key = if let Some(f) = folder { format!("{}/{}", f, unique) } else { unique };
 
         // Detect content type
         let content_type = if ext == "jpg" || ext == "jpeg" { "image/jpeg" }
