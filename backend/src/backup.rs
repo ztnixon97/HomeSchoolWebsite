@@ -42,17 +42,22 @@ pub async fn auto_restore_if_needed(db_path: &str) {
         .build();
     let client = aws_sdk_s3::Client::from_conf(config);
 
-    // List backups and find the most recent one
+    // List backups and find the most recent non-empty one (>1MB = has real data)
     match client.list_objects_v2().bucket(&bucket).prefix("backups/preschool-").send().await {
         Ok(list) => {
-            let mut keys: Vec<&str> = list.contents().iter()
-                .filter_map(|obj| obj.key())
-                .filter(|k| k.ends_with(".db"))
+            // Filter to .db files > 1MB (empty DBs are ~100KB after migrations)
+            let min_size: i64 = 1024 * 1024; // 1MB
+            let mut candidates: Vec<(&str, i64)> = list.contents().iter()
+                .filter_map(|obj| {
+                    let key = obj.key()?;
+                    let size = obj.size().unwrap_or(0);
+                    if key.ends_with(".db") && size > min_size { Some((key, size)) } else { None }
+                })
                 .collect();
-            keys.sort(); // lexicographic = chronological for YYYY-MM-DD format
+            candidates.sort_by_key(|(k, _)| k.to_string());
 
-            if let Some(latest_key) = keys.last() {
-                tracing::info!("Found backup: {}", latest_key);
+            if let Some((latest_key, size)) = candidates.last() {
+                tracing::info!("Found backup: {} ({} bytes)", latest_key, size);
 
                 match client.get_object().bucket(&bucket).key(*latest_key).send().await {
                     Ok(resp) => {
@@ -122,6 +127,12 @@ async fn run_backup(pool: &DbPool) -> Result<String, String> {
     let data = tokio::fs::read(&backup_path)
         .await
         .map_err(|e| format!("Failed to read backup file: {}", e))?;
+
+    // Skip uploading empty/tiny databases (< 1MB = no real data, just migrations)
+    if data.len() < 1024 * 1024 {
+        let _ = tokio::fs::remove_file(&backup_path).await;
+        return Err(format!("Skipping backup — database is only {} bytes (no real data)", data.len()));
+    }
 
     // Upload to R2
     let account_id = std::env::var("R2_ACCOUNT_ID").map_err(|e| e.to_string())?;
