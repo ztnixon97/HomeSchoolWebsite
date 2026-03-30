@@ -57,6 +57,9 @@ async fn main() {
     let is_production = std::env::var("PRODUCTION").is_ok();
     let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "static".into());
 
+    // Auto-restore database from R2 backup if missing/empty
+    backup::auto_restore_if_needed(&db_path).await;
+
     // Initialize database
     let pool = db::init_pool(&db_path);
 

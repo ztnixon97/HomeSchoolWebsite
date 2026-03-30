@@ -2,6 +2,85 @@ use crate::db::DbPool;
 use crate::storage::StorageBackend;
 use std::sync::Arc;
 
+/// Auto-restore: if the DB file is missing or empty, download the latest backup from R2.
+/// Call this BEFORE init_pool().
+pub async fn auto_restore_if_needed(db_path: &str) {
+    // Check if DB file exists and has data
+    let needs_restore = match std::fs::metadata(db_path) {
+        Ok(meta) => meta.len() == 0, // exists but empty
+        Err(_) => true,               // doesn't exist
+    };
+
+    if !needs_restore {
+        tracing::info!("Database exists at {}, skipping auto-restore", db_path);
+        return;
+    }
+
+    // Check if R2 is configured
+    let account_id = match std::env::var("R2_ACCOUNT_ID") {
+        Ok(v) => v,
+        Err(_) => {
+            tracing::warn!("Database missing and R2 not configured — starting fresh");
+            return;
+        }
+    };
+
+    tracing::warn!("Database missing or empty at {} — attempting auto-restore from R2", db_path);
+
+    let access_key = std::env::var("R2_ACCESS_KEY_ID").unwrap_or_default();
+    let secret_key = std::env::var("R2_SECRET_ACCESS_KEY").unwrap_or_default();
+    let bucket = std::env::var("R2_BUCKET").unwrap_or_else(|_| "wlpc-uploads".into());
+
+    let endpoint = format!("https://{}.r2.cloudflarestorage.com", account_id);
+    let creds = aws_sdk_s3::config::Credentials::new(access_key, secret_key, None, None, "r2");
+    let config = aws_sdk_s3::Config::builder()
+        .region(aws_sdk_s3::config::Region::new("auto"))
+        .endpoint_url(endpoint)
+        .credentials_provider(creds)
+        .force_path_style(true)
+        .behavior_version_latest()
+        .build();
+    let client = aws_sdk_s3::Client::from_conf(config);
+
+    // List backups and find the most recent one
+    match client.list_objects_v2().bucket(&bucket).prefix("backups/preschool-").send().await {
+        Ok(list) => {
+            let mut keys: Vec<&str> = list.contents().iter()
+                .filter_map(|obj| obj.key())
+                .filter(|k| k.ends_with(".db"))
+                .collect();
+            keys.sort(); // lexicographic = chronological for YYYY-MM-DD format
+
+            if let Some(latest_key) = keys.last() {
+                tracing::info!("Found backup: {}", latest_key);
+
+                match client.get_object().bucket(&bucket).key(*latest_key).send().await {
+                    Ok(resp) => {
+                        match resp.body.collect().await {
+                            Ok(bytes) => {
+                                let data = bytes.into_bytes();
+                                // Ensure parent directory exists
+                                if let Some(parent) = std::path::Path::new(db_path).parent() {
+                                    let _ = std::fs::create_dir_all(parent);
+                                }
+                                match std::fs::write(db_path, &data) {
+                                    Ok(_) => tracing::info!("Database restored from {} ({} bytes)", latest_key, data.len()),
+                                    Err(e) => tracing::error!("Failed to write restored DB: {}", e),
+                                }
+                            }
+                            Err(e) => tracing::error!("Failed to read backup body: {}", e),
+                        }
+                    }
+                    Err(e) => tracing::error!("Failed to download backup {}: {}", latest_key, e),
+                }
+            } else {
+                tracing::warn!("No backups found in R2 — starting with fresh database");
+            }
+        }
+        Err(e) => tracing::error!("Failed to list R2 backups: {}", e),
+    }
+}
+
 /// Spawn a background task that backs up the SQLite database to R2 every 6 hours.
 /// Only runs if R2 is configured (R2_ACCOUNT_ID env var set).
 pub fn start_backup_task(pool: DbPool) {
