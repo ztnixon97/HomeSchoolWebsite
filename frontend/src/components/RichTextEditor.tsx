@@ -144,7 +144,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
               reader.readAsDataURL(file);
             } else {
               // Large image: upload to server
-              api.upload(file).then((res: any) => {
+              api.upload(file, 'content_image').then((res: any) => {
                 const src = `/api/files/${res.id}/download`;
                 view.dispatch(
                   view.state.tr.replaceSelectionWith(
@@ -175,7 +175,7 @@ export default function RichTextEditor({ content, onChange, placeholder }: Props
           };
           reader.readAsDataURL(file);
         } else {
-          api.upload(file).then((res: any) => {
+          api.upload(file, 'content_image').then((res: any) => {
             const src = `/api/files/${res.id}/download`;
             view.dispatch(
               view.state.tr.replaceSelectionWith(

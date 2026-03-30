@@ -172,7 +172,7 @@ export default function ManageDocuments() {
   const handleTemplateFileUpload = async (file: File) => {
     setUploadingFile(true);
     try {
-      const uploaded = await api.upload(file);
+      const uploaded = await api.upload(file, 'document_template');
       setFormFileId(uploaded.id);
       setFormFileName(file.name);
       showToast('File uploaded', 'success');
