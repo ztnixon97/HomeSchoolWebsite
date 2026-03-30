@@ -47,7 +47,7 @@ interface SessionType {
 export default function ClassSessions() {
   const { user } = useAuth();
   const features = useFeatures();
-  const [view, setView] = useState<'list' | 'calendar'>('calendar');
+  const [view, setView] = useState<'list' | 'calendar' | 'week'>('calendar');
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [groupFilter, setGroupFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -69,6 +69,7 @@ export default function ClassSessions() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showPast, setShowPast] = useState(false);
   const [listPage, setListPage] = useState(1);
   const [listTotal, setListTotal] = useState(0);
   const PAGE_SIZE = 12;
@@ -88,6 +89,7 @@ export default function ClassSessions() {
     const params = new URLSearchParams();
     params.set('page', String(listPage));
     params.set('page_size', String(PAGE_SIZE));
+    if (!showPast) params.set('date_from', new Date().toISOString().split('T')[0]);
     if (search) params.set('q', search);
     if (statusFilter) params.set('status', statusFilter);
     if (groupFilter) params.set('class_group_id', groupFilter);
@@ -95,10 +97,10 @@ export default function ClassSessions() {
       setListSessions(res.items);
       setListTotal(res.total);
     }).catch(() => {});
-  }, [view, listPage, search, statusFilter, groupFilter]);
+  }, [view, listPage, search, statusFilter, groupFilter, showPast]);
 
   // Reset page when filters change
-  useEffect(() => { setListPage(1); }, [search, statusFilter, groupFilter]);
+  useEffect(() => { setListPage(1); }, [search, statusFilter, groupFilter, showPast]);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -132,18 +134,15 @@ export default function ClassSessions() {
           )}
           {user && <CalendarSubscribeButton />}
           <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
-          <button
-            onClick={() => setView('list')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'list' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            List
-          </button>
-          <button
-            onClick={() => setView('calendar')}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${view === 'calendar' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-          >
-            Calendar
-          </button>
+          {(['calendar', 'week', 'list'] as const).map(v => (
+            <button
+              key={v}
+              onClick={() => setView(v)}
+              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${view === v ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              {v === 'calendar' ? 'Month' : v}
+            </button>
+          ))}
           </div>
         </div>
       </div>
@@ -311,6 +310,10 @@ export default function ClassSessions() {
                 ))}
               </select>
             )}
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+              <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+              Show past sessions
+            </label>
           </div>
 
           <div className="space-y-3">
@@ -354,6 +357,10 @@ export default function ClassSessions() {
             )}
           </div>
           <ServerPagination page={listPage} pageSize={PAGE_SIZE} total={listTotal} onPageChange={setListPage} />
+        </div>
+      ) : view === 'week' ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
+          <WeekView />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
@@ -453,15 +460,28 @@ function CalendarView() {
   const todayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const isToday = (d: number) => dateStr(d) === todayStr;
 
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
   return (
     <div>
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <button onClick={prev} className="p-2 text-ink/50 hover:text-ink hover:bg-ink/5 rounded-lg transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
         <div className="flex items-center gap-2">
-          <button onClick={prev} className="px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5 rounded-lg transition-colors">&larr; Prev</button>
-          <button onClick={next} className="px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5 rounded-lg transition-colors">Next &rarr;</button>
+          <select value={month} onChange={e => setMonth(Number(e.target.value))} className="text-sm font-semibold text-ink bg-transparent border-none cursor-pointer focus:outline-none">
+            {months.map((m, i) => <option key={i} value={i}>{m}</option>)}
+          </select>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} className="text-sm font-semibold text-ink bg-transparent border-none cursor-pointer focus:outline-none">
+            {Array.from({ length: 5 }, (_, i) => currentYear - 1 + i).map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          {(month !== currentMonth || year !== currentYear) && (
+            <button onClick={goToday} className="ml-2 text-xs text-emerald-700 hover:text-emerald-800 font-medium">Today</button>
+          )}
         </div>
-        <h3 className="text-lg font-semibold text-ink">{monthName}</h3>
-        <button onClick={goToday} className="px-3 py-1.5 text-sm font-medium text-ink/70 hover:bg-ink/5 rounded-lg transition-colors">Today</button>
+        <button onClick={next} className="p-2 text-ink/50 hover:text-ink hover:bg-ink/5 rounded-lg transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
       </div>
       <div className="overflow-x-auto">
       <div className="min-w-[350px] grid grid-cols-7 gap-px text-center text-xs font-medium text-ink/50 uppercase tracking-wider mb-2">
@@ -513,6 +533,159 @@ function CalendarView() {
           );
         })}
       </div>
+      </div>
+    </div>
+  );
+}
+
+function WeekView() {
+  const [weekStart, setWeekStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay()); // Start on Sunday
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  });
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const dateStr = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const weekEnd = weekDays[6];
+
+  useEffect(() => {
+    const from = dateStr(weekStart);
+    const to = dateStr(weekEnd);
+    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${from}&date_to=${to}`).then(res => {
+      setSessions(Array.isArray(res) ? res : res.items);
+    }).catch(() => {});
+  }, [weekStart]);
+
+  const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
+  const nextWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
+  const goThisWeek = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - d.getDay());
+    setWeekStart(new Date(d.getFullYear(), d.getMonth(), d.getDate()));
+  };
+
+  const today = new Date();
+  const todayString = dateStr(today);
+
+  const hours = Array.from({ length: 13 }, (_, i) => i + 7); // 7am to 7pm
+
+  const sessionsOnDay = (d: Date) => {
+    const ds = dateStr(d);
+    return sessions.filter(s => {
+      const start = s.session_date;
+      const end = s.end_date || start;
+      return ds >= start && ds <= end;
+    });
+  };
+
+  const parseTime = (t: string | null): number | null => {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h + (m || 0) / 60;
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <button onClick={prevWeek} className="p-2 text-ink/50 hover:text-ink hover:bg-ink/5 rounded-lg transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-ink">
+            {weekDays[0].toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} — {weekDays[6].toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+          </span>
+          <button onClick={goThisWeek} className="ml-2 text-xs text-emerald-700 hover:text-emerald-800 font-medium">This Week</button>
+        </div>
+        <button onClick={nextWeek} className="p-2 text-ink/50 hover:text-ink hover:bg-ink/5 rounded-lg transition-colors">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </button>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[700px]">
+          {/* Day headers */}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)] gap-px mb-1">
+            <div />
+            {weekDays.map(d => {
+              const isToday = dateStr(d) === todayString;
+              return (
+                <div key={d.toISOString()} className={`text-center py-2 text-xs font-medium ${isToday ? 'text-emerald-700' : 'text-ink/50'}`}>
+                  <div className="uppercase tracking-wider">{d.toLocaleDateString(undefined, { weekday: 'short' })}</div>
+                  <div className={`text-lg font-semibold mt-0.5 ${isToday ? 'bg-emerald-600 text-white w-8 h-8 rounded-full flex items-center justify-center mx-auto' : 'text-ink/70'}`}>
+                    {d.getDate()}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Time grid */}
+          <div className="grid grid-cols-[60px_repeat(7,1fr)] gap-px bg-ink/5 rounded-lg overflow-hidden">
+            {hours.map(hour => (
+              <div key={hour} className="contents">
+                <div className="bg-white py-3 px-2 text-right text-xs text-ink/40 font-medium border-b border-ink/5">
+                  {hour > 12 ? `${hour - 12}pm` : hour === 12 ? '12pm' : `${hour}am`}
+                </div>
+                {weekDays.map(d => {
+                  const daySessions = sessionsOnDay(d).filter(s => {
+                    const st = parseTime(s.start_time);
+                    return st !== null && Math.floor(st) === hour;
+                  });
+                  return (
+                    <div key={`${d.toISOString()}-${hour}`} className="bg-white min-h-[48px] p-1 border-b border-ink/5 relative">
+                      {daySessions.map(s => (
+                        <Link
+                          key={s.id}
+                          to={`/sessions/${s.id}`}
+                          className={`block text-xs px-2 py-1.5 rounded font-medium truncate no-underline mb-1 ${
+                            s.session_type_name === 'holiday'
+                              ? 'bg-amber-100 text-amber-800'
+                              : s.status === 'open'
+                                ? 'bg-red-50 text-red-700 border border-red-200'
+                                : s.status === 'claimed'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}
+                          title={`${s.title}${s.start_time ? ' at ' + s.start_time : ''}${s.end_time ? ' - ' + s.end_time : ''}`}
+                        >
+                          {s.start_time && <span className="font-bold">{s.start_time} </span>}
+                          {s.title}
+                        </Link>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+            {/* All-day events row */}
+            <div className="contents">
+              <div className="bg-ink/3 py-2 px-2 text-right text-xs text-ink/40 font-medium">All day</div>
+              {weekDays.map(d => {
+                const allDay = sessionsOnDay(d).filter(s => !s.start_time);
+                return (
+                  <div key={`allday-${d.toISOString()}`} className="bg-ink/3 min-h-[36px] p-1">
+                    {allDay.map(s => (
+                      <Link
+                        key={s.id}
+                        to={`/sessions/${s.id}`}
+                        className="block text-xs px-2 py-1 rounded bg-amber-100 text-amber-800 font-medium truncate no-underline mb-1"
+                      >
+                        {s.title}
+                      </Link>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
