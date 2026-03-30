@@ -109,11 +109,11 @@ export default function ClassSessions() {
     if (s.session_type_name === 'holiday') {
       return <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">Holiday</span>;
     }
-    if (s.status === 'open') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Unclaimed</span>;
-    if (s.status === 'claimed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">Hosted by {s.host_name}</span>;
-    if (s.status === 'completed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 font-medium">Completed</span>;
-    if (s.status === 'closed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">Full</span>;
-    return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-700">{s.status}</span>;
+    if (s.status === 'open') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Needs Host</span>;
+    if (s.status === 'claimed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-cobalt/10 text-cobalt font-medium">Hosted by {s.host_name}</span>;
+    if (s.status === 'completed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">Completed</span>;
+    if (s.status === 'closed') return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">Full</span>;
+    return <span className="text-xs px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600">{s.status}</span>;
   };
 
   return (
@@ -322,7 +322,7 @@ export default function ClassSessions() {
                 key={s.id}
                 to={`/sessions/${s.id}`}
                 className={`block bg-white rounded-xl border shadow-sm p-5 hover:shadow-md transition-all no-underline ${
-                  s.status === 'open' ? 'border-amber-200 hover:border-amber-300' : 'border-gray-100 hover:border-gray-200'
+                  s.status === 'open' ? 'border-red-200 hover:border-red-300' : s.status === 'claimed' ? 'border-cobalt/20 hover:border-cobalt/30' : 'border-gray-100 hover:border-gray-200'
                 }`}
               >
                 <div className="flex items-center justify-between mb-2">
@@ -510,10 +510,10 @@ function CalendarView() {
                           s.session_type_name === 'holiday'
                             ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                             : s.status === 'open'
-                            ? 'border border-red-300 bg-red-50 text-red-700 hover:bg-red-100'
+                            ? 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
                             : s.status === 'claimed'
-                              ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
-                              : 'bg-ink/5 text-ink/70 hover:bg-ink/10'
+                              ? 'bg-cobalt/10 text-cobalt hover:bg-cobalt/20'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
                         }`}
                         title={`${s.title}${s.start_time ? ' at ' + s.start_time : ''}`}
                       >
@@ -650,8 +650,8 @@ function WeekView() {
                               : s.status === 'open'
                                 ? 'bg-red-50 text-red-700 border border-red-200'
                                 : s.status === 'claimed'
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                  : 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  ? 'bg-cobalt/10 text-cobalt border border-cobalt/20'
+                                  : 'bg-gray-100 text-gray-500'
                           }`}
                           title={`${s.title}${s.start_time ? ' at ' + s.start_time : ''}${s.end_time ? ' - ' + s.end_time : ''}`}
                         >
