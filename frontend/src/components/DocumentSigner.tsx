@@ -258,22 +258,21 @@ export default function DocumentSigner({
         ]);
         setMode('view');
       } else if (mode === 'place-text') {
-        const text = window.prompt('Enter text:');
-        if (text) {
-          setPlacedItems(prev => [
-            ...prev,
-            {
-              id: nextId(),
-              type: 'text',
-              pageIndex,
-              xPct: clamp(xPct - 0.1, 0, 0.7),
-              yPct: clamp(yPct - 0.012, 0, 0.98),
-              widthPct: 0.3,
-              heightPct: 0.024,
-              text,
-            },
-          ]);
-        }
+        const newId = nextId();
+        setPlacedItems(prev => [
+          ...prev,
+          {
+            id: newId,
+            type: 'text',
+            pageIndex,
+            xPct: clamp(xPct - 0.1, 0, 0.7),
+            yPct: clamp(yPct - 0.015, 0, 0.97),
+            widthPct: 0.3,
+            heightPct: 0.03,
+            text: '',
+          },
+        ]);
+        setSelectedId(newId);
         setMode('view');
       } else {
         setSelectedId(null);
@@ -793,6 +792,21 @@ export default function DocumentSigner({
                             <span className="text-xs sm:text-sm font-medium text-ink leading-none whitespace-nowrap pointer-events-none">
                               {item.text}
                             </span>
+                          )}
+                          {item.type === 'text' && (
+                            <input
+                              type="text"
+                              value={item.text || ''}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, text: val } : i));
+                              }}
+                              onClick={e => e.stopPropagation()}
+                              onMouseDown={e => e.stopPropagation()}
+                              placeholder="Type here..."
+                              className="w-full h-full bg-transparent text-xs sm:text-sm text-ink outline-none border-none px-1"
+                              style={{ caretColor: '#1e2a35' }}
+                            />
                           )}
 
                           {/* Resize handles — show on hover or when selected */}
