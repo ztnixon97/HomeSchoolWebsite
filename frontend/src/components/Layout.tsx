@@ -152,6 +152,7 @@ export default function Layout() {
       </header>
 
       {user && <AnnouncementBanner />}
+      {user && features.documents && <PendingDocumentsBanner />}
 
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
         <Outlet />
@@ -343,6 +344,30 @@ function AnnouncementBanner() {
           <button onClick={() => dismiss(a.id)} className="text-xs opacity-50 hover:opacity-100 flex-shrink-0 mt-0.5">✕</button>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PendingDocumentsBanner() {
+  const [pending, setPending] = useState(0);
+
+  useEffect(() => {
+    api.get<{ count: number }>('/api/my-pending-documents')
+      .then(data => setPending(data.count))
+      .catch(() => {});
+  }, []);
+
+  if (pending <= 0) return null;
+
+  return (
+    <div className="max-w-7xl mx-auto w-full px-4 pt-3">
+      <Link
+        to="/my-documents"
+        className="block rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 no-underline hover:bg-red-100 transition-colors"
+      >
+        <span className="font-semibold">Action Required:</span> You have {pending} required document{pending !== 1 ? 's' : ''} waiting to be signed.{' '}
+        <span className="underline">Review and sign now &rarr;</span>
+      </Link>
     </div>
   );
 }

@@ -373,3 +373,78 @@ pub async fn admin_review_submission(
 
     Ok(Json(serde_json::json!({ "ok": true })))
 }
+
+/// GET /api/my-pending-documents — count of required documents not yet approved (for global banner)
+pub async fn my_pending_required_documents(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if crate::features::require_feature(&state.db, "documents").is_err() {
+        return Ok(Json(serde_json::json!({ "count": 0, "total": 0 })));
+    }
+    let conn = state.db.get()?;
+
+    let total_required: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM document_templates WHERE required = 1 AND active = 1",
+        [], |row| row.get(0),
+    ).unwrap_or(0);
+
+    let approved: i64 = conn.query_row(
+        "SELECT COUNT(DISTINCT ds.template_id) FROM document_submissions ds
+         JOIN document_templates dt ON ds.template_id = dt.id
+         WHERE ds.user_id = ?1 AND ds.status = 'approved' AND dt.required = 1 AND dt.active = 1",
+        params![user.id], |row| row.get(0),
+    ).unwrap_or(0);
+
+    let pending = total_required - approved;
+    Ok(Json(serde_json::json!({ "count": pending, "total": total_required })))
+}
+
+/// GET /api/sessions/{id}/required-documents — list documents required for a session
+pub async fn session_required_documents(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(session_id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT dt.id, dt.title, dt.category,
+                (SELECT ds.status FROM document_submissions ds WHERE ds.template_id = dt.id AND ds.user_id = ?1 LIMIT 1) as user_status
+         FROM session_required_documents srd
+         JOIN document_templates dt ON srd.template_id = dt.id
+         WHERE srd.session_id = ?2 AND dt.active = 1",
+    )?;
+    let docs: Vec<serde_json::Value> = stmt.query_map(params![user.id, session_id], |row| {
+        Ok(serde_json::json!({
+            "template_id": row.get::<_, i64>(0)?,
+            "title": row.get::<_, String>(1)?,
+            "category": row.get::<_, String>(2)?,
+            "user_status": row.get::<_, Option<String>>(3)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(docs))
+}
+
+/// POST /api/admin/sessions/{id}/required-documents — set required documents for a session
+pub async fn set_session_required_documents(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(session_id): Path<i64>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let template_ids: Vec<i64> = req["template_ids"].as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|v| v.as_i64())
+        .collect();
+
+    let conn = state.db.get()?;
+    conn.execute("DELETE FROM session_required_documents WHERE session_id = ?1", params![session_id])?;
+    for tid in &template_ids {
+        conn.execute(
+            "INSERT OR IGNORE INTO session_required_documents (session_id, template_id) VALUES (?1, ?2)",
+            params![session_id, tid],
+        )?;
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}

@@ -10,7 +10,7 @@ pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface PlacedItem {
   id: string;
-  type: 'signature' | 'date' | 'name';
+  type: 'signature' | 'date' | 'name' | 'text';
   pageIndex: number;
   xPct: number;
   yPct: number;
@@ -42,7 +42,7 @@ interface Props {
   onCancel: () => void;
 }
 
-type PlaceMode = 'view' | 'place-signature' | 'place-date' | 'place-name';
+type PlaceMode = 'view' | 'place-signature' | 'place-date' | 'place-name' | 'place-text';
 
 let _id = 0;
 const nextId = () => `placed-${++_id}`;
@@ -136,7 +136,9 @@ export default function DocumentSigner({
             ? new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
             : f.field_type === 'name'
               ? signerName
-              : undefined,
+              : f.field_type === 'text'
+                ? (f.label || '')
+                : undefined,
         }));
         setPlacedItems(defaults);
       })
@@ -254,6 +256,24 @@ export default function DocumentSigner({
             text: signerName,
           },
         ]);
+        setMode('view');
+      } else if (mode === 'place-text') {
+        const text = window.prompt('Enter text:');
+        if (text) {
+          setPlacedItems(prev => [
+            ...prev,
+            {
+              id: nextId(),
+              type: 'text',
+              pageIndex,
+              xPct: clamp(xPct - 0.1, 0, 0.7),
+              yPct: clamp(yPct - 0.012, 0, 0.98),
+              widthPct: 0.3,
+              heightPct: 0.024,
+              text,
+            },
+          ]);
+        }
         setMode('view');
       } else {
         setSelectedId(null);
@@ -494,6 +514,7 @@ export default function DocumentSigner({
     'place-signature': 'Click on the document to place your signature',
     'place-date': 'Click on the document to place the date',
     'place-name': 'Click on the document to place your name',
+    'place-text': 'Click on the document to place a text field',
   };
 
   // Count unfilled default signature spots
@@ -560,6 +581,22 @@ export default function DocumentSigner({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
               </svg>
               <span className="hidden sm:inline">Name</span>
+            </button>
+
+            {/* Text button */}
+            <button
+              type="button"
+              onClick={() => { setMode(mode === 'place-text' ? 'view' : 'place-text'); setSelectedId(null); }}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                mode === 'place-text'
+                  ? 'bg-orange-100 text-orange-800 ring-2 ring-orange-300'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h8m-8 6h16" />
+              </svg>
+              <span className="hidden sm:inline">Text</span>
             </button>
 
             <div className="w-px h-6 bg-gray-200 mx-1 hidden sm:block" />
@@ -717,6 +754,16 @@ export default function DocumentSigner({
                           }}
                           onClick={e => {
                             e.stopPropagation();
+                            // If clicking an empty signature field, prompt to create one
+                            if (item.type === 'signature' && !item.dataUrl && !signatureDataUrl) {
+                              setShowSignaturePad(true);
+                              return;
+                            }
+                            // If clicking an empty signature field and we have a signature, fill it
+                            if (item.type === 'signature' && !item.dataUrl && signatureDataUrl) {
+                              setPlacedItems(prev => prev.map(i => i.id === item.id ? { ...i, dataUrl: signatureDataUrl } : i));
+                              return;
+                            }
                             setSelectedId(prev => (prev === item.id ? null : item.id));
                           }}
                           onMouseDown={e => startDrag(e, item.id)}

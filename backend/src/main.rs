@@ -463,11 +463,14 @@ async fn main() {
         // Documents
         .route("/api/document-types", get(routes::documents::list_document_types))
         .route("/api/my-documents", get(routes::documents::list_my_documents))
+        .route("/api/my-pending-documents", get(routes::documents::my_pending_required_documents))
+        .route("/api/sessions/{id}/required-documents", get(routes::documents::session_required_documents))
         .route("/api/documents/{template_id}/submit", post(routes::documents::submit_document))
         .route("/api/document-templates/{id}/fields", get(routes::documents::list_template_fields))
         .route("/api/admin/document-templates", get(routes::documents::admin_list_templates).post(routes::documents::admin_create_template))
         .route("/api/admin/document-templates/{id}", put(routes::documents::admin_update_template).delete(routes::documents::admin_delete_template))
         .route("/api/admin/document-templates/{id}/fields", put(routes::documents::admin_save_template_fields))
+        .route("/api/admin/sessions/{id}/required-documents", post(routes::documents::set_session_required_documents))
         .route("/api/admin/document-submissions", get(routes::documents::admin_list_submissions))
         .route("/api/admin/document-submissions/{id}", put(routes::documents::admin_review_submission))
         // Standards

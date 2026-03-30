@@ -17,6 +17,7 @@ export default function Register() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [inviteInvalid, setInviteInvalid] = useState(false);
+  const [isBulkInvite, setIsBulkInvite] = useState(false);
 
   const hasInviteFromLink = !!searchParams.get('code');
 
@@ -24,16 +25,18 @@ export default function Register() {
   useEffect(() => {
     if (!hasInviteFromLink) return;
     const code = searchParams.get('code')!;
-    api.get<{ valid: boolean; message?: string }>(`/api/auth/check-invite?code=${encodeURIComponent(code)}`)
+    api.get<{ valid: boolean; message?: string; is_bulk?: boolean; email?: string | null }>(`/api/auth/check-invite?code=${encodeURIComponent(code)}`)
       .then(res => {
         if (!res.valid) {
           setInviteInvalid(true);
           setError(res.message || 'This invite link is no longer valid.');
+        } else {
+          if (res.is_bulk) setIsBulkInvite(true);
+          // Only pre-fill email if the invite has one (not bulk)
+          if (res.email && !isBulkInvite) setEmail(res.email);
         }
       })
-      .catch(() => {
-        // If endpoint doesn't exist yet, just let registration handle it
-      });
+      .catch(() => {});
   }, [hasInviteFromLink, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,9 +118,9 @@ export default function Register() {
               value={email}
               onChange={e => setEmail(e.target.value)}
               required
-              readOnly={hasInviteFromLink}
+              readOnly={hasInviteFromLink && !isBulkInvite}
               autoComplete="email"
-              className={`w-full px-3 py-2.5 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(31,75,122,0.2)] focus:border-[rgba(31,75,122,0.4)] transition-colors bg-white ${hasInviteFromLink ? 'bg-gray-50 text-ink/60' : ''}`}
+              className={`w-full px-3 py-2.5 border border-ink/20 rounded-lg focus:outline-none focus:ring-2 focus:ring-[rgba(31,75,122,0.2)] focus:border-[rgba(31,75,122,0.4)] transition-colors bg-white ${hasInviteFromLink && !isBulkInvite ? 'bg-gray-50 text-ink/60' : ''}`}
               placeholder="you@example.com"
             />
             {hasInviteFromLink && (

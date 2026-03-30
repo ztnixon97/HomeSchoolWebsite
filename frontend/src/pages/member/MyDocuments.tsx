@@ -80,7 +80,12 @@ export default function MyDocuments() {
   const handleUpload = async (template: DocumentTemplate, file: File) => {
     setUploading(template.id);
     try {
-      const uploaded = await api.upload(file);
+      // Smart naming: ParentName_DocumentTitle.ext
+      const safeName = (user?.display_name || 'User').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeTitle = template.title.replace(/[^a-zA-Z0-9]/g, '_');
+      const ext = file.name.split('.').pop() || 'pdf';
+      const renamedFile = new File([file], `${safeName}_${safeTitle}.${ext}`, { type: file.type });
+      const uploaded = await api.upload(renamedFile);
       await api.post(`/api/documents/${template.id}/submit`, { file_id: uploaded.id });
       showToast('Document submitted successfully', 'success');
       refresh();
@@ -99,10 +104,17 @@ export default function MyDocuments() {
     signatureFile: File,
   ) => {
     try {
+      // Smart naming: ParentName_DocumentTitle.pdf
+      const template = templates.find(t => t.id === templateId);
+      const safeName = (user?.display_name || 'User').replace(/[^a-zA-Z0-9]/g, '_');
+      const safeTitle = (template?.title || 'Document').replace(/[^a-zA-Z0-9]/g, '_');
+      const renamedFile = new File([signedFile], `${safeName}_${safeTitle}.pdf`, { type: signedFile.type });
+      const renamedSig = new File([signatureFile], `${safeName}_signature.png`, { type: signatureFile.type });
+
       // Upload the signed PDF
-      const uploaded = await api.upload(signedFile);
+      const uploaded = await api.upload(renamedFile);
       // Upload the raw signature for records
-      const sigUploaded = await api.upload(signatureFile);
+      const sigUploaded = await api.upload(renamedSig);
 
       await api.post(`/api/documents/${templateId}/submit`, {
         file_id: uploaded.id,

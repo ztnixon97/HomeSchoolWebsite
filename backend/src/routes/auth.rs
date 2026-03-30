@@ -208,12 +208,26 @@ pub async fn check_invite(
     let conn = state.db.get()?;
 
     match conn.query_row(
-        "SELECT used_by, expires_at FROM invites WHERE code = ?1",
+        "SELECT used_by, expires_at, max_uses, use_count, email FROM invites WHERE code = ?1",
         params![code],
-        |row| Ok((row.get::<_, Option<i64>>(0)?, row.get::<_, Option<String>>(1)?)),
+        |row| Ok((
+            row.get::<_, Option<i64>>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<i64>>(2)?,
+            row.get::<_, i64>(3)?,
+            row.get::<_, Option<String>>(4)?,
+        )),
     ) {
-        Ok((used_by, expires_at)) => {
-            if used_by.is_some() {
+        Ok((used_by, expires_at, max_uses, use_count, email)) => {
+            let is_bulk = max_uses.is_some();
+            // Check usage
+            if is_bulk {
+                if let Some(max) = max_uses {
+                    if use_count >= max {
+                        return Ok(Json(json!({ "valid": false, "message": "This registration link has reached its maximum number of uses." })));
+                    }
+                }
+            } else if used_by.is_some() {
                 return Ok(Json(json!({ "valid": false, "message": "This invite link has already been used. Please contact the co-op admin for a new invitation." })));
             }
             if let Some(exp) = expires_at {
@@ -222,7 +236,7 @@ pub async fn check_invite(
                     return Ok(Json(json!({ "valid": false, "message": "This invite link has expired. Please contact the co-op admin for a new invitation." })));
                 }
             }
-            Ok(Json(json!({ "valid": true })))
+            Ok(Json(json!({ "valid": true, "is_bulk": is_bulk, "email": email })))
         }
         Err(_) => Ok(Json(json!({ "valid": false, "message": "Invalid invite code." }))),
     }
