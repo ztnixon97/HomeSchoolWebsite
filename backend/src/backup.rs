@@ -5,14 +5,27 @@ use std::sync::Arc;
 /// Auto-restore: if the DB file is missing or empty, download the latest backup from R2.
 /// Call this BEFORE init_pool().
 pub async fn auto_restore_if_needed(db_path: &str) {
-    // Check if DB file exists and has data
+    // Check if DB file exists and has real data (not just empty migrations)
     let needs_restore = match std::fs::metadata(db_path) {
-        Ok(meta) => meta.len() == 0, // exists but empty
-        Err(_) => true,               // doesn't exist
+        Ok(meta) if meta.len() == 0 => true,          // exists but zero bytes
+        Ok(meta) if meta.len() < 1024 * 1024 => {     // exists but < 1MB = only migrations, no real data
+            // Double check by looking for users
+            let has_users = rusqlite::Connection::open(db_path)
+                .and_then(|conn| conn.query_row("SELECT COUNT(*) FROM users", [], |row| row.get::<_, i64>(0)))
+                .unwrap_or(0);
+            if has_users <= 1 {
+                tracing::warn!("Database at {} has only {} user(s) and is < 1MB — likely empty, will attempt restore", db_path, has_users);
+                true
+            } else {
+                false
+            }
+        }
+        Ok(_) => false,                                // exists with data > 1MB
+        Err(_) => true,                                // doesn't exist
     };
 
     if !needs_restore {
-        tracing::info!("Database exists at {}, skipping auto-restore", db_path);
+        tracing::info!("Database exists at {} with real data, skipping auto-restore", db_path);
         return;
     }
 
