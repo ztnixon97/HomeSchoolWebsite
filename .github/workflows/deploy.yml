@@ -4,21 +4,23 @@ on:
   push:
     branches:
       - main
+      - staging
 
 jobs:
-  deploy:
-    name: Deploy app
+  deploy-staging:
+    name: Deploy to Staging
+    if: github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
-    concurrency: deploy-group
+    concurrency: deploy-staging
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - name: Deploy to Fly.io
+      - name: Deploy to Staging
         run: |
           for attempt in 1 2 3; do
-            echo "Deploy attempt $attempt..."
-            if flyctl deploy --remote-only; then
-              echo "Deploy succeeded on attempt $attempt"
+            echo "Staging deploy attempt $attempt..."
+            if flyctl deploy --remote-only --config fly.staging.toml; then
+              echo "Staging deploy succeeded on attempt $attempt"
               exit 0
             fi
             if [ $attempt -lt 3 ]; then
@@ -26,7 +28,33 @@ jobs:
               sleep 15
             fi
           done
-          echo "All deploy attempts failed"
+          echo "All staging deploy attempts failed"
+          exit 1
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  deploy-prod:
+    name: Deploy to Production
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: deploy-prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy to Production
+        run: |
+          for attempt in 1 2 3; do
+            echo "Production deploy attempt $attempt..."
+            if flyctl deploy --remote-only; then
+              echo "Production deploy succeeded on attempt $attempt"
+              exit 0
+            fi
+            if [ $attempt -lt 3 ]; then
+              echo "Deploy failed, retrying in 15s..."
+              sleep 15
+            fi
+          done
+          echo "All production deploy attempts failed"
           exit 1
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
