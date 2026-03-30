@@ -61,7 +61,7 @@ pub async fn register(
     // Validate invite code
     let invite = conn
         .query_row(
-            "SELECT id, code, role, email, used_by, expires_at FROM invites WHERE code = ?1",
+            "SELECT id, code, role, email, used_by, expires_at, max_uses, use_count FROM invites WHERE code = ?1",
             params![req.invite_code],
             |row| {
                 Ok((
@@ -70,15 +70,24 @@ pub async fn register(
                     row.get::<_, Option<String>>(3)?, // email restriction
                     row.get::<_, Option<i64>>(4)?,   // used_by
                     row.get::<_, Option<String>>(5)?, // expires_at
+                    row.get::<_, Option<i64>>(6)?,   // max_uses (NULL = single-use)
+                    row.get::<_, i64>(7)?,           // use_count
                 ))
             },
         )
         .map_err(|_| AppError::BadRequest("Invalid invite code".to_string()))?;
 
-    let (invite_id, role, invite_email, used_by, expires_at) = invite;
+    let (invite_id, role, invite_email, used_by, expires_at, max_uses, use_count) = invite;
+    let is_bulk = max_uses.is_some();
 
     // Check if already used
-    if used_by.is_some() {
+    if is_bulk {
+        if let Some(max) = max_uses {
+            if use_count >= max {
+                return Err(AppError::BadRequest("This registration link has reached its maximum number of uses.".to_string()));
+            }
+        }
+    } else if used_by.is_some() {
         return Err(AppError::BadRequest("This invite link has already been used. Please contact the co-op admin for a new invitation.".to_string()));
     }
 
@@ -132,16 +141,26 @@ pub async fn register(
 
     let user_id = conn.last_insert_rowid();
 
-    // Atomically claim the invite with the real user ID (prevents race condition)
-    let claimed = conn.execute(
-        "UPDATE invites SET used_by = ?1 WHERE id = ?2 AND used_by IS NULL",
-        params![user_id, invite_id],
-    ).map_err(|e| {
-        eprintln!("[register] Failed to claim invite {} for user {}: {}", invite_id, user_id, e);
-        // Roll back user creation since invite claim failed
-        let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);
-        AppError::Database(e.to_string())
-    })?;
+    // Claim the invite
+    let claimed = if is_bulk {
+        // Bulk invite: increment use_count atomically
+        conn.execute(
+            "UPDATE invites SET use_count = use_count + 1 WHERE id = ?1 AND (max_uses IS NULL OR use_count < max_uses)",
+            params![invite_id],
+        ).map_err(|e| {
+            let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);
+            AppError::Database(e.to_string())
+        })?
+    } else {
+        // Single-use invite: set used_by
+        conn.execute(
+            "UPDATE invites SET used_by = ?1 WHERE id = ?2 AND used_by IS NULL",
+            params![user_id, invite_id],
+        ).map_err(|e| {
+            let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);
+            AppError::Database(e.to_string())
+        })?
+    };
     if claimed == 0 {
         // Another registration used this invite concurrently — roll back user creation
         let _ = conn.execute("DELETE FROM users WHERE id = ?1", params![user_id]);

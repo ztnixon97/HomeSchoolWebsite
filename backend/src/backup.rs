@@ -2,6 +2,84 @@ use crate::db::DbPool;
 use crate::storage::StorageBackend;
 use std::sync::Arc;
 
+fn build_r2_client() -> Result<(aws_sdk_s3::Client, String), String> {
+    let account_id = std::env::var("R2_ACCOUNT_ID").map_err(|_| "R2_ACCOUNT_ID not set".to_string())?;
+    let access_key = std::env::var("R2_ACCESS_KEY_ID").map_err(|_| "R2_ACCESS_KEY_ID not set".to_string())?;
+    let secret_key = std::env::var("R2_SECRET_ACCESS_KEY").map_err(|_| "R2_SECRET_ACCESS_KEY not set".to_string())?;
+    let bucket = std::env::var("R2_BUCKET").unwrap_or_else(|_| "wlpc-uploads".into());
+
+    let endpoint = format!("https://{}.r2.cloudflarestorage.com", account_id);
+    let creds = aws_sdk_s3::config::Credentials::new(access_key, secret_key, None, None, "r2");
+    let config = aws_sdk_s3::Config::builder()
+        .region(aws_sdk_s3::config::Region::new("auto"))
+        .endpoint_url(endpoint)
+        .credentials_provider(creds)
+        .force_path_style(true)
+        .behavior_version_latest()
+        .build();
+
+    Ok((aws_sdk_s3::Client::from_conf(config), bucket))
+}
+
+/// List available backups in R2 with size and date info
+pub async fn list_backups() -> Result<Vec<serde_json::Value>, String> {
+    let (client, bucket) = build_r2_client()?;
+
+    let list = client.list_objects_v2().bucket(&bucket).prefix("backups/preschool-").send().await
+        .map_err(|e| format!("Failed to list backups: {}", e))?;
+
+    let mut backups: Vec<serde_json::Value> = list.contents().iter()
+        .filter_map(|obj| {
+            let key = obj.key()?;
+            if !key.ends_with(".db") { return None; }
+            let size = obj.size().unwrap_or(0);
+            let modified = obj.last_modified().map(|t| t.to_string());
+            Some(serde_json::json!({
+                "key": key,
+                "size_bytes": size,
+                "size_mb": format!("{:.1}", size as f64 / (1024.0 * 1024.0)),
+                "has_data": size > 1024 * 1024,
+                "date": modified,
+            }))
+        })
+        .collect();
+
+    backups.sort_by(|a, b| b["key"].as_str().cmp(&a["key"].as_str()));
+    Ok(backups)
+}
+
+/// Create a backup right now and upload to R2
+pub async fn create_backup_now(pool: &DbPool) -> Result<String, String> {
+    run_backup(pool).await
+}
+
+/// Restore database from a specific R2 backup key
+pub async fn restore_from_backup(backup_key: &str) -> Result<(), String> {
+    let db_path = std::env::var("DATABASE_PATH").unwrap_or_else(|_| "data/preschool.db".into());
+    let (client, bucket) = build_r2_client()?;
+
+    tracing::warn!("Restoring database from backup: {}", backup_key);
+
+    let resp = client.get_object().bucket(&bucket).key(backup_key).send().await
+        .map_err(|e| format!("Failed to download backup: {}", e))?;
+
+    let bytes = resp.body.collect().await
+        .map_err(|e| format!("Failed to read backup: {}", e))?;
+    let data = bytes.into_bytes();
+
+    if data.len() < 1024 * 1024 {
+        return Err(format!("Backup {} is only {} bytes — likely empty, refusing to restore", backup_key, data.len()));
+    }
+
+    // Write to a temp file first, then rename (atomic-ish)
+    let temp_path = format!("{}.restoring", db_path);
+    std::fs::write(&temp_path, &data).map_err(|e| format!("Failed to write temp file: {}", e))?;
+    std::fs::rename(&temp_path, &db_path).map_err(|e| format!("Failed to rename restored DB: {}", e))?;
+
+    tracing::info!("Database restored from {} ({} bytes). App restart required.", backup_key, data.len());
+    Ok(())
+}
+
 /// Auto-restore: if the DB file is missing or empty, download the latest backup from R2.
 /// Call this BEFORE init_pool().
 pub async fn auto_restore_if_needed(db_path: &str) {

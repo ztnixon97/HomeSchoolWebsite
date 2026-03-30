@@ -103,8 +103,74 @@ pub async fn delete_invite(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
-    conn.execute("DELETE FROM invites WHERE id = ?1 AND used_by IS NULL", params![id])?;
+    // Allow deleting both single-use (unused) and bulk invites
+    conn.execute("DELETE FROM invites WHERE id = ?1 AND (used_by IS NULL OR max_uses IS NOT NULL)", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn create_bulk_invite(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let role = req["role"].as_str().unwrap_or("parent");
+    if !["teacher", "parent"].contains(&role) {
+        return Err(AppError::BadRequest("Role must be 'teacher' or 'parent'".to_string()));
+    }
+    let max_uses = req["max_uses"].as_i64().unwrap_or(50);
+    let expires_hours = req["expires_in_hours"].as_i64().unwrap_or(48);
+
+    let code = uuid::Uuid::new_v4().to_string()[..8].to_string();
+    let expires_at = chrono::Utc::now()
+        .checked_add_signed(chrono::Duration::hours(expires_hours))
+        .unwrap()
+        .format("%Y-%m-%dT%H:%M:%S")
+        .to_string();
+
+    let conn = state.db.get()?;
+    conn.execute(
+        "INSERT INTO invites (code, role, expires_at, max_uses, use_count) VALUES (?1, ?2, ?3, ?4, 0)",
+        params![code, role, expires_at, max_uses],
+    )?;
+
+    let id = conn.last_insert_rowid();
+    let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://westernloudouncoop.org".into());
+    let url = format!("{}/register?code={}", site_url, code);
+
+    Ok(Json(serde_json::json!({
+        "id": id,
+        "code": code,
+        "url": url,
+        "role": role,
+        "max_uses": max_uses,
+        "expires_at": expires_at,
+    })))
+}
+
+pub async fn list_bulk_invites(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT id, code, role, max_uses, use_count, expires_at, created_at
+         FROM invites WHERE max_uses IS NOT NULL ORDER BY created_at DESC",
+    )?;
+    let links: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        let code: String = row.get(1)?;
+        let site_url = std::env::var("SITE_URL").unwrap_or_else(|_| "https://westernloudouncoop.org".into());
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "code": &code,
+            "url": format!("{}/register?code={}", site_url, code),
+            "role": row.get::<_, String>(2)?,
+            "max_uses": row.get::<_, i64>(3)?,
+            "use_count": row.get::<_, i64>(4)?,
+            "expires_at": row.get::<_, Option<String>>(5)?,
+            "created_at": row.get::<_, String>(6)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(links))
 }
 
 // ── User Management ──
@@ -1878,4 +1944,34 @@ pub async fn admin_delete_file(
     };
     let _ = state.storage.delete(&storage_path).await;
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+// ── Backup & Restore ──
+
+pub async fn list_backups(
+    RequireAdmin(_user): RequireAdmin,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let backups = crate::backup::list_backups().await
+        .map_err(|e| AppError::Internal(e))?;
+    Ok(Json(backups))
+}
+
+pub async fn create_backup(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let key = crate::backup::create_backup_now(&state.db).await
+        .map_err(|e| AppError::Internal(e))?;
+    Ok(Json(serde_json::json!({ "ok": true, "key": key })))
+}
+
+pub async fn restore_backup(
+    RequireAdmin(_user): RequireAdmin,
+    Json(req): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let key = req["key"].as_str()
+        .ok_or_else(|| AppError::BadRequest("Missing 'key' field".to_string()))?;
+    crate::backup::restore_from_backup(key).await
+        .map_err(|e| AppError::Internal(e))?;
+    Ok(Json(serde_json::json!({ "ok": true, "message": "Database restored. Restart the app to apply." })))
 }

@@ -173,6 +173,9 @@ export default function ManageUsers() {
             </div>
           </div>
         )}
+
+        {/* Bulk Registration Links */}
+        <BulkInviteSection />
       </section>
 
       {/* Users List */}
@@ -327,6 +330,114 @@ export default function ManageUsers() {
           ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+interface BulkLink {
+  id: number;
+  code: string;
+  url: string;
+  role: string;
+  max_uses: number;
+  use_count: number;
+  expires_at: string | null;
+  created_at: string;
+}
+
+function BulkInviteSection() {
+  const [links, setLinks] = useState<BulkLink[]>([]);
+  const [role, setRole] = useState('parent');
+  const [maxUses, setMaxUses] = useState('50');
+  const [expiresHours, setExpiresHours] = useState('48');
+  const [creating, setCreating] = useState(false);
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const { showToast } = useToast();
+
+  const refresh = () => {
+    api.get<BulkLink[]>('/api/admin/invite-links').then(setLinks).catch(() => {});
+  };
+  useEffect(refresh, []);
+
+  const create = async () => {
+    setCreating(true);
+    try {
+      await api.post('/api/admin/invite-links', {
+        role,
+        max_uses: parseInt(maxUses) || 50,
+        expires_in_hours: parseInt(expiresHours) || 48,
+      });
+      showToast('Registration link created', 'success');
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create link', 'error');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const copyUrl = (link: BulkLink) => {
+    navigator.clipboard.writeText(link.url);
+    setCopiedId(link.id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const revoke = async (id: number) => {
+    await api.del(`/api/admin/invites/${id}`);
+    refresh();
+  };
+
+  return (
+    <div className="mt-6 pt-5 border-t border-gray-100">
+      <h3 className="text-sm font-medium text-gray-700 mb-3">Open Registration Links</h3>
+      <p className="text-xs text-gray-500 mb-3">Create a link anyone can use to register. Share it in a group chat, email, or at an event.</p>
+
+      <div className="flex flex-wrap gap-3 items-end mb-4">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Role</label>
+          <select value={role} onChange={e => setRole(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
+            <option value="parent">Parent</option>
+            <option value="teacher">Teacher</option>
+          </select>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Max uses</label>
+          <input type="number" value={maxUses} onChange={e => setMaxUses(e.target.value)} className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Expires in (hours)</label>
+          <input type="number" value={expiresHours} onChange={e => setExpiresHours(e.target.value)} className="w-20 px-3 py-2 border border-gray-200 rounded-lg text-sm" />
+        </div>
+        <button onClick={create} disabled={creating} className="bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-emerald-800 disabled:opacity-50">
+          {creating ? 'Creating...' : 'Create Link'}
+        </button>
+      </div>
+
+      {links.length > 0 && (
+        <div className="space-y-2">
+          {links.map(link => {
+            const expired = link.expires_at && new Date(link.expires_at) < new Date();
+            const full = link.use_count >= link.max_uses;
+            return (
+              <div key={link.id} className={`flex flex-wrap items-center gap-2 text-sm px-4 py-2.5 rounded-lg border ${expired || full ? 'bg-gray-50 border-gray-100 opacity-60' : 'bg-blue-50 border-blue-100'}`}>
+                <span className="font-mono text-xs bg-white px-2 py-0.5 rounded border border-gray-200">{link.code}</span>
+                <span className="text-emerald-700 capitalize text-xs bg-emerald-100 px-2 py-0.5 rounded-full">{link.role}</span>
+                <span className="text-xs text-gray-500">{link.use_count} / {link.max_uses} used</span>
+                {expired && <span className="text-xs text-red-500">Expired</span>}
+                <span className="text-xs text-gray-400 sm:ml-auto">
+                  Expires {link.expires_at ? new Date(link.expires_at).toLocaleString() : 'never'}
+                </span>
+                <button onClick={() => copyUrl(link)} className="text-xs text-blue-600 hover:text-blue-800 font-medium py-1 px-2">
+                  {copiedId === link.id ? 'Copied!' : 'Copy URL'}
+                </button>
+                <button onClick={() => revoke(link.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-1 px-2">
+                  Revoke
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

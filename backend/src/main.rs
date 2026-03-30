@@ -57,9 +57,6 @@ async fn main() {
     let is_production = std::env::var("PRODUCTION").is_ok();
     let static_dir = std::env::var("STATIC_DIR").unwrap_or_else(|_| "static".into());
 
-    // Auto-restore database from R2 backup if missing/empty
-    backup::auto_restore_if_needed(&db_path).await;
-
     // Initialize database
     let pool = db::init_pool(&db_path);
 
@@ -332,6 +329,7 @@ async fn main() {
         .route("/api/admin/invites", post(routes::admin::create_invite))
         .route("/api/admin/invites", get(routes::admin::list_invites))
         .route("/api/admin/invites/{id}", delete(routes::admin::delete_invite))
+        .route("/api/admin/invite-links", get(routes::admin::list_bulk_invites).post(routes::admin::create_bulk_invite))
         .route("/api/admin/users", get(routes::admin::list_users))
         .route("/api/admin/users/{id}", put(routes::admin::update_user).delete(routes::admin::delete_user))
         .route(
@@ -423,6 +421,8 @@ async fn main() {
         .route("/api/admin/features", put(routes::admin::update_feature_flags))
         .route("/api/admin/files", get(routes::admin::list_all_files))
         .route("/api/admin/files/{id}", delete(routes::admin::admin_delete_file))
+        .route("/api/admin/backups", get(routes::admin::list_backups).post(routes::admin::create_backup))
+        .route("/api/admin/restore", post(routes::admin::restore_backup))
         .route("/api/admin/class-groups", get(routes::admin::list_class_groups).post(routes::admin::create_class_group))
         .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
         .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))

@@ -504,6 +504,10 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE class_grades ADD COLUMN status TEXT NOT NULL DEFAULT 'graded'", []);
     let _ = conn.execute("ALTER TABLE grade_category_weights ADD COLUMN drop_lowest INTEGER NOT NULL DEFAULT 0", []);
 
+    // Bulk invite links
+    let _ = conn.execute("ALTER TABLE invites ADD COLUMN max_uses INTEGER", []);
+    let _ = conn.execute("ALTER TABLE invites ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0", []);
+
     // Document signature support
     let _ = conn.execute("ALTER TABLE document_submissions ADD COLUMN signature_file_id INTEGER REFERENCES files(id)", []);
 
