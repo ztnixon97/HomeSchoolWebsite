@@ -76,7 +76,7 @@ pub async fn list_invites(
 ) -> Result<Json<Vec<Invite>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, code, role, email, used_by, created_at, expires_at FROM invites WHERE used_by IS NULL ORDER BY created_at DESC",
+        "SELECT id, code, role, email, used_by, created_at, expires_at FROM invites WHERE used_by IS NULL AND max_uses IS NULL ORDER BY created_at DESC",
     )?;
 
     let invites: Vec<Invite> = stmt
