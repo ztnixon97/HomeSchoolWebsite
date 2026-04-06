@@ -307,6 +307,13 @@ pub async fn send_class_reminder_email(
     start_time: Option<&str>,
     end_time: Option<&str>,
     location: &str,
+    location_address: Option<&str>,
+    host_name: Option<&str>,
+    materials_needed: Option<&str>,
+    supplies: &[(String, Option<String>)],
+    cost_amount: Option<f64>,
+    cost_details: Option<&str>,
+    notes: Option<&str>,
     session_id: i64,
 ) -> Result<(), String> {
     let time_str = match (start_time, end_time) {
@@ -315,27 +322,107 @@ pub async fn send_class_reminder_email(
         _ => "See session details".to_string(),
     };
 
-    let details = format!(
+    // Build the location display — link to Google Maps if address is available
+    let location_display = if let Some(addr) = location_address {
+        let maps_url = format!("https://www.google.com/maps/search/?api=1&query={}", urlencoding::encode(addr));
+        format!(r#"{} <a href="{}" style="color:#1f4b7a;font-size:13px;text-decoration:none;">&#x1F4CD; Map</a>"#, location, maps_url)
+    } else {
+        location.to_string()
+    };
+
+    let mut rows = String::new();
+    rows.push_str(&make_detail_row("Date", session_date));
+    rows.push_str(&make_detail_row("Time", &time_str));
+    if let Some(host) = host_name {
+        rows.push_str(&make_detail_row("Host", host));
+    }
+    rows.push_str(&make_detail_row("Location", &location_display));
+    if let Some(cost) = cost_amount {
+        let cost_str = if let Some(details) = cost_details {
+            format!("${:.2} &mdash; {}", cost, details)
+        } else {
+            format!("${:.2}", cost)
+        };
+        rows.push_str(&make_detail_row("Cost", &cost_str));
+    }
+
+    let details_table = format!(
         r#"<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;border:1px solid #eee;border-radius:8px;overflow:hidden;margin:16px 0;">
-{date_row}
-{time_row}
-{location_row}
+{rows}
 </table>"#,
-        date_row = make_detail_row("Date", session_date),
-        time_row = make_detail_row("Time", &time_str),
-        location_row = make_detail_row("Location", location),
+        rows = rows,
     );
+
+    // Materials section
+    let materials_section = if let Some(materials) = materials_needed {
+        if !materials.is_empty() {
+            format!(
+                r#"<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin:12px 0;">
+<div style="font-size:13px;font-weight:600;color:#92400e;margin-bottom:4px;">Materials Needed</div>
+<div style="font-size:14px;color:#1e2a35;">{}</div>
+</div>"#,
+                materials,
+            )
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    // Supplies section
+    let supplies_section = if !supplies.is_empty() {
+        let items: Vec<String> = supplies.iter().map(|(name, qty)| {
+            if let Some(q) = qty {
+                format!("<li style=\"margin:2px 0;\">{} <span style=\"color:#888;\">({})</span></li>", name, q)
+            } else {
+                format!("<li style=\"margin:2px 0;\">{}</li>", name)
+            }
+        }).collect();
+        format!(
+            r#"<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:12px 16px;margin:12px 0;">
+<div style="font-size:13px;font-weight:600;color:#1e40af;margin-bottom:4px;">Supply List</div>
+<ul style="margin:0;padding-left:20px;font-size:14px;color:#1e2a35;">{}</ul>
+</div>"#,
+            items.join("")
+        )
+    } else {
+        String::new()
+    };
+
+    // Notes section
+    let notes_section = if let Some(n) = notes {
+        if !n.is_empty() {
+            format!(
+                r#"<div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:12px 16px;margin:12px 0;">
+<div style="font-size:13px;font-weight:600;color:#4b5563;margin-bottom:4px;">Notes</div>
+<div style="font-size:14px;color:#1e2a35;">{}</div>
+</div>"#,
+                n,
+            )
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
 
     let session_url = format!("{}/sessions/{}", config.site_url, session_id);
     let body = format!(
         r#"<p>Hi {name},</p>
 <p>Just a friendly reminder that <strong>{title}</strong> is coming up tomorrow!</p>
-{details}
+{details_table}
+{materials_section}
+{supplies_section}
+{notes_section}
 {button}
 <p style="font-size:13px;color:#888;">We look forward to seeing you there!</p>"#,
         name = parent_name,
         title = session_title,
-        details = details,
+        details_table = details_table,
+        materials_section = materials_section,
+        supplies_section = supplies_section,
+        notes_section = notes_section,
         button = make_button(&session_url, "View Session Details"),
     );
     let html = wrap_branded(&config.site_url, "Class Reminder", &body);

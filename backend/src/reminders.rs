@@ -21,6 +21,13 @@ struct ReminderTarget {
     start_time: Option<String>,
     end_time: Option<String>,
     location: String,
+    location_address: Option<String>,
+    host_name: Option<String>,
+    materials_needed: Option<String>,
+    supplies: Vec<(String, Option<String>)>,
+    cost_amount: Option<f64>,
+    cost_details: Option<String>,
+    notes: Option<String>,
     user_id: i64,
     user_email: String,
     user_name: String,
@@ -163,9 +170,16 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             "SELECT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
                     COALESCE(cs.location_name, cs.host_address, 'TBD') as location,
                     COALESCE(st.rsvpable, 1) as rsvpable,
-                    cs.host_id
+                    cs.host_id,
+                    cs.materials_needed,
+                    COALESCE(cs.location_address, cs.host_address) as full_address,
+                    cs.cost_amount,
+                    cs.cost_details,
+                    cs.notes,
+                    u.display_name as host_name
              FROM class_sessions cs
              LEFT JOIN session_types st ON cs.session_type_id = st.id
+             LEFT JOIN users u ON cs.host_id = u.id
              WHERE cs.session_date = ?1
                AND cs.reminder_sent = 0
                AND cs.status IN ('open', 'claimed')
@@ -187,6 +201,12 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             location: String,
             rsvpable: bool,
             host_id: Option<i64>,
+            materials_needed: Option<String>,
+            location_address: Option<String>,
+            cost_amount: Option<f64>,
+            cost_details: Option<String>,
+            notes: Option<String>,
+            host_name: Option<String>,
         }
 
         let sessions: Vec<SessionInfo> = match stmt.query_map(params![tomorrow], |row| {
@@ -199,6 +219,12 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 location: row.get(5)?,
                 rsvpable: row.get::<_, i32>(6)? != 0,
                 host_id: row.get(7)?,
+                materials_needed: row.get(8)?,
+                location_address: row.get(9)?,
+                cost_amount: row.get(10)?,
+                cost_details: row.get(11)?,
+                notes: row.get(12)?,
+                host_name: row.get(13)?,
             })
         }) {
             Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
@@ -250,6 +276,26 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 }
             }
 
+            // Query supplies for this session
+            let supplies: Vec<(String, Option<String>)> = {
+                let mut supply_stmt = match conn.prepare(
+                    "SELECT item_name, quantity FROM session_supplies WHERE session_id = ?1",
+                ) {
+                    Ok(s) => s,
+                    Err(_) => {
+                        // Table might not exist yet; not critical
+                        continue;
+                    }
+                };
+                let result = match supply_stmt.query_map(params![session.id], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+                }) {
+                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                    Err(_) => Vec::new(),
+                };
+                result
+            };
+
             let friendly_date = format_friendly_date(&session.session_date);
 
             for (uid, email, name) in final_recipients {
@@ -260,6 +306,13 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                     start_time: session.start_time.clone(),
                     end_time: session.end_time.clone(),
                     location: session.location.clone(),
+                    location_address: session.location_address.clone(),
+                    host_name: session.host_name.clone(),
+                    materials_needed: session.materials_needed.clone(),
+                    supplies: supplies.clone(),
+                    cost_amount: session.cost_amount,
+                    cost_details: session.cost_details.clone(),
+                    notes: session.notes.clone(),
                     user_id: uid,
                     user_email: email,
                     user_name: name,
@@ -297,6 +350,13 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             target.start_time.as_deref(),
             target.end_time.as_deref(),
             &target.location,
+            target.location_address.as_deref(),
+            target.host_name.as_deref(),
+            target.materials_needed.as_deref(),
+            &target.supplies,
+            target.cost_amount,
+            target.cost_details.as_deref(),
+            target.notes.as_deref(),
             target.session_id,
         )
         .await
@@ -320,10 +380,32 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
     // ── Phase 2b: Send push notifications ──
     if let Some(ref cfg) = push_config {
         for target in &targets {
+            // Build a concise but informative push body
+            let mut parts = vec![target.friendly_date.clone()];
+            if let Some(ref t) = target.start_time {
+                parts[0] = format!("{} at {}", parts[0], t);
+            }
+            if let Some(ref addr) = target.location_address {
+                parts.push(addr.clone());
+            } else if target.location != "TBD" {
+                parts.push(target.location.clone());
+            }
+            if let Some(ref materials) = target.materials_needed {
+                if !materials.is_empty() {
+                    let short = if materials.len() > 60 {
+                        format!("{}...", &materials[..57])
+                    } else {
+                        materials.clone()
+                    };
+                    parts.push(format!("Bring: {}", short));
+                }
+            }
+            let push_body = parts.join(" · ");
+
             crate::push::send_push_to_user(
                 db.clone(), cfg.clone(), target.user_id, "reminders",
                 &format!("Reminder: {} — Tomorrow", target.session_title),
-                &format!("{} at {}", target.friendly_date, target.start_time.as_deref().unwrap_or("TBD")),
+                &push_body,
                 &format!("/sessions/{}", target.session_id),
             ).await;
         }

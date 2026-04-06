@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth';
 
 interface Props {
@@ -8,13 +8,15 @@ interface Props {
 
 export default function RoleGuard({ children, requireRole }: Props) {
   const { user, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <div className="p-8 text-center text-ink/40">Loading...</div>;
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    const redirect = encodeURIComponent(location.pathname);
+    return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
   if (requireRole === 'admin' && user.role !== 'admin') {
