@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useFeatures } from '../../features';
 import PhotoGallery from '../../components/Lightbox';
+import AddressLink from '../../components/AddressLink';
 
 interface Session {
   id: number;
@@ -322,7 +323,7 @@ export default function SessionDetail() {
           {session.host_address && (
             <div className="bg-gray-50 rounded-lg p-3">
               <span className="text-gray-400 text-xs uppercase tracking-wider block mb-1">Location</span>
-              <span className="font-medium text-gray-800">{session.host_address}</span>
+              <AddressLink address={session.host_address} className="font-medium" />
             </div>
           )}
           {session.location_name && (
@@ -334,7 +335,7 @@ export default function SessionDetail() {
           {session.location_address && (
             <div className="bg-gray-50 rounded-lg p-3">
               <span className="text-gray-400 text-xs uppercase tracking-wider block mb-1">Location Address</span>
-              <span className="font-medium text-gray-800">{session.location_address}</span>
+              <AddressLink address={session.location_address} className="font-medium" />
             </div>
           )}
           {session.cost_amount !== null && session.cost_amount !== undefined && (

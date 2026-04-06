@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import Pagination from '../../components/Pagination';
+import AddressLink from '../../components/AddressLink';
 
 interface RsvpEntry {
   id: number;
@@ -69,7 +70,7 @@ export default function MyRsvps() {
                     <div className="text-xs text-ink/40 mt-0.5">
                       {r.location_name && <span>{r.location_name}</span>}
                       {r.location_name && r.location && ' — '}
-                      {r.location && <span>{r.location}</span>}
+                      {r.location && <AddressLink address={r.location} />}
                     </div>
                   )}
                 </div>
