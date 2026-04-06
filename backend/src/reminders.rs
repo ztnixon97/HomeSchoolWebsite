@@ -1,9 +1,17 @@
 use crate::db::DbPool;
 use crate::email::{send_class_reminder_email, EmailConfig};
+use chrono::Utc;
+use chrono_tz::America::New_York;
 use rusqlite::params;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-// In-process flag to prevent multiple concurrent reminder checks
+/// Minimum seconds between reminder checks (30 minutes).
+const COOLDOWN_SECS: u64 = 30 * 60;
+
+/// Epoch-seconds timestamp of the last completed reminder check.
+static LAST_CHECK_TIME: AtomicU64 = AtomicU64::new(0);
+
+/// Prevents overlapping async reminder tasks.
 static REMINDER_CHECK_RUNNING: AtomicBool = AtomicBool::new(false);
 
 struct ReminderTarget {
@@ -18,9 +26,27 @@ struct ReminderTarget {
     parent_name: String,
 }
 
-/// Send reminder emails for sessions happening tomorrow.
+fn now_epoch_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// Calculate tomorrow's date in Eastern time (handles EST/EDT automatically).
+fn tomorrow_eastern() -> String {
+    let now_eastern = Utc::now().with_timezone(&New_York);
+    let tomorrow = now_eastern.date_naive() + chrono::Duration::days(1);
+    tomorrow.format("%Y-%m-%d").to_string()
+}
+
+/// Send reminder emails/push for sessions happening tomorrow (Eastern time).
+/// Uses `reminder_sent` flag per session to prevent duplicates.
 /// Returns the number of emails sent.
 pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) -> usize {
+    let tomorrow = tomorrow_eastern();
+    println!("[reminders] Checking for sessions on {} (tomorrow Eastern)", tomorrow);
+
     // ── Phase 1: Gather all data from DB (synchronous, no .await) ──
     let (targets, session_ids) = {
         let conn = match db.get() {
@@ -31,8 +57,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             }
         };
 
-        // Find sessions happening tomorrow that haven't had reminders sent
-        // Join session_types to know if the session is rsvpable
+        // Find sessions happening tomorrow (Eastern) that haven't had reminders sent
         let mut stmt = match conn.prepare(
             "SELECT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
                     COALESCE(cs.location_name, cs.host_address, 'TBD') as location,
@@ -40,7 +65,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                     cs.host_id
              FROM class_sessions cs
              LEFT JOIN session_types st ON cs.session_type_id = st.id
-             WHERE cs.session_date = date('now', '+1 day')
+             WHERE cs.session_date = ?1
                AND cs.reminder_sent = 0
                AND cs.status = 'open'
                AND (st.name IS NULL OR st.name != 'holiday')",
@@ -63,7 +88,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             host_id: Option<i64>,
         }
 
-        let sessions: Vec<SessionInfo> = match stmt.query_map([], |row| {
+        let sessions: Vec<SessionInfo> = match stmt.query_map(params![tomorrow], |row| {
             Ok(SessionInfo {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -84,9 +109,10 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         drop(stmt);
 
         if sessions.is_empty() {
-            println!("[reminders] No sessions tomorrow needing reminders.");
             return 0;
         }
+
+        println!("[reminders] Found {} session(s) needing reminders.", sessions.len());
 
         let mut targets: Vec<ReminderTarget> = Vec::new();
         let mut session_ids: Vec<i64> = Vec::new();
@@ -181,7 +207,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
     // conn is dropped here — safe to .await below
 
     if targets.is_empty() {
-        // Mark sessions as reminder-sent even if no RSVPs
+        // Mark sessions as reminder-sent even if no recipients
         if let Ok(conn) = db.get() {
             for id in &session_ids {
                 let _ = conn.execute(
@@ -277,20 +303,35 @@ fn format_friendly_date(date_str: &str) -> String {
     date_str.to_string()
 }
 
-/// Check for unsent reminders and send them.
-/// Called on every API request. Uses `reminder_sent` per session to prevent
-/// duplicate sends. The atomic flag just prevents multiple concurrent checks.
+/// Called from the request logger middleware on every `/api/` request.
+///
+/// Uses a 30-minute cooldown so we're not querying the DB on every request,
+/// but still responsive enough that reminders go out promptly when the app
+/// wakes up. The `reminder_sent` flag per session is the real dedup mechanism.
+///
+/// On first request after app startup, the cooldown is 0, so it runs immediately.
 pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) {
-    // Prevent overlapping checks — if one is already running, skip
+    let now = now_epoch_secs();
+    let last = LAST_CHECK_TIME.load(Ordering::Relaxed);
+
+    // Cooldown: skip if we checked recently
+    if last > 0 && now.saturating_sub(last) < COOLDOWN_SECS {
+        return;
+    }
+
+    // Prevent overlapping async tasks
     if REMINDER_CHECK_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
         return;
     }
 
-    // Spawn async task to send reminders (non-blocking)
+    // Update the last-check timestamp now (before spawning) so other requests
+    // see the cooldown immediately
+    LAST_CHECK_TIME.store(now, Ordering::Relaxed);
+
     tokio::spawn(async move {
         let sent = send_upcoming_reminders(db, email_config, push_config).await;
         if sent > 0 {
-            println!("[reminders] Reminder check completed. {} emails sent.", sent);
+            println!("[reminders] Reminder check completed. {} notifications sent.", sent);
         }
         REMINDER_CHECK_RUNNING.store(false, Ordering::SeqCst);
     });
