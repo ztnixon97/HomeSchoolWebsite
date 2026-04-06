@@ -30,6 +30,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json", "env-filter"] }
 web-push = { version = "0.10", optional = true, features = ["hyper-client"] }
 chrono-tz = "0.10.4"
+urlencoding = "2.1.3"
 
 [features]
 default = []
