@@ -2,9 +2,9 @@ name: Wake & Check Reminders
 
 on:
   schedule:
-    # 9 AM and 9 PM EST (1 PM and 1 AM UTC during EDT, 2 PM and 2 AM UTC during EST)
+    # 9 AM EST (1 PM EDT / 2 PM EST in UTC) and 5 PM EST (9 PM EDT / 10 PM EST in UTC)
     - cron: '0 14 * * *'
-    - cron: '0 2 * * *'
+    - cron: '0 22 * * *'
   workflow_dispatch: {}
 
 jobs:
