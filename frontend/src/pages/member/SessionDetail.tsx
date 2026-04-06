@@ -119,6 +119,19 @@ export default function SessionDetail() {
   const [editNotes, setEditNotes] = useState('');
   const [editCutoff, setEditCutoff] = useState('');
   const [editLessonPlanId, setEditLessonPlanId] = useState('');
+  // Admin-only edit fields
+  const [editTheme, setEditTheme] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editEndDate, setEditEndDate] = useState('');
+  const [editSessionTypeId, setEditSessionTypeId] = useState('');
+  const [editLocationName, setEditLocationName] = useState('');
+  const [editLocationAddress, setEditLocationAddress] = useState('');
+  const [editCostAmount, setEditCostAmount] = useState('');
+  const [editCostDetails, setEditCostDetails] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [editAssignHostId, setEditAssignHostId] = useState('');
+  const [editReserveHostName, setEditReserveHostName] = useState('');
+  const [allUsers, setAllUsers] = useState<{ id: number; display_name: string; email: string }[]>([]);
   const [error, setError] = useState('');
   const [supplies, setSupplies] = useState<Supply[]>([]);
   const [newSupplyName, setNewSupplyName] = useState('');
@@ -141,6 +154,9 @@ export default function SessionDetail() {
     api.get<Student[]>('/api/my-children').then(setChildren).catch(() => {});
     api.get<LessonPlan[]>('/api/lesson-plans').then(setLessonPlans).catch(() => {});
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
+    if (user?.role === 'admin') {
+      api.get<{ items: { id: number; display_name: string; email: string }[] }>('/api/admin/users?page_size=200').then(r => setAllUsers(r.items)).catch(() => {});
+    }
   }, [id]);
 
   const handleClaim = async (e: React.FormEvent) => {
@@ -219,6 +235,18 @@ export default function SessionDetail() {
     setEditNotes(session.notes || '');
     setEditCutoff(session.rsvp_cutoff || '');
     setEditLessonPlanId(session.lesson_plan_id?.toString() || '');
+    // Admin fields
+    setEditTheme(session.theme || '');
+    setEditDate(session.session_date);
+    setEditEndDate(session.end_date || '');
+    setEditSessionTypeId(session.session_type_id?.toString() || '');
+    setEditLocationName(session.location_name || '');
+    setEditLocationAddress(session.location_address || '');
+    setEditCostAmount(session.cost_amount != null ? String(session.cost_amount) : '');
+    setEditCostDetails(session.cost_details || '');
+    setEditStatus(session.status);
+    setEditAssignHostId(session.host_id != null ? String(session.host_id) : '');
+    setEditReserveHostName(session.host_id == null && session.host_name ? session.host_name : '');
     setEditOpen(true);
   };
 
@@ -226,17 +254,48 @@ export default function SessionDetail() {
     e.preventDefault();
     setError('');
     try {
-      await api.put(`/api/sessions/${id}/host`, {
-        title: editTitle || null,
-        start_time: editStart || null,
-        end_time: editEnd || null,
-        host_address: editHostAddress || null,
-        materials_needed: editMaterials,
-        max_students: editMaxStudents ? parseInt(editMaxStudents) : null,
-        notes: editNotes,
-        rsvp_cutoff: editCutoff || null,
-        lesson_plan_id: editLessonPlanId ? parseInt(editLessonPlanId) : null,
-      });
+      if (isAdmin) {
+        // Admin uses the admin endpoint with full field access
+        await api.put(`/api/admin/sessions/${id}`, {
+          title: editTitle || null,
+          theme: editTheme || null,
+          session_date: editDate,
+          end_date: editEndDate || null,
+          start_time: editStart || null,
+          end_time: editEnd || null,
+          location_name: editLocationName || null,
+          location_address: editLocationAddress || null,
+          cost_amount: editCostAmount ? parseFloat(editCostAmount) : null,
+          cost_details: editCostDetails || null,
+          max_students: editMaxStudents ? parseInt(editMaxStudents) : null,
+          notes: editNotes,
+          rsvp_cutoff: editCutoff || null,
+          status: editStatus,
+          session_type_id: editSessionTypeId ? parseInt(editSessionTypeId) : null,
+          ...(editAssignHostId ? { host_id: parseInt(editAssignHostId) } : {}),
+          ...(!editAssignHostId && editReserveHostName ? { host_name: editReserveHostName } : {}),
+        });
+        // Also update host-specific fields via host endpoint if there's a host
+        if (session.host_id || editAssignHostId) {
+          await api.put(`/api/sessions/${id}/host`, {
+            host_address: editHostAddress || null,
+            materials_needed: editMaterials,
+            lesson_plan_id: editLessonPlanId ? parseInt(editLessonPlanId) : null,
+          }).catch(() => {}); // non-critical
+        }
+      } else {
+        await api.put(`/api/sessions/${id}/host`, {
+          title: editTitle || null,
+          start_time: editStart || null,
+          end_time: editEnd || null,
+          host_address: editHostAddress || null,
+          materials_needed: editMaterials,
+          max_students: editMaxStudents ? parseInt(editMaxStudents) : null,
+          notes: editNotes,
+          rsvp_cutoff: editCutoff || null,
+          lesson_plan_id: editLessonPlanId ? parseInt(editLessonPlanId) : null,
+        });
+      }
       setEditOpen(false);
       refresh();
     } catch (err: any) {
@@ -489,6 +548,33 @@ export default function SessionDetail() {
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                 />
               </div>
+              {isAdmin && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Theme</label>
+                      <input type="text" value={editTheme} onChange={e => setEditTheme(e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Session Type</label>
+                      <select value={editSessionTypeId} onChange={e => setEditSessionTypeId(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm">
+                        <option value="">None</option>
+                        {sessionTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
+                      <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
+                      <input type="date" value={editEndDate} onChange={e => setEditEndDate(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Time</label>
@@ -509,6 +595,57 @@ export default function SessionDetail() {
                   />
                 </div>
               </div>
+              {isAdmin && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Name</label>
+                      <input type="text" value={editLocationName} onChange={e => setEditLocationName(e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Address</label>
+                      <input type="text" value={editLocationAddress} onChange={e => setEditLocationAddress(e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Cost</label>
+                      <input type="number" step="0.01" value={editCostAmount} onChange={e => setEditCostAmount(e.target.value)} placeholder="0.00" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Cost Details</label>
+                      <input type="text" value={editCostDetails} onChange={e => setEditCostDetails(e.target.value)} placeholder="Optional" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                      <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm">
+                        <option value="open">Open</option>
+                        <option value="claimed">Claimed</option>
+                        <option value="completed">Completed</option>
+                        <option value="closed">Closed</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Host</label>
+                      {!editAssignHostId && editReserveHostName && (
+                        <p className="text-xs text-amber-600 mb-1">"{editReserveHostName}" is not linked to an account.</p>
+                      )}
+                      <select value={editAssignHostId} onChange={e => { setEditAssignHostId(e.target.value); if (e.target.value) setEditReserveHostName(''); }} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm">
+                        <option value="">— None —</option>
+                        {allUsers.map(u => <option key={u.id} value={u.id}>{u.display_name} ({u.email})</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {!editAssignHostId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Or enter host name</label>
+                      <input type="text" value={editReserveHostName} onChange={e => setEditReserveHostName(e.target.value)} placeholder="Name (if not a registered user)" className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm" />
+                    </div>
+                  )}
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Host Address</label>
                 <input
