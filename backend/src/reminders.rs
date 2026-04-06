@@ -121,7 +121,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             session_ids.push(session.id);
 
             let recipients: Vec<(i64, String, String)> = if session.rsvpable {
-                // Session type has RSVPs enabled — only send to confirmed RSVP parents
+                // Session type has RSVPs enabled — check for confirmed RSVPs
                 let mut stmt = match conn.prepare(
                     "SELECT DISTINCT u.id, u.email, u.display_name
                      FROM rsvps r
@@ -145,30 +145,15 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                         continue;
                     }
                 };
-                result
+                // If nobody has RSVP'd, fall back to all active members
+                if result.is_empty() {
+                    all_active_members(&conn, session.id)
+                } else {
+                    result
+                }
             } else {
                 // RSVPs not enabled for this session type — send to all active members
-                let mut stmt = match conn.prepare(
-                    "SELECT u.id, u.email, u.display_name
-                     FROM users u
-                     WHERE u.active = 1",
-                ) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        eprintln!("[reminders] All-members query error for session {}: {}", session.id, e);
-                        continue;
-                    }
-                };
-                let result: Vec<_> = match stmt.query_map([], |row| {
-                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-                }) {
-                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                    Err(e) => {
-                        eprintln!("[reminders] All-members fetch error for session {}: {}", session.id, e);
-                        continue;
-                    }
-                };
-                result
+                all_active_members(&conn, session.id)
             };
 
             // Always include the host if assigned and not already in the list
@@ -276,6 +261,28 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
 
     println!("[reminders] Total reminders sent: {}", total_sent);
     total_sent
+}
+
+fn all_active_members(conn: &rusqlite::Connection, session_id: i64) -> Vec<(i64, String, String)> {
+    let mut stmt = match conn.prepare(
+        "SELECT u.id, u.email, u.display_name FROM users u WHERE u.active = 1",
+    ) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("[reminders] All-members query error for session {}: {}", session_id, e);
+            return Vec::new();
+        }
+    };
+    let result: Vec<_> = match stmt.query_map([], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+    }) {
+        Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+        Err(e) => {
+            eprintln!("[reminders] All-members fetch error for session {}: {}", session_id, e);
+            return Vec::new();
+        }
+    };
+    result
 }
 
 fn format_friendly_date(date_str: &str) -> String {
