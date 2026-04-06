@@ -278,22 +278,19 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
 
             // Query supplies for this session
             let supplies: Vec<(String, Option<String>)> = {
-                let mut supply_stmt = match conn.prepare(
+                match conn.prepare(
                     "SELECT item_name, quantity FROM session_supplies WHERE session_id = ?1",
                 ) {
-                    Ok(s) => s,
-                    Err(_) => {
-                        // Table might not exist yet; not critical
-                        continue;
+                    Ok(mut supply_stmt) => {
+                        match supply_stmt.query_map(params![session.id], |row| {
+                            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+                        }) {
+                            Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                            Err(_) => Vec::new(),
+                        }
                     }
-                };
-                let result = match supply_stmt.query_map(params![session.id], |row| {
-                    Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
-                }) {
-                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
                     Err(_) => Vec::new(),
-                };
-                result
+                }
             };
 
             let friendly_date = format_friendly_date(&session.session_date);
@@ -392,8 +389,9 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             }
             if let Some(ref materials) = target.materials_needed {
                 if !materials.is_empty() {
-                    let short = if materials.len() > 60 {
-                        format!("{}...", &materials[..57])
+                    let short = if materials.chars().count() > 60 {
+                        let truncated: String = materials.chars().take(57).collect();
+                        format!("{}...", truncated)
                     } else {
                         materials.clone()
                     };
