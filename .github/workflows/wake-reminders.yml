@@ -1,0 +1,32 @@
+name: Wake & Check Reminders
+
+on:
+  schedule:
+    # 9 AM and 9 PM EST (1 PM and 1 AM UTC during EDT, 2 PM and 2 AM UTC during EST)
+    - cron: '0 14 * * *'
+    - cron: '0 2 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  wake:
+    name: Wake app and trigger reminders
+    runs-on: ubuntu-latest
+    steps:
+      - name: Hit health check to wake machine
+        run: |
+          echo "Waking app..."
+          for attempt in 1 2 3; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 https://westernloudouncoop.fly.dev/health || echo "000")
+            echo "Attempt $attempt: HTTP $status"
+            if [ "$status" = "200" ]; then
+              echo "App is awake"
+              break
+            fi
+            sleep 10
+          done
+
+      - name: Trigger reminder check
+        run: |
+          echo "Hitting API to trigger reminder check..."
+          curl -s --max-time 30 https://westernloudouncoop.fly.dev/api/features || true
+          echo "Done — reminder check runs on first API request of the day"
