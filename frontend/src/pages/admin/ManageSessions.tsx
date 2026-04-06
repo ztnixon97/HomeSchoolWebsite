@@ -341,6 +341,9 @@ export default function ManageSessions() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Host</label>
+                  {!assignHostId && reserveHostName && (
+                    <p className="text-xs text-amber-600 mb-1.5">Currently set to "{reserveHostName}" (not linked to an account). Select a user below to link them.</p>
+                  )}
                   <select value={assignHostId} onChange={e => { setAssignHostId(e.target.value); if (e.target.value) setReserveHostName(''); }} className={inputClass}>
                     <option value="">— None —</option>
                     {allUsers.map(u => (
@@ -478,7 +481,14 @@ export default function ManageSessions() {
               {s.session_type_label && (
                 <span className="ml-2 inline-block bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-xs">{s.session_type_label}</span>
               )}
-              {s.host_name && <span className="ml-2 text-gray-400">Host: {s.host_name}</span>}
+              {s.host_name && (
+                <span className="ml-2 text-gray-400">
+                  Host: {s.host_name}
+                  {!s.host_id && (
+                    <button onClick={() => startEdit(s)} className="ml-1.5 text-amber-600 hover:text-amber-800 font-medium">(unlinked — click to assign)</button>
+                  )}
+                </span>
+              )}
             </div>
           </div>
         ))}
