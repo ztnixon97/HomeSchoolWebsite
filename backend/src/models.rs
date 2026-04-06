@@ -997,6 +997,7 @@ pub struct CreateConversationRequest {
     pub participant_ids: Vec<i64>,
     pub subject: Option<String>,
     pub body: String,
+    pub file_ids: Option<Vec<i64>>,
 }
 
 // ── Documents ──

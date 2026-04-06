@@ -542,6 +542,13 @@ fn run_migrations(pool: &DbPool) {
         );
     ").ok();
 
+    // Messaging enhancements: soft-delete conversations + messages, fix timestamps
+    let _ = conn.execute("ALTER TABLE conversation_participants ADD COLUMN hidden_at TEXT", []);
+    let _ = conn.execute("ALTER TABLE messages ADD COLUMN deleted_at TEXT", []);
+    // Fix existing timestamps to ISO 8601 format
+    let _ = conn.execute("UPDATE messages SET created_at = REPLACE(created_at, ' ', 'T') || 'Z' WHERE created_at NOT LIKE '%T%'", []);
+    let _ = conn.execute("UPDATE conversations SET created_at = REPLACE(created_at, ' ', 'T') || 'Z' WHERE created_at NOT LIKE '%T%'", []);
+
     // Seed default session types if missing
     let _ = conn.execute(
         "INSERT OR IGNORE INTO session_types (name, label, sort_order, hostable, rsvpable, multi_day, allow_supplies, allow_attendance, allow_photos) VALUES

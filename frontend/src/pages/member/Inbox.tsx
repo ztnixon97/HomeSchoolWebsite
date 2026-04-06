@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { useAuth } from '../../auth';
@@ -21,9 +21,15 @@ interface AdminUser {
   role: string;
 }
 
+function normalizeTimestamp(ts: string): string {
+  if (!ts) return ts;
+  return ts.replace(' ', 'T').replace(/([^Z])$/, '$1Z');
+}
+
 function formatTime(iso: string | null): string {
   if (!iso) return '';
-  const date = new Date(iso);
+  const date = new Date(normalizeTimestamp(iso));
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
   if (diffDays === 0) {
@@ -33,6 +39,12 @@ function formatTime(iso: string | null): string {
     return date.toLocaleDateString('en-US', { weekday: 'short' });
   }
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export default function Inbox() {
@@ -52,6 +64,11 @@ export default function Inbox() {
   const [sending, setSending] = useState(false);
   const [userSearch, setUserSearch] = useState('');
 
+  // File attachment state
+  const [pendingFiles, setPendingFiles] = useState<{ file_id: number; filename: string; mime_type: string; size_bytes: number }[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     Promise.all([
       api.get<Conversation[]>('/api/conversations'),
@@ -61,7 +78,7 @@ export default function Inbox() {
         const sorted = [...convos].sort((a, b) => {
           const aTime = a.last_message_at ?? a.created_at;
           const bTime = b.last_message_at ?? b.created_at;
-          return new Date(bTime).getTime() - new Date(aTime).getTime();
+          return new Date(normalizeTimestamp(bTime)).getTime() - new Date(normalizeTimestamp(aTime)).getTime();
         });
         setConversations(sorted);
         setUsers(userList.filter(u => u.id !== user?.id));
@@ -82,8 +99,9 @@ export default function Inbox() {
       showToast('Please select at least one recipient', 'error');
       return;
     }
-    if (!body.trim()) {
-      showToast('Message body is required', 'error');
+    const fileIds = pendingFiles.map(f => f.file_id);
+    if (!body.trim() && fileIds.length === 0) {
+      showToast('Message body or attachment is required', 'error');
       return;
     }
     setSending(true);
@@ -92,6 +110,7 @@ export default function Inbox() {
         subject: subject.trim() || undefined,
         participant_ids: selectedUserIds,
         body: body.trim(),
+        file_ids: fileIds.length > 0 ? fileIds : undefined,
       });
       showToast('Conversation started', 'success');
       navigate(`/inbox/${convo.id}`);
@@ -102,11 +121,50 @@ export default function Inbox() {
     }
   };
 
+  const handleDeleteConversation = async (e: React.MouseEvent, convoId: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await api.del(`/api/conversations/${convoId}`);
+      setConversations(prev => prev.filter(c => c.id !== convoId));
+      showToast('Conversation deleted', 'success');
+    } catch {
+      showToast('Failed to delete conversation', 'error');
+    }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const res = await api.upload(file, 'message');
+        setPendingFiles(prev => [...prev, {
+          file_id: res.id,
+          filename: res.filename,
+          mime_type: res.mime_type,
+          size_bytes: res.size_bytes,
+        }]);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to upload file', 'error');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const removePendingFile = (fileId: number) => {
+    setPendingFiles(prev => prev.filter(f => f.file_id !== fileId));
+  };
+
   const resetForm = () => {
     setSelectedUserIds([]);
     setSubject('');
     setBody('');
     setUserSearch('');
+    setPendingFiles([]);
     setShowNewForm(false);
   };
 
@@ -216,14 +274,48 @@ export default function Inbox() {
             <textarea
               value={body}
               onChange={e => setBody(e.target.value)}
-              required
               rows={4}
               placeholder="Write your message..."
               className={`${inputClass} resize-none`}
             />
           </div>
 
-          <div className="flex flex-wrap gap-3 pt-1">
+          {/* Pending file attachments */}
+          {pendingFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {pendingFiles.map(f => (
+                <div key={f.file_id} className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs">
+                  <span className="truncate max-w-[120px]">{f.filename}</span>
+                  <span className="text-gray-400">{formatFileSize(f.size_bytes)}</span>
+                  <button type="button" onClick={() => removePendingFile(f.file_id)} className="text-gray-400 hover:text-red-500 ml-0.5">&times;</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-3 pt-1">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-gray-400 hover:text-emerald-600 transition-colors p-1"
+              title="Attach file"
+            >
+              {uploading ? (
+                <span className="text-xs text-gray-400">Uploading...</span>
+              ) : (
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+              )}
+            </button>
             <button
               type="submit"
               disabled={sending}
@@ -252,43 +344,58 @@ export default function Inbox() {
             const isUnread = convo.unread_count > 0;
             const timestamp = convo.last_message_at ?? convo.created_at;
             return (
-              <Link
+              <div
                 key={convo.id}
-                to={`/inbox/${convo.id}`}
-                className={`block bg-white rounded-xl border shadow-sm p-4 transition-colors hover:border-emerald-300 no-underline ${
+                className={`relative bg-white rounded-xl border shadow-sm transition-colors hover:border-emerald-300 ${
                   isUnread ? 'border-emerald-200 bg-emerald-50/30' : 'border-gray-100'
                 }`}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3
-                        className={`text-sm truncate ${
-                          isUnread ? 'font-semibold text-ink' : 'font-medium text-gray-700'
-                        }`}
-                      >
-                        {convo.subject || 'No subject'}
-                      </h3>
-                      {isUnread && (
-                        <span className="flex-shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 bg-emerald-500 text-white text-xs font-bold rounded-full">
-                          {convo.unread_count}
-                        </span>
+                <Link
+                  to={`/inbox/${convo.id}`}
+                  className="block p-4 no-underline"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3
+                          className={`text-sm truncate ${
+                            isUnread ? 'font-semibold text-ink' : 'font-medium text-gray-700'
+                          }`}
+                        >
+                          {convo.subject || 'No subject'}
+                        </h3>
+                        {isUnread && (
+                          <span className="flex-shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 bg-emerald-500 text-white text-xs font-bold rounded-full">
+                            {convo.unread_count}
+                          </span>
+                        )}
+                      </div>
+                      {convo.last_message && (
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                          {convo.last_sender ? (
+                            <span className="font-medium text-gray-600">{convo.last_sender}: </span>
+                          ) : null}
+                          {convo.last_message}
+                        </p>
                       )}
                     </div>
-                    {convo.last_message && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">
-                        {convo.last_sender ? (
-                          <span className="font-medium text-gray-600">{convo.last_sender}: </span>
-                        ) : null}
-                        {convo.last_message}
-                      </p>
-                    )}
+                    <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+                      <span className="text-xs text-gray-400">
+                        {formatTime(timestamp)}
+                      </span>
+                      <button
+                        onClick={(e) => handleDeleteConversation(e, convo.id)}
+                        className="text-gray-300 hover:text-red-500 transition-colors p-0.5"
+                        title="Delete conversation"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs text-gray-400 flex-shrink-0 mt-0.5">
-                    {formatTime(timestamp)}
-                  </span>
-                </div>
-              </Link>
+                </Link>
+              </div>
             );
           })}
         </div>

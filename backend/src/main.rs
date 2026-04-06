@@ -474,9 +474,10 @@ async fn main() {
         .route("/api/messaging/members", get(routes::messages::list_members))
         .route("/api/conversations", get(routes::messages::list_conversations).post(routes::messages::create_conversation))
         .route("/api/conversations/unread-count", get(routes::messages::conversations_unread_count))
-        .route("/api/conversations/{id}", get(routes::messages::get_conversation_messages))
+        .route("/api/conversations/{id}", get(routes::messages::get_conversation_messages).delete(routes::messages::hide_conversation))
         .route("/api/conversations/{id}/messages", post(routes::messages::send_message))
         .route("/api/conversations/{id}/read", put(routes::messages::mark_conversation_read))
+        .route("/api/messages/{id}", delete(routes::messages::delete_message))
         // Documents
         .route("/api/document-types", get(routes::documents::list_document_types))
         .route("/api/my-documents", get(routes::documents::list_my_documents))
