@@ -231,9 +231,9 @@ export default function SessionDetail() {
         start_time: editStart || null,
         end_time: editEnd || null,
         host_address: editHostAddress || null,
-        materials_needed: editMaterials || null,
+        materials_needed: editMaterials,
         max_students: editMaxStudents ? parseInt(editMaxStudents) : null,
-        notes: editNotes || null,
+        notes: editNotes,
         rsvp_cutoff: editCutoff || null,
         lesson_plan_id: editLessonPlanId ? parseInt(editLessonPlanId) : null,
       });

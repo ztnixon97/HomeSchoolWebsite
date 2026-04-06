@@ -49,9 +49,6 @@ export default function ManageSessions() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
-  const [assigningSessionId, setAssigningSessionId] = useState<number | null>(null);
-  const [quickAssignUserId, setQuickAssignUserId] = useState('');
-  const [quickAssignName, setQuickAssignName] = useState('');
   const [title, setTitle] = useState('');
   const [theme, setTheme] = useState('');
   const [date, setDate] = useState('');
@@ -215,29 +212,6 @@ export default function ManageSessions() {
   const deleteSession = async (id: number) => {
     if (!confirm('Are you sure you want to delete this?')) return;
     await api.del(`/api/admin/sessions/${id}`);
-    refresh();
-  };
-
-  const handleQuickAssign = async (sessionId: number) => {
-    const payload: Record<string, any> = {};
-    if (quickAssignUserId) {
-      payload.host_id = parseInt(quickAssignUserId);
-    } else if (quickAssignName.trim()) {
-      payload.host_name = quickAssignName.trim();
-    } else {
-      return;
-    }
-    await api.put(`/api/admin/sessions/${sessionId}`, payload);
-    showToast('Host assigned', 'success');
-    setAssigningSessionId(null);
-    setQuickAssignUserId('');
-    setQuickAssignName('');
-    refresh();
-  };
-
-  const handleUnassignHost = async (sessionId: number) => {
-    await api.put(`/api/admin/sessions/${sessionId}`, { host_id: 0, status: 'open' });
-    showToast('Host removed', 'success');
     refresh();
   };
 
@@ -512,61 +486,6 @@ export default function ManageSessions() {
                   Host: {s.host_name}
                   {!s.host_id && <span className="ml-1 text-amber-600">(unlinked)</span>}
                 </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              {assigningSessionId === s.id ? (
-                <div className="flex flex-wrap items-center gap-2 w-full">
-                  <select
-                    value={quickAssignUserId}
-                    onChange={e => { setQuickAssignUserId(e.target.value); if (e.target.value) setQuickAssignName(''); }}
-                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 flex-1 min-w-[160px]"
-                  >
-                    <option value="">Select a user...</option>
-                    {allUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.display_name} ({u.email})</option>
-                    ))}
-                  </select>
-                  {!quickAssignUserId && (
-                    <input
-                      type="text"
-                      value={quickAssignName}
-                      onChange={e => setQuickAssignName(e.target.value)}
-                      placeholder="Or type a name"
-                      className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 flex-1 min-w-[120px]"
-                    />
-                  )}
-                  <button
-                    onClick={() => handleQuickAssign(s.id)}
-                    disabled={!quickAssignUserId && !quickAssignName.trim()}
-                    className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-lg font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Save
-                  </button>
-                  <button
-                    onClick={() => { setAssigningSessionId(null); setQuickAssignUserId(''); setQuickAssignName(''); }}
-                    className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1.5"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <button
-                    onClick={() => { setAssigningSessionId(s.id); setQuickAssignUserId(s.host_id ? String(s.host_id) : ''); setQuickAssignName(''); }}
-                    className="text-xs text-cobalt hover:text-cobalt-dark font-medium py-1 px-2 rounded-lg border border-cobalt/20 hover:border-cobalt/40"
-                  >
-                    {s.host_name ? 'Reassign' : 'Assign Host'}
-                  </button>
-                  {s.host_id && (
-                    <button
-                      onClick={() => handleUnassignHost(s.id)}
-                      className="text-xs text-gray-400 hover:text-red-500 font-medium py-1 px-2"
-                    >
-                      Remove Host
-                    </button>
-                  )}
-                </>
               )}
             </div>
           </div>
