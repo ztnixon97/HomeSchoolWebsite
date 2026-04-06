@@ -22,7 +22,8 @@ export default function Schedule() {
   const { user } = useAuth();
 
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [view, setView] = useState<'calendar' | 'list'>('calendar');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches || window.matchMedia('(display-mode: standalone)').matches;
+  const [view, setView] = useState<'calendar' | 'list'>(isMobile ? 'list' : 'calendar');
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
 

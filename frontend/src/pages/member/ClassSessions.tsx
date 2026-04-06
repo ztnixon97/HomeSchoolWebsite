@@ -47,7 +47,8 @@ interface SessionType {
 export default function ClassSessions() {
   const { user } = useAuth();
   const features = useFeatures();
-  const [view, setView] = useState<'list' | 'calendar' | 'week'>('calendar');
+  const isMobile = window.matchMedia('(max-width: 768px)').matches || window.matchMedia('(display-mode: standalone)').matches;
+  const [view, setView] = useState<'list' | 'calendar' | 'week'>(isMobile ? 'list' : 'calendar');
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [groupFilter, setGroupFilter] = useState('');
   const [showCreate, setShowCreate] = useState(false);

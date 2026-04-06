@@ -62,6 +62,7 @@ export default function ManageSessions() {
   const [maxStudents, setMaxStudents] = useState('');
   const [notes, setNotes] = useState('');
   const [rsvpCutoff, setRsvpCutoff] = useState('');
+  const [editStatus, setEditStatus] = useState('');
   const [sessionTypeId, setSessionTypeId] = useState('');
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
@@ -102,6 +103,7 @@ export default function ManageSessions() {
     setMaxStudents('');
     setNotes('');
     setRsvpCutoff('');
+    setEditStatus('');
     setSessionTypeId('');
     setSelectedGroupIds([]);
   };
@@ -119,6 +121,7 @@ export default function ManageSessions() {
     setCostAmount(s.cost_amount != null ? String(s.cost_amount) : '');
     setCostDetails(s.cost_details || '');
     setMaxStudents(s.max_students != null ? String(s.max_students) : '');
+    setEditStatus(s.status);
     setNotes('');
     setRsvpCutoff(s.rsvp_cutoff || '');
     const matchedType = sessionTypes.find(t => t.label === s.session_type_label || t.name === s.session_type_name);
@@ -146,6 +149,7 @@ export default function ManageSessions() {
       rsvp_cutoff: rsvpCutoff || null,
       session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
       class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
+      ...(editingId && editStatus ? { status: editStatus } : {}),
     };
     try {
       if (editingId) {
@@ -313,6 +317,17 @@ export default function ManageSessions() {
               <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" className={inputClass} />
             </div>
           </div>
+          {editingId && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+              <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className={inputClass}>
+                <option value="open">Open</option>
+                <option value="claimed">Claimed</option>
+                <option value="completed">Completed</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff</label>
             <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className={inputClass} />
