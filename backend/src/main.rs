@@ -470,9 +470,8 @@ async fn main() {
         .route("/api/push/subscribe", post(routes::push::subscribe))
         .route("/api/push/unsubscribe", delete(routes::push::unsubscribe))
         .route("/api/push/preferences", get(routes::push::get_preferences).put(routes::push::update_preferences))
-        // Members list (for messaging recipient picker)
-        .route("/api/members", get(routes::messages::list_members))
         // Conversations / Messaging
+        .route("/api/messaging/members", get(routes::messages::list_members))
         .route("/api/conversations", get(routes::messages::list_conversations).post(routes::messages::create_conversation))
         .route("/api/conversations/unread-count", get(routes::messages::conversations_unread_count))
         .route("/api/conversations/{id}", get(routes::messages::get_conversation_messages))

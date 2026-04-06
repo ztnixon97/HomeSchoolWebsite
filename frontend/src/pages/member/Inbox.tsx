@@ -55,7 +55,7 @@ export default function Inbox() {
   useEffect(() => {
     Promise.all([
       api.get<Conversation[]>('/api/conversations'),
-      api.get<AdminUser[]>('/api/members'),
+      api.get<AdminUser[]>('/api/messaging/members'),
     ])
       .then(([convos, userList]) => {
         const sorted = [...convos].sort((a, b) => {
