@@ -42,7 +42,8 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
              LEFT JOIN session_types st ON cs.session_type_id = st.id
              WHERE cs.session_date = date('now', '+1 day')
                AND cs.reminder_sent = 0
-               AND cs.status = 'open'",
+               AND cs.status = 'open'
+               AND (st.name IS NULL OR st.name != 'holiday')",
         ) {
             Ok(s) => s,
             Err(e) => {
