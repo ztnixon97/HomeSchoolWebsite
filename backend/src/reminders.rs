@@ -32,13 +32,18 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         };
 
         // Find sessions happening tomorrow that haven't had reminders sent
+        // Join session_types to know if the session is rsvpable
         let mut stmt = match conn.prepare(
             "SELECT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
-                    COALESCE(cs.location_name, cs.host_address, 'TBD') as location
+                    COALESCE(cs.location_name, cs.host_address, 'TBD') as location,
+                    COALESCE(st.rsvpable, 1) as rsvpable,
+                    cs.host_id
              FROM class_sessions cs
+             LEFT JOIN session_types st ON cs.session_type_id = st.id
              WHERE cs.session_date = date('now', '+1 day')
                AND cs.reminder_sent = 0
-               AND cs.status = 'open'",
+               AND cs.status = 'open'
+               AND (st.name IS NULL OR st.name != 'holiday')",
         ) {
             Ok(s) => s,
             Err(e) => {
@@ -54,6 +59,8 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             start_time: Option<String>,
             end_time: Option<String>,
             location: String,
+            rsvpable: bool,
+            host_id: Option<i64>,
         }
 
         let sessions: Vec<SessionInfo> = match stmt.query_map([], |row| {
@@ -64,6 +71,8 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 start_time: row.get(3)?,
                 end_time: row.get(4)?,
                 location: row.get(5)?,
+                rsvpable: row.get::<_, i32>(6)? != 0,
+                host_id: row.get(7)?,
             })
         }) {
             Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
@@ -85,35 +94,74 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         for session in &sessions {
             session_ids.push(session.id);
 
-            // Find all parents with confirmed RSVPs for this session
-            let mut parent_stmt = match conn.prepare(
-                "SELECT DISTINCT u.id, u.email, u.display_name
-                 FROM rsvps r
-                 JOIN users u ON r.parent_id = u.id
-                 WHERE r.session_id = ?1
-                   AND r.status = 'confirmed'
-                   AND u.active = 1",
-            ) {
-                Ok(s) => s,
-                Err(e) => {
-                    eprintln!("[reminders] Parent query error for session {}: {}", session.id, e);
-                    continue;
-                }
+            let recipients: Vec<(i64, String, String)> = if session.rsvpable {
+                // Session type has RSVPs enabled — only send to confirmed RSVP parents
+                let mut stmt = match conn.prepare(
+                    "SELECT DISTINCT u.id, u.email, u.display_name
+                     FROM rsvps r
+                     JOIN users u ON r.parent_id = u.id
+                     WHERE r.session_id = ?1
+                       AND r.status = 'confirmed'
+                       AND u.active = 1",
+                ) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("[reminders] RSVP query error for session {}: {}", session.id, e);
+                        continue;
+                    }
+                };
+                let result: Vec<_> = match stmt.query_map(params![session.id], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                }) {
+                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                    Err(e) => {
+                        eprintln!("[reminders] RSVP fetch error for session {}: {}", session.id, e);
+                        continue;
+                    }
+                };
+                result
+            } else {
+                // RSVPs not enabled for this session type — send to all active members
+                let mut stmt = match conn.prepare(
+                    "SELECT u.id, u.email, u.display_name
+                     FROM users u
+                     WHERE u.active = 1",
+                ) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        eprintln!("[reminders] All-members query error for session {}: {}", session.id, e);
+                        continue;
+                    }
+                };
+                let result: Vec<_> = match stmt.query_map([], |row| {
+                    Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
+                }) {
+                    Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
+                    Err(e) => {
+                        eprintln!("[reminders] All-members fetch error for session {}: {}", session.id, e);
+                        continue;
+                    }
+                };
+                result
             };
 
-            let parents: Vec<(i64, String, String)> = match parent_stmt.query_map(params![session.id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
-            }) {
-                Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
-                Err(e) => {
-                    eprintln!("[reminders] Parent fetch error for session {}: {}", session.id, e);
-                    continue;
+            // Always include the host if assigned and not already in the list
+            let mut final_recipients = recipients;
+            if let Some(host_id) = session.host_id {
+                if !final_recipients.iter().any(|(id, _, _)| *id == host_id) {
+                    if let Ok(host) = conn.query_row(
+                        "SELECT u.id, u.email, u.display_name FROM users u WHERE u.id = ?1 AND u.active = 1",
+                        params![host_id],
+                        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?)),
+                    ) {
+                        final_recipients.push(host);
+                    }
                 }
-            };
+            }
 
             let friendly_date = format_friendly_date(&session.session_date);
 
-            for (uid, email, name) in parents {
+            for (uid, email, name) in final_recipients {
                 targets.push(ReminderTarget {
                     session_id: session.id,
                     session_title: session.title.clone(),
@@ -142,7 +190,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 );
             }
         }
-        println!("[reminders] Sessions found but no confirmed RSVPs.");
+        println!("[reminders] Sessions found but no recipients to notify.");
         return 0;
     }
 
