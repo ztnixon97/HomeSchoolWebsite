@@ -1,10 +1,18 @@
 use crate::db::DbPool;
 use crate::email::{send_class_reminder_email, EmailConfig};
+use chrono::Utc;
+use chrono_tz::America::New_York;
 use rusqlite::params;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
-// Static flag to track if we've already checked today (in-process)
-static REMINDER_CHECK_TODAY: AtomicBool = AtomicBool::new(false);
+/// Minimum seconds between reminder checks (30 minutes).
+const COOLDOWN_SECS: u64 = 30 * 60;
+
+/// Epoch-seconds timestamp of the last completed reminder check.
+static LAST_CHECK_TIME: AtomicU64 = AtomicU64::new(0);
+
+/// Prevents overlapping async reminder tasks.
+static REMINDER_CHECK_RUNNING: AtomicBool = AtomicBool::new(false);
 
 struct ReminderTarget {
     session_id: i64,
@@ -18,9 +26,27 @@ struct ReminderTarget {
     parent_name: String,
 }
 
-/// Send reminder emails for sessions happening tomorrow.
+fn now_epoch_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+/// Calculate tomorrow's date in Eastern time (handles EST/EDT automatically).
+fn tomorrow_eastern() -> String {
+    let now_eastern = Utc::now().with_timezone(&New_York);
+    let tomorrow = now_eastern.date_naive() + chrono::Duration::days(1);
+    tomorrow.format("%Y-%m-%d").to_string()
+}
+
+/// Send reminder emails/push for sessions happening tomorrow (Eastern time).
+/// Uses `reminder_sent` flag per session to prevent duplicates.
 /// Returns the number of emails sent.
 pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) -> usize {
+    let tomorrow = tomorrow_eastern();
+    println!("[reminders] Checking for sessions on {} (tomorrow Eastern)", tomorrow);
+
     // ── Phase 1: Gather all data from DB (synchronous, no .await) ──
     let (targets, session_ids) = {
         let conn = match db.get() {
@@ -31,8 +57,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             }
         };
 
-        // Find sessions happening tomorrow that haven't had reminders sent
-        // Join session_types to know if the session is rsvpable
+        // Find sessions happening tomorrow (Eastern) that haven't had reminders sent
         let mut stmt = match conn.prepare(
             "SELECT cs.id, cs.title, cs.session_date, cs.start_time, cs.end_time,
                     COALESCE(cs.location_name, cs.host_address, 'TBD') as location,
@@ -40,7 +65,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                     cs.host_id
              FROM class_sessions cs
              LEFT JOIN session_types st ON cs.session_type_id = st.id
-             WHERE cs.session_date = date('now', '+1 day')
+             WHERE cs.session_date = ?1
                AND cs.reminder_sent = 0
                AND cs.status = 'open'
                AND (st.name IS NULL OR st.name != 'holiday')",
@@ -63,7 +88,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             host_id: Option<i64>,
         }
 
-        let sessions: Vec<SessionInfo> = match stmt.query_map([], |row| {
+        let sessions: Vec<SessionInfo> = match stmt.query_map(params![tomorrow], |row| {
             Ok(SessionInfo {
                 id: row.get(0)?,
                 title: row.get(1)?,
@@ -84,9 +109,10 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         drop(stmt);
 
         if sessions.is_empty() {
-            println!("[reminders] No sessions tomorrow needing reminders.");
             return 0;
         }
+
+        println!("[reminders] Found {} session(s) needing reminders.", sessions.len());
 
         let mut targets: Vec<ReminderTarget> = Vec::new();
         let mut session_ids: Vec<i64> = Vec::new();
@@ -181,7 +207,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
     // conn is dropped here — safe to .await below
 
     if targets.is_empty() {
-        // Mark sessions as reminder-sent even if no RSVPs
+        // Mark sessions as reminder-sent even if no recipients
         if let Ok(conn) = db.get() {
             for id in &session_ids {
                 let _ = conn.execute(
@@ -277,101 +303,36 @@ fn format_friendly_date(date_str: &str) -> String {
     date_str.to_string()
 }
 
-/// Check if reminders should be sent today (on first request of the day).
-/// This is designed to work reliably with Fly.io's auto-stop behavior.
+/// Called from the request logger middleware on every `/api/` request.
 ///
-/// Uses a two-layer approach:
-/// 1. In-process flag (REMINDER_CHECK_TODAY) for quick checks within a single instance
-/// 2. Database tracking (app_settings table) to ensure checks survive machine restarts
+/// Uses a 30-minute cooldown so we're not querying the DB on every request,
+/// but still responsive enough that reminders go out promptly when the app
+/// wakes up. The `reminder_sent` flag per session is the real dedup mechanism.
 ///
-/// On the first API request of each day, spawns an async task to send reminders.
+/// On first request after app startup, the cooldown is 0, so it runs immediately.
 pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) {
-    // Quick check: have we already tried to check today in THIS process?
-    if REMINDER_CHECK_TODAY.load(Ordering::Relaxed) {
+    let now = now_epoch_secs();
+    let last = LAST_CHECK_TIME.load(Ordering::Relaxed);
+
+    // Cooldown: skip if we checked recently
+    if last > 0 && now.saturating_sub(last) < COOLDOWN_SECS {
         return;
     }
 
-    // Synchronous DB check: has the app already checked today?
-    let should_check = {
-        let conn = match db.get() {
-            Ok(c) => c,
-            Err(_) => return, // DB error, skip
-        };
-
-        let today = {
-            use std::time::SystemTime;
-            let now = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default();
-            let secs = now.as_secs();
-            // Calculate days since epoch for date comparison
-            let days_since_epoch = secs / 86400;
-            days_since_epoch
-        };
-
-        // Get the last check date stored in DB
-        let last_check: Option<String> = conn
-            .query_row(
-                "SELECT value FROM app_settings WHERE key = 'last_reminder_check'",
-                [],
-                |row| row.get(0),
-            )
-            .ok();
-
-        let should_check = match last_check {
-            None => {
-                // Never checked before
-                true
-            }
-            Some(stored_days_str) => {
-                // Parse the stored days-since-epoch value and compare
-                stored_days_str
-                    .parse::<u64>()
-                    .map(|stored_days| stored_days < today)
-                    .unwrap_or(true)
-            }
-        };
-
-        should_check
-    };
-
-    if !should_check {
-        // Already checked today (in DB)
-        REMINDER_CHECK_TODAY.store(true, Ordering::Relaxed);
+    // Prevent overlapping async tasks
+    if REMINDER_CHECK_RUNNING.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
         return;
     }
 
-    // Mark that we've initiated a check today (to prevent multiple simultaneous checks)
-    REMINDER_CHECK_TODAY.store(true, Ordering::Relaxed);
+    // Update the last-check timestamp now (before spawning) so other requests
+    // see the cooldown immediately
+    LAST_CHECK_TIME.store(now, Ordering::Relaxed);
 
-    // Update the DB with today's date
-    {
-        let today = {
-            use std::time::SystemTime;
-            let now = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap_or_default();
-            let secs = now.as_secs();
-            let days_since_epoch = secs / 86400;
-            days_since_epoch.to_string()
-        };
-
-        if let Ok(conn) = db.get() {
-            let _ = conn.execute(
-                "INSERT INTO app_settings (key, value) VALUES ('last_reminder_check', ?1)
-                 ON CONFLICT(key) DO UPDATE SET value = ?1",
-                params![today],
-            );
-        }
-    }
-
-    // Spawn async task to send reminders (non-blocking)
-    println!("[reminders] Spawning reminder check task for today's sessions...");
     tokio::spawn(async move {
         let sent = send_upcoming_reminders(db, email_config, push_config).await;
-        println!(
-            "[reminders] Daily reminder check completed. {} emails sent.",
-            sent
-        );
+        if sent > 0 {
+            println!("[reminders] Reminder check completed. {} notifications sent.", sent);
+        }
+        REMINDER_CHECK_RUNNING.store(false, Ordering::SeqCst);
     });
 }
