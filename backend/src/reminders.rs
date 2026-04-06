@@ -13,13 +13,14 @@ struct ReminderTarget {
     start_time: Option<String>,
     end_time: Option<String>,
     location: String,
+    parent_id: i64,
     parent_email: String,
     parent_name: String,
 }
 
 /// Send reminder emails for sessions happening tomorrow.
 /// Returns the number of emails sent.
-pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> usize {
+pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) -> usize {
     // ── Phase 1: Gather all data from DB (synchronous, no .await) ──
     let (targets, session_ids) = {
         let conn = match db.get() {
@@ -86,7 +87,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> u
 
             // Find all parents with confirmed RSVPs for this session
             let mut parent_stmt = match conn.prepare(
-                "SELECT DISTINCT u.email, u.display_name
+                "SELECT DISTINCT u.id, u.email, u.display_name
                  FROM rsvps r
                  JOIN users u ON r.parent_id = u.id
                  WHERE r.session_id = ?1
@@ -100,8 +101,8 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> u
                 }
             };
 
-            let parents: Vec<(String, String)> = match parent_stmt.query_map(params![session.id], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            let parents: Vec<(i64, String, String)> = match parent_stmt.query_map(params![session.id], |row| {
+                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?))
             }) {
                 Ok(rows) => rows.filter_map(|r| r.ok()).collect(),
                 Err(e) => {
@@ -112,7 +113,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> u
 
             let friendly_date = format_friendly_date(&session.session_date);
 
-            for (email, name) in parents {
+            for (uid, email, name) in parents {
                 targets.push(ReminderTarget {
                     session_id: session.id,
                     session_title: session.title.clone(),
@@ -120,6 +121,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> u
                     start_time: session.start_time.clone(),
                     end_time: session.end_time.clone(),
                     location: session.location.clone(),
+                    parent_id: uid,
                     parent_email: email,
                     parent_name: name,
                 });
@@ -176,6 +178,18 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig) -> u
         }
     }
 
+    // ── Phase 2b: Send push notifications ──
+    if let Some(ref cfg) = push_config {
+        for target in &targets {
+            crate::push::send_push_to_user(
+                db.clone(), cfg.clone(), target.parent_id, "reminders",
+                &format!("Reminder: {} — Tomorrow", target.session_title),
+                &format!("{} at {}", target.friendly_date, target.start_time.as_deref().unwrap_or("TBD")),
+                &format!("/sessions/{}", target.session_id),
+            ).await;
+        }
+    }
+
     // ── Phase 3: Mark sessions as reminder-sent ──
     if let Ok(conn) = db.get() {
         for id in &session_ids {
@@ -223,7 +237,7 @@ fn format_friendly_date(date_str: &str) -> String {
 /// 2. Database tracking (app_settings table) to ensure checks survive machine restarts
 ///
 /// On the first API request of each day, spawns an async task to send reminders.
-pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig) {
+pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig, push_config: Option<crate::push::PushConfig>) {
     // Quick check: have we already tried to check today in THIS process?
     if REMINDER_CHECK_TODAY.load(Ordering::Relaxed) {
         return;
@@ -306,7 +320,7 @@ pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig) {
     // Spawn async task to send reminders (non-blocking)
     println!("[reminders] Spawning reminder check task for today's sessions...");
     tokio::spawn(async move {
-        let sent = send_upcoming_reminders(db, email_config).await;
+        let sent = send_upcoming_reminders(db, email_config, push_config).await;
         println!(
             "[reminders] Daily reminder check completed. {} emails sent.",
             sent

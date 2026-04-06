@@ -204,6 +204,35 @@ pub async fn send_message(
     )?;
     let message_id = conn.last_insert_rowid();
 
+    // Push notification to other conversation participants
+    if let Some(ref push_cfg) = state.push_config {
+        let mut pstmt = conn.prepare(
+            "SELECT user_id FROM conversation_participants WHERE conversation_id = ?1 AND user_id != ?2",
+        )?;
+        let recipient_ids: Vec<i64> = pstmt
+            .query_map(params![id, user.id], |row| row.get(0))
+            .map(|rows| rows.filter_map(|r| r.ok()).collect())
+            .unwrap_or_default();
+        drop(pstmt);
+
+        let sender_name = user.display_name.clone();
+        let conv_url = format!("/inbox/{}", id);
+        for rid in recipient_ids {
+            let db = state.db.clone();
+            let cfg = push_cfg.clone();
+            let name = sender_name.clone();
+            let url = conv_url.clone();
+            tokio::spawn(async move {
+                crate::push::send_push_to_user(
+                    db, cfg, rid, "messages",
+                    &format!("New message from {}", name),
+                    "You have a new message.",
+                    &url,
+                ).await;
+            });
+        }
+    }
+
     Ok(Json(serde_json::json!({ "id": message_id })))
 }
 
@@ -240,6 +269,29 @@ pub async fn conversations_unread_count(
         |row| row.get(0),
     )?;
     Ok(Json(serde_json::json!({ "count": count })))
+}
+
+/// GET /api/members — lightweight user list for messaging (any authenticated user)
+pub async fn list_members(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT id, display_name, email, role FROM users WHERE active = 1 ORDER BY display_name",
+    )?;
+    let members: Vec<serde_json::Value> = stmt
+        .query_map([], |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "display_name": row.get::<_, String>(1)?,
+                "email": row.get::<_, String>(2)?,
+                "role": row.get::<_, String>(3)?,
+            }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(members))
 }
 
 use serde::Deserialize;

@@ -898,6 +898,36 @@ pub async fn create_rsvp(
     let id = conn.last_insert_rowid();
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
+    // Push notification to session host
+    if let Some(ref push_cfg) = state.push_config {
+        let host_info: Option<(i64, String)> = conn.query_row(
+            "SELECT cs.host_id, cs.title FROM class_sessions cs WHERE cs.id = ?1 AND cs.host_id IS NOT NULL",
+            params![req.session_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        ).ok();
+        let student_name: String = conn.query_row(
+            "SELECT first_name || ' ' || last_name FROM students WHERE id = ?1",
+            params![req.student_id],
+            |row| row.get(0),
+        ).unwrap_or_else(|_| "A student".to_string());
+
+        if let Some((host_id, session_title)) = host_info {
+            if host_id != user.id {
+                let db = state.db.clone();
+                let cfg = push_cfg.clone();
+                let push_url = format!("/sessions/{}", req.session_id);
+                tokio::spawn(async move {
+                    crate::push::send_push_to_user(
+                        db, cfg, host_id, "rsvp",
+                        &format!("New RSVP for {}", session_title),
+                        &format!("{} has RSVPed.", student_name),
+                        &push_url,
+                    ).await;
+                });
+            }
+        }
+    }
+
     Ok(Json(Rsvp {
         id,
         session_id: req.session_id,
@@ -971,6 +1001,28 @@ pub async fn delete_rsvp(
 
     if parent_id != user.id && !same_family && host_id != Some(user.id) && user.role != "admin" {
         return Err(AppError::Forbidden);
+    }
+
+    // Push notification to host about RSVP cancellation
+    if let Some(ref push_cfg) = state.push_config {
+        if let Some(hid) = host_id {
+            if hid != user.id {
+                let session_title: String = conn.query_row(
+                    "SELECT title FROM class_sessions WHERE id = ?1", params![session_id], |row| row.get(0),
+                ).unwrap_or_else(|_| "a session".to_string());
+                let db = state.db.clone();
+                let cfg = push_cfg.clone();
+                let push_url = format!("/sessions/{}", session_id);
+                tokio::spawn(async move {
+                    crate::push::send_push_to_user(
+                        db, cfg, hid, "rsvp",
+                        &format!("RSVP cancelled for {}", session_title),
+                        "An RSVP has been cancelled.",
+                        &push_url,
+                    ).await;
+                });
+            }
+        }
     }
 
     conn.execute("DELETE FROM rsvps WHERE id = ?1", params![id])?;

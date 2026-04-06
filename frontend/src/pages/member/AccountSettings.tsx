@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../auth';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
@@ -24,6 +24,63 @@ export default function AccountSettings() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Push notifications
+  const [pushSupported] = useState(() => 'Notification' in window && 'serviceWorker' in navigator);
+  const [pushSubscribed, setPushSubscribed] = useState(false);
+  const [pushPrefs, setPushPrefs] = useState<Record<string, boolean>>({
+    host_assignment: true, reminders: true, rsvp: true, announcements: true, messages: true,
+  });
+
+  useEffect(() => {
+    if (pushSupported) {
+      api.get<{ subscribed: boolean; preferences: Record<string, boolean> }>('/api/push/preferences')
+        .then(r => {
+          setPushSubscribed(r.subscribed);
+          if (r.subscribed && Object.keys(r.preferences).length > 0) setPushPrefs(r.preferences);
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (pushSubscribed) {
+      // Unsubscribe
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.getSubscription();
+        if (sub) {
+          await api.post('/api/push/unsubscribe', { endpoint: sub.endpoint });
+          await sub.unsubscribe();
+        }
+        localStorage.removeItem('push-subscribed');
+        setPushSubscribed(false);
+        showToast('Notifications disabled', 'success');
+      } catch { showToast('Failed to disable notifications', 'error'); }
+    } else {
+      // Subscribe
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') { showToast('Notification permission denied', 'error'); return; }
+        const { public_key } = await api.get<{ public_key: string }>('/api/push/vapid-key');
+        if (!public_key) { showToast('Push not configured on server', 'error'); return; }
+        const reg = await navigator.serviceWorker.ready;
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: public_key });
+        const json = sub.toJSON();
+        await api.post('/api/push/subscribe', { endpoint: json.endpoint, p256dh: json.keys!.p256dh, auth: json.keys!.auth });
+        localStorage.setItem('push-subscribed', '1');
+        localStorage.setItem('push-prompt-dismissed', '1');
+        setPushSubscribed(true);
+        showToast('Notifications enabled', 'success');
+      } catch { showToast('Failed to enable notifications', 'error'); }
+    }
+  };
+
+  const handlePrefChange = async (key: string, value: boolean) => {
+    const updated = { ...pushPrefs, [key]: value };
+    setPushPrefs(updated);
+    await api.put('/api/push/preferences', { [key]: value }).catch(() => {});
+  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,6 +237,52 @@ export default function AccountSettings() {
           {savingPassword ? 'Changing...' : 'Change Password'}
         </button>
       </form>
+
+      {/* Push Notifications */}
+      {pushSupported && (
+        <div className="panel-quiet p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-ink mb-2">Push Notifications</h2>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-ink/80">Enable push notifications</p>
+              <p className="text-xs text-ink/50">Receive alerts on your device</p>
+            </div>
+            <button
+              onClick={handleTogglePush}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${pushSubscribed ? 'bg-cobalt' : 'bg-gray-300'}`}
+            >
+              <span className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${pushSubscribed ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          {pushSubscribed && (
+            <div className="border-t border-ink/10 pt-4 space-y-3">
+              <p className="text-xs text-ink/50 uppercase tracking-wider font-medium">Notification types</p>
+              {([
+                ['host_assignment', 'Host assignments', 'When you are assigned to host a session'],
+                ['reminders', 'Class reminders', 'Reminders for sessions happening tomorrow'],
+                ['rsvp', 'RSVP activity', 'When someone RSVPs or cancels for your session'],
+                ['announcements', 'Announcements', 'New announcements from admins'],
+                ['messages', 'Messages', 'New messages in conversations'],
+              ] as const).map(([key, label, desc]) => (
+                <div key={key} className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-ink/80">{label}</p>
+                    <p className="text-xs text-ink/40">{desc}</p>
+                  </div>
+                  <button
+                    onClick={() => handlePrefChange(key, !pushPrefs[key])}
+                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${pushPrefs[key] ? 'bg-cobalt' : 'bg-gray-300'}`}
+                  >
+                    <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${pushPrefs[key] ? 'translate-x-5' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

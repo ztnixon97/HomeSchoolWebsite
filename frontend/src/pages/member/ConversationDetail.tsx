@@ -82,12 +82,12 @@ export default function ConversationDetail() {
     if (!replyBody.trim() || !id) return;
     setSending(true);
     try {
-      const newMessage = await api.post<Message>(`/api/conversations/${id}/messages`, {
+      await api.post(`/api/conversations/${id}/messages`, {
         body: replyBody.trim(),
       });
-      setConversation(prev =>
-        prev ? { ...prev, messages: [...prev.messages, newMessage] } : prev
-      );
+      // Re-fetch to get the full message with sender_name and created_at
+      const updated = await api.get<ConversationDetail>(`/api/conversations/${id}`);
+      setConversation(updated);
       setReplyBody('');
       setTimeout(scrollToBottom, 50);
     } catch (err: any) {

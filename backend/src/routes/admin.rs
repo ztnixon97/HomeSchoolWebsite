@@ -844,6 +844,19 @@ pub async fn update_session(
                     &email_config, &email_to, &name, &title_clone, &date_clone, sid,
                 ).await;
             });
+
+            // Push notification
+            if let Some(ref push_cfg) = state.push_config {
+                let db = state.db.clone();
+                let cfg = push_cfg.clone();
+                let push_title = format!("You've been assigned to host: {}", session_title);
+                let push_body = format!("You've been assigned to host {} on {}.", session_title, session_date);
+                let push_url = format!("/sessions/{}", id);
+                let push_host_id = host_id;
+                tokio::spawn(async move {
+                    crate::push::send_push_to_user(db, cfg, push_host_id, "host_assignment", &push_title, &push_body, &push_url).await;
+                });
+            }
         }
         }
     } else if let Some(host_name) = req.host_name {
@@ -1238,6 +1251,7 @@ pub async fn trigger_reminders(
     let sent = crate::reminders::send_upcoming_reminders(
         state.db.clone(),
         state.email_config.clone(),
+        state.push_config.clone(),
     )
     .await;
     Ok(Json(serde_json::json!({ "reminders_sent": sent })))
@@ -1292,6 +1306,16 @@ pub async fn create_announcement(
 
     let id = conn.last_insert_rowid();
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+
+    // Push notification to all users
+    if let Some(ref push_cfg) = state.push_config {
+        let db = state.db.clone();
+        let cfg = push_cfg.clone();
+        let push_title = title.clone();
+        tokio::spawn(async move {
+            crate::push::send_push_to_all(db, cfg, "announcements", &push_title, "New announcement posted", "/dashboard").await;
+        });
+    }
 
     Ok(Json(Announcement {
         id,

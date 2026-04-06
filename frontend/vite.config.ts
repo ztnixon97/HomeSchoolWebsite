@@ -8,6 +8,9 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'custom-sw.ts',
       registerType: 'autoUpdate',
       includeAssets: ['chicken-logo.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -37,79 +40,8 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        navigateFallback: '/index.html',
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-            },
-          },
-          {
-            urlPattern: /\/api\/auth\/me$/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'auth-cache',
-              expiration: { maxEntries: 1, maxAgeSeconds: 60 * 60 * 24 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /\/api\/(session-types|class-groups|features)$/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'reference-data',
-              expiration: { maxEntries: 20, maxAgeSeconds: 60 * 60 * 24 * 7 },
-            },
-          },
-          {
-            urlPattern: /\/api\/sessions/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'sessions-cache',
-              expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /\/api\/my-rsvps/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'rsvps-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /\/api\/my-children/,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'children-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 },
-              networkTimeoutSeconds: 3,
-            },
-          },
-          {
-            urlPattern: /\/api\/announcements/,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'announcements-cache',
-              expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 4 },
-            },
-          },
-          {
-            urlPattern: /\/api\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-            },
-          },
-        ],
       },
     }),
   ],

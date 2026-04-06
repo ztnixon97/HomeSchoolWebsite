@@ -6,6 +6,7 @@ import FeatureGate from './components/FeatureGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
 import InstallPrompt from './components/InstallPrompt';
+import PushPrompt from './components/PushPrompt';
 
 // Public pages
 import Home from './pages/public/Home';
@@ -75,6 +76,7 @@ export default function App() {
           <InstallPrompt />
           <AuthProvider>
             <SessionGuard />
+            <PushPrompt />
             <Routes>
           <Route element={<Layout />}>
             {/* Public */}

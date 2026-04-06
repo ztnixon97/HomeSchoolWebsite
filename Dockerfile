@@ -12,10 +12,10 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev && rm -rf /var/li
 WORKDIR /app/backend
 # Cache dependencies by building with dummy main
 COPY backend/Cargo.toml backend/Cargo.lock* ./
-RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release 2>/dev/null || true && rm -rf src
+RUN mkdir src && echo 'fn main() {}' > src/main.rs && cargo build --release --features push-notifications 2>/dev/null || true && rm -rf src
 # Build actual app
 COPY backend/src/ ./src/
-RUN touch src/main.rs && cargo build --release
+RUN touch src/main.rs && cargo build --release --features push-notifications
 
 # ─── Stage 3: Final minimal image ───
 FROM debian:trixie-slim

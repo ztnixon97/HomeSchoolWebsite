@@ -357,6 +357,17 @@ fn run_migrations(pool: &DbPool) {
             UNIQUE(group_id, category)
         );
 
+        CREATE TABLE IF NOT EXISTS push_subscriptions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            endpoint TEXT NOT NULL UNIQUE,
+            p256dh TEXT NOT NULL,
+            auth TEXT NOT NULL,
+            preferences TEXT NOT NULL DEFAULT '{\"host_assignment\":true,\"reminders\":true,\"rsvp\":true,\"announcements\":true,\"messages\":true}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE INDEX IF NOT EXISTS idx_push_sub_user ON push_subscriptions(user_id);
+
         CREATE TABLE IF NOT EXISTS notifications (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

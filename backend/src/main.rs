@@ -18,6 +18,7 @@ mod email;
 mod errors;
 mod features;
 mod models;
+mod push;
 mod reminders;
 mod routes;
 mod sanitize;
@@ -27,6 +28,7 @@ mod storage;
 
 use db::DbPool;
 use email::EmailConfig;
+use push::PushConfig;
 use storage::{LocalStorage, StorageBackend};
 
 #[derive(Clone)]
@@ -35,6 +37,7 @@ pub struct AppState {
     pub storage: Arc<dyn StorageBackend>,
     pub uploads_dir: String,
     pub email_config: EmailConfig,
+    pub push_config: Option<PushConfig>,
 }
 
 #[tokio::main]
@@ -80,11 +83,19 @@ async fn main() {
     // Initialize email config
     let email_config = EmailConfig::from_env();
 
+    let push_config = PushConfig::from_env();
+    if push_config.is_some() {
+        println!("Push notifications enabled (VAPID keys configured)");
+    } else {
+        println!("Push notifications disabled (no VAPID keys)");
+    }
+
     let state = AppState {
         db: pool.clone(),
         storage,
         uploads_dir: uploads_dir.to_string(),
         email_config,
+        push_config,
     };
 
     // Session store (SQLite-backed — sessions persist across restarts)
@@ -454,6 +465,13 @@ async fn main() {
         .route("/api/notifications/read-all", put(routes::notifications::mark_all_read))
         .route("/api/notifications/unread-count", get(routes::notifications::unread_count))
         .route("/api/notifications/{id}/read", put(routes::notifications::mark_notification_read))
+        // Push notifications
+        .route("/api/push/vapid-key", get(routes::push::vapid_key))
+        .route("/api/push/subscribe", post(routes::push::subscribe))
+        .route("/api/push/unsubscribe", delete(routes::push::unsubscribe))
+        .route("/api/push/preferences", get(routes::push::get_preferences).put(routes::push::update_preferences))
+        // Members list (for messaging recipient picker)
+        .route("/api/members", get(routes::messages::list_members))
         // Conversations / Messaging
         .route("/api/conversations", get(routes::messages::list_conversations).post(routes::messages::create_conversation))
         .route("/api/conversations/unread-count", get(routes::messages::conversations_unread_count))
@@ -539,7 +557,7 @@ async fn request_logger(
         tracing::info!(method = %method, path = %path, "request");
 
         // Check if we need to send reminders (on first request of the day)
-        reminders::check_reminders_if_needed(state.db.clone(), state.email_config.clone());
+        reminders::check_reminders_if_needed(state.db.clone(), state.email_config.clone(), state.push_config.clone());
     }
 
     let start = std::time::Instant::now();

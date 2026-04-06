@@ -11,6 +11,7 @@ pub mod lesson_plans;
 pub mod messages;
 pub mod notifications;
 pub mod payments;
+pub mod push;
 pub mod public;
 pub mod reports;
 pub mod sessions;
