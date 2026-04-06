@@ -59,6 +59,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
             start_time: Option<String>,
             end_time: Option<String>,
             location: String,
+            rsvpable: bool,
             host_id: Option<i64>,
         }
 
@@ -70,6 +71,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 start_time: row.get(3)?,
                 end_time: row.get(4)?,
                 location: row.get(5)?,
+                rsvpable: row.get::<_, i32>(6)? != 0,
                 host_id: row.get(7)?,
             })
         }) {
@@ -92,17 +94,8 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         for session in &sessions {
             session_ids.push(session.id);
 
-            // Check if this session has any confirmed RSVPs
-            let rsvp_count: i64 = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM rsvps WHERE session_id = ?1 AND status = 'confirmed'",
-                    params![session.id],
-                    |row| row.get(0),
-                )
-                .unwrap_or(0);
-
-            let recipients: Vec<(i64, String, String)> = if rsvp_count > 0 {
-                // Session has RSVPs — only send to confirmed RSVP parents
+            let recipients: Vec<(i64, String, String)> = if session.rsvpable {
+                // Session type has RSVPs enabled — only send to confirmed RSVP parents
                 let mut stmt = match conn.prepare(
                     "SELECT DISTINCT u.id, u.email, u.display_name
                      FROM rsvps r
@@ -128,7 +121,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
                 };
                 result
             } else {
-                // No RSVPs — send to all active members
+                // RSVPs not enabled for this session type — send to all active members
                 let mut stmt = match conn.prepare(
                     "SELECT u.id, u.email, u.display_name
                      FROM users u
