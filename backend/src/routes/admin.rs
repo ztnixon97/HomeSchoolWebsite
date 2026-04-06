@@ -791,6 +791,13 @@ pub async fn update_session(
 
     // Admin host assignment
     if let Some(host_id) = req.host_id {
+        if host_id == 0 {
+            // Unassign host
+            conn.execute(
+                "UPDATE class_sessions SET host_id = NULL, host_address = NULL, reserved_for = NULL WHERE id = ?1",
+                params![id],
+            )?;
+        } else {
         // Look up user info and assign as host
         let user_info: Option<(String, Option<String>, String)> = conn
             .query_row(
@@ -837,6 +844,7 @@ pub async fn update_session(
                     &email_config, &email_to, &name, &title_clone, &date_clone, sid,
                 ).await;
             });
+        }
         }
     } else if let Some(host_name) = req.host_name {
         // Free-text host name (for someone without an account)
