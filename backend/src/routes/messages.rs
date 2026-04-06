@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     Json,
 };
 use rusqlite::params;
+use serde::Deserialize;
 
 use crate::auth::RequireAuth;
 use crate::errors::AppError;
@@ -19,15 +20,15 @@ pub async fn list_conversations(
     let conn = state.db.get()?;
 
     let mut stmt = conn.prepare(
-        "SELECT c.id, c.subject, c.created_at,
-                (SELECT m.body FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message,
-                (SELECT m.created_at FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
+        "SELECT c.id, c.subject, strftime('%Y-%m-%dT%H:%M:%fZ', c.created_at) as created_at,
+                (SELECT m.body FROM messages m WHERE m.conversation_id = c.id AND m.deleted_at IS NULL ORDER BY m.created_at DESC LIMIT 1) as last_message,
+                (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', m.created_at) FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
                 (SELECT u.display_name FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_sender,
                 (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id
                     AND m.created_at > COALESCE(cp.last_read_at, '1970-01-01')) as unread_count
          FROM conversations c
          JOIN conversation_participants cp ON c.id = cp.conversation_id
-         WHERE cp.user_id = ?1
+         WHERE cp.user_id = ?1 AND cp.hidden_at IS NULL
          ORDER BY COALESCE(
             (SELECT m2.created_at FROM messages m2 WHERE m2.conversation_id = c.id ORDER BY m2.created_at DESC LIMIT 1),
             c.created_at
@@ -59,8 +60,9 @@ pub async fn create_conversation(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_feature(&state.db, "messaging")?;
 
-    if req.body.trim().is_empty() {
-        return Err(AppError::BadRequest("Message body is required".into()));
+    let has_files = req.file_ids.as_ref().map_or(false, |ids| !ids.is_empty());
+    if req.body.trim().is_empty() && !has_files {
+        return Err(AppError::BadRequest("Message body or attachment is required".into()));
     }
     if req.participant_ids.is_empty() {
         return Err(AppError::BadRequest("At least one participant is required".into()));
@@ -95,6 +97,17 @@ pub async fn create_conversation(
         "INSERT INTO messages (conversation_id, sender_id, body) VALUES (?1, ?2, ?3)",
         params![conversation_id, user.id, req.body],
     )?;
+    let message_id = conn.last_insert_rowid();
+
+    // Link any uploaded files to the message
+    if let Some(ref file_ids) = req.file_ids {
+        for fid in file_ids {
+            conn.execute(
+                "UPDATE files SET linked_type = 'message', linked_id = ?1 WHERE id = ?2 AND uploader_id = ?3",
+                params![message_id, fid, user.id],
+            )?;
+        }
+    }
 
     Ok(Json(serde_json::json!({ "id": conversation_id })))
 }
@@ -104,6 +117,7 @@ pub async fn get_conversation_messages(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
+    Query(query): Query<MessagesQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_feature(&state.db, "messaging")?;
     let conn = state.db.get()?;
@@ -143,32 +157,74 @@ pub async fn get_conversation_messages(
         .filter_map(|r| r.ok())
         .collect();
 
-    // Get messages
-    let mut stmt = conn.prepare(
-        "SELECT m.id, m.sender_id, u.display_name, m.body, m.created_at
-         FROM messages m
-         JOIN users u ON m.sender_id = u.id
-         WHERE m.conversation_id = ?1
-         ORDER BY m.created_at ASC",
-    )?;
-    let messages: Vec<serde_json::Value> = stmt
-        .query_map(params![id], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, i64>(0)?,
-                "sender_id": row.get::<_, i64>(1)?,
-                "sender_name": row.get::<_, String>(2)?,
-                "body": row.get::<_, String>(3)?,
-                "created_at": row.get::<_, String>(4)?,
-            }))
-        })?
-        .filter_map(|r| r.ok())
+    // Get messages with cursor-based pagination
+    let limit = query.limit.unwrap_or(50).min(100);
+    let fetch_limit = limit + 1; // fetch one extra to check has_more
+
+    let map_message_row = |row: &rusqlite::Row| -> rusqlite::Result<serde_json::Value> {
+        let deleted: Option<String> = row.get(5)?;
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "sender_id": row.get::<_, i64>(1)?,
+            "sender_name": row.get::<_, String>(2)?,
+            "body": if deleted.is_some() { serde_json::Value::Null } else { serde_json::Value::String(row.get::<_, String>(3)?) },
+            "created_at": row.get::<_, String>(4)?,
+            "deleted": deleted.is_some(),
+        }))
+    };
+
+    let mut messages: Vec<serde_json::Value> = if let Some(before) = query.before {
+        let mut stmt = conn.prepare(
+            "SELECT m.id, m.sender_id, u.display_name, m.body,
+                    strftime('%Y-%m-%dT%H:%M:%fZ', m.created_at), m.deleted_at
+             FROM messages m
+             JOIN users u ON m.sender_id = u.id
+             WHERE m.conversation_id = ?1 AND m.id < ?2
+             ORDER BY m.id DESC
+             LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(params![id, before, fetch_limit], &map_message_row)?;
+        rows.filter_map(|r| r.ok()).collect()
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT m.id, m.sender_id, u.display_name, m.body,
+                    strftime('%Y-%m-%dT%H:%M:%fZ', m.created_at), m.deleted_at
+             FROM messages m
+             JOIN users u ON m.sender_id = u.id
+             WHERE m.conversation_id = ?1
+             ORDER BY m.id DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![id, fetch_limit], &map_message_row)?;
+        rows.filter_map(|r| r.ok()).collect()
+    };
+
+    let has_more = messages.len() as i64 > limit;
+    if has_more {
+        messages.pop(); // remove the extra row
+    }
+    messages.reverse(); // return oldest-first for display
+
+    // Batch-fetch attachments for these messages
+    let message_ids: Vec<i64> = messages.iter()
+        .filter_map(|m| m.get("id").and_then(|v| v.as_i64()))
         .collect();
+    let attachments = fetch_message_attachments(&conn, &message_ids)?;
+
+    // Attach files to each message
+    for msg in &mut messages {
+        if let Some(mid) = msg.get("id").and_then(|v| v.as_i64()) {
+            let files = attachments.get(&mid).cloned().unwrap_or_default();
+            msg.as_object_mut().unwrap().insert("attachments".to_string(), serde_json::json!(files));
+        }
+    }
 
     Ok(Json(serde_json::json!({
         "id": id,
         "subject": subject,
         "participants": participants,
         "messages": messages,
+        "has_more": has_more,
     })))
 }
 
@@ -194,8 +250,9 @@ pub async fn send_message(
         return Err(AppError::Forbidden);
     }
 
-    if req.body.trim().is_empty() {
-        return Err(AppError::BadRequest("Message body is required".into()));
+    let has_files = req.file_ids.as_ref().map_or(false, |ids| !ids.is_empty());
+    if req.body.trim().is_empty() && !has_files {
+        return Err(AppError::BadRequest("Message body or attachment is required".into()));
     }
 
     conn.execute(
@@ -203,6 +260,48 @@ pub async fn send_message(
         params![id, user.id, req.body],
     )?;
     let message_id = conn.last_insert_rowid();
+
+    // Link any uploaded files to the message
+    if let Some(ref file_ids) = req.file_ids {
+        for fid in file_ids {
+            conn.execute(
+                "UPDATE files SET linked_type = 'message', linked_id = ?1 WHERE id = ?2 AND uploader_id = ?3",
+                params![message_id, fid, user.id],
+            )?;
+        }
+    }
+
+    // Resurface conversation for participants who hid it
+    conn.execute(
+        "UPDATE conversation_participants SET hidden_at = NULL WHERE conversation_id = ?1 AND hidden_at IS NOT NULL",
+        params![id],
+    )?;
+
+    // Query back the full message to return to the client
+    let message: serde_json::Value = conn.query_row(
+        "SELECT m.id, m.sender_id, u.display_name, m.body, strftime('%Y-%m-%dT%H:%M:%fZ', m.created_at)
+         FROM messages m JOIN users u ON m.sender_id = u.id
+         WHERE m.id = ?1",
+        params![message_id],
+        |row| {
+            Ok(serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "sender_id": row.get::<_, i64>(1)?,
+                "sender_name": row.get::<_, String>(2)?,
+                "body": row.get::<_, String>(3)?,
+                "created_at": row.get::<_, String>(4)?,
+                "deleted": false,
+                "attachments": [],
+            }))
+        },
+    )?;
+
+    // Fetch attachments for this message
+    let msg_attachments = fetch_message_attachments(&conn, &[message_id])?;
+    let mut message = message;
+    if let Some(files) = msg_attachments.get(&message_id) {
+        message.as_object_mut().unwrap().insert("attachments".to_string(), serde_json::json!(files));
+    }
 
     // Push notification to other conversation participants
     if let Some(ref push_cfg) = state.push_config {
@@ -233,7 +332,7 @@ pub async fn send_message(
         }
     }
 
-    Ok(Json(serde_json::json!({ "id": message_id })))
+    Ok(Json(message))
 }
 
 /// PUT /api/conversations/{id}/read — update last_read_at for current user
@@ -251,6 +350,49 @@ pub async fn mark_conversation_read(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+/// DELETE /api/conversations/{id} — hide conversation for current user (soft delete)
+pub async fn hide_conversation(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
+    let conn = state.db.get()?;
+    conn.execute(
+        "UPDATE conversation_participants SET hidden_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE conversation_id = ?1 AND user_id = ?2",
+        params![id, user.id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// DELETE /api/messages/{id} — soft-delete a message (sender only)
+pub async fn delete_message(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "messaging")?;
+    let conn = state.db.get()?;
+
+    // Verify the user is the sender
+    let sender_id: i64 = conn.query_row(
+        "SELECT sender_id FROM messages WHERE id = ?1",
+        params![id],
+        |row| row.get(0),
+    ).map_err(|_| AppError::NotFound("Message not found".into()))?;
+
+    if sender_id != user.id {
+        return Err(AppError::Forbidden);
+    }
+
+    conn.execute(
+        "UPDATE messages SET deleted_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?1",
+        params![id],
+    )?;
+
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 /// GET /api/conversations/unread-count — total unread count across all conversations
 pub async fn conversations_unread_count(
     RequireAuth(user): RequireAuth,
@@ -263,6 +405,7 @@ pub async fn conversations_unread_count(
             SELECT COUNT(*) as cnt FROM messages m
             JOIN conversation_participants cp ON m.conversation_id = cp.conversation_id
             WHERE cp.user_id = ?1
+              AND cp.hidden_at IS NULL
               AND m.created_at > COALESCE(cp.last_read_at, '1970-01-01')
         ) sub",
         params![user.id],
@@ -271,7 +414,7 @@ pub async fn conversations_unread_count(
     Ok(Json(serde_json::json!({ "count": count })))
 }
 
-/// GET /api/members — lightweight user list for messaging (any authenticated user)
+/// GET /api/messaging/members — lightweight user list for messaging (any authenticated user)
 pub async fn list_members(
     RequireAuth(_user): RequireAuth,
     State(state): State<AppState>,
@@ -294,9 +437,56 @@ pub async fn list_members(
     Ok(Json(members))
 }
 
-use serde::Deserialize;
+/// Batch-fetch file attachments for a set of message IDs
+fn fetch_message_attachments(
+    conn: &rusqlite::Connection,
+    message_ids: &[i64],
+) -> Result<std::collections::HashMap<i64, Vec<serde_json::Value>>, AppError> {
+    let mut map: std::collections::HashMap<i64, Vec<serde_json::Value>> = std::collections::HashMap::new();
+    if message_ids.is_empty() {
+        return Ok(map);
+    }
+
+    // Build IN clause dynamically
+    let placeholders: Vec<String> = message_ids.iter().map(|_| "?".to_string()).collect();
+    let sql = format!(
+        "SELECT id, filename, storage_path, mime_type, size_bytes, linked_id FROM files WHERE linked_type = 'message' AND linked_id IN ({})",
+        placeholders.join(",")
+    );
+    let mut stmt = conn.prepare(&sql)?;
+    let params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = message_ids.iter().map(|id| Box::new(*id) as Box<dyn rusqlite::types::ToSql>).collect();
+    let param_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
+
+    let rows = stmt.query_map(param_refs.as_slice(), |row| {
+        Ok((
+            row.get::<_, i64>(5)?, // linked_id (message_id)
+            serde_json::json!({
+                "id": row.get::<_, i64>(0)?,
+                "filename": row.get::<_, String>(1)?,
+                "storage_path": row.get::<_, String>(2)?,
+                "mime_type": row.get::<_, String>(3)?,
+                "size_bytes": row.get::<_, i64>(4)?,
+            }),
+        ))
+    })?;
+
+    for row in rows {
+        if let Ok((msg_id, file_json)) = row {
+            map.entry(msg_id).or_default().push(file_json);
+        }
+    }
+
+    Ok(map)
+}
 
 #[derive(Debug, Deserialize)]
 pub struct SendMessageRequest {
     pub body: String,
+    pub file_ids: Option<Vec<i64>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MessagesQuery {
+    pub before: Option<i64>,
+    pub limit: Option<i64>,
 }
