@@ -789,6 +789,63 @@ pub async fn update_session(
         conn.execute("UPDATE class_sessions SET require_approval = ?1 WHERE id = ?2", params![require_approval, id])?;
     }
 
+    // Admin host assignment
+    if let Some(host_id) = req.host_id {
+        // Look up user info and assign as host
+        let user_info: Option<(String, Option<String>, String)> = conn
+            .query_row(
+                "SELECT display_name, address, email FROM users WHERE id = ?1",
+                params![host_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .ok();
+
+        if let Some((display_name, address, email)) = user_info {
+            let host_address = address.unwrap_or_default();
+            conn.execute(
+                "UPDATE class_sessions SET host_id = ?1, host_address = ?2, reserved_for = NULL, status = CASE WHEN status = 'open' OR status = 'reserved' THEN 'claimed' ELSE status END WHERE id = ?3",
+                params![host_id, host_address, id],
+            )?;
+
+            // Create in-app notification
+            let session_title: String = conn
+                .query_row("SELECT title FROM class_sessions WHERE id = ?1", params![id], |row| row.get(0))
+                .unwrap_or_else(|_| "a session".to_string());
+            let session_date: String = conn
+                .query_row("SELECT session_date FROM class_sessions WHERE id = ?1", params![id], |row| row.get(0))
+                .unwrap_or_default();
+
+            let _ = conn.execute(
+                "INSERT INTO notifications (user_id, notification_type, title, body, link) VALUES (?1, 'host_assignment', ?2, ?3, ?4)",
+                params![
+                    host_id,
+                    format!("You've been assigned to host: {}", session_title),
+                    format!("You've been assigned to host {} on {}.", session_title, session_date),
+                    format!("/sessions/{}", id),
+                ],
+            );
+
+            // Send email notification (fire-and-forget)
+            let email_config = state.email_config.clone();
+            let email_to = email.clone();
+            let name = display_name.clone();
+            let title_clone = session_title.clone();
+            let date_clone = session_date.clone();
+            let sid = id;
+            tokio::spawn(async move {
+                let _ = crate::email::send_host_assignment_email(
+                    &email_config, &email_to, &name, &title_clone, &date_clone, sid,
+                ).await;
+            });
+        }
+    } else if let Some(host_name) = req.host_name {
+        // Free-text host name (for someone without an account)
+        conn.execute(
+            "UPDATE class_sessions SET host_id = NULL, host_address = NULL, reserved_for = ?1, status = CASE WHEN status = 'open' THEN 'claimed' ELSE status END WHERE id = ?2",
+            params![host_name, id],
+        )?;
+    }
+
     // Update class group assignments if provided
     if let Some(group_ids) = req.class_group_ids {
         conn.execute("DELETE FROM class_session_groups WHERE session_id = ?1", [id])?;

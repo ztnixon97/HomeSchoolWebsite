@@ -197,7 +197,7 @@ pub async fn list_sessions(
 
         let sql = format!(
             "SELECT cs.id, cs.title, cs.theme, cs.session_date, cs.end_date, cs.start_time, cs.end_time,
-                    cs.host_id, u.display_name, cs.host_address, cs.location_name, cs.location_address,
+                    cs.host_id, COALESCE(u.display_name, cs.reserved_for), cs.host_address, cs.location_name, cs.location_address,
                     cs.cost_amount, cs.cost_details, cs.lesson_plan_id,
                     cs.materials_needed, cs.max_students, cs.notes, cs.status,
                     cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,
@@ -472,7 +472,7 @@ pub async fn get_session(
     let session = conn
         .query_row(
             "SELECT cs.id, cs.title, cs.theme, cs.session_date, cs.end_date, cs.start_time, cs.end_time,
-                    cs.host_id, u.display_name, cs.host_address, cs.location_name, cs.location_address,
+                    cs.host_id, COALESCE(u.display_name, cs.reserved_for), cs.host_address, cs.location_name, cs.location_address,
                     cs.cost_amount, cs.cost_details, cs.lesson_plan_id,
                     cs.materials_needed, cs.max_students, cs.notes, cs.status,
                     cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,

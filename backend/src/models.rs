@@ -437,6 +437,8 @@ pub struct UpdateSessionRequest {
     pub rsvp_cutoff: Option<String>,
     pub require_approval: Option<bool>,
     pub class_group_ids: Option<Vec<i64>>,
+    pub host_id: Option<i64>,
+    pub host_name: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

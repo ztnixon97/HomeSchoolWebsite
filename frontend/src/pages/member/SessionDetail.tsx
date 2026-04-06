@@ -286,12 +286,14 @@ export default function SessionDetail() {
               {session.status === 'open' ? 'Unclaimed' : session.status === 'claimed' ? 'Hosted' : 'Full'}
             </span>
           </div>
+          {rsvpable && (
           <div className="bg-gray-50 rounded-lg p-3">
             <span className="text-gray-400 text-xs uppercase tracking-wider block mb-1">RSVP Cutoff</span>
             <span className="font-medium text-gray-800 text-sm">
               {session.rsvp_cutoff ? new Date(session.rsvp_cutoff).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' }) + ' at ' + new Date(session.rsvp_cutoff).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : 'Not set'}
             </span>
           </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-6">
@@ -418,6 +420,7 @@ export default function SessionDetail() {
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
+            {rsvpable && (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff (optional)</label>
               <input
@@ -427,6 +430,7 @@ export default function SessionDetail() {
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
             </div>
+            )}
             <div className="flex gap-3">
               <button type="submit" className="bg-emerald-700 text-white px-5 py-2 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
                 Confirm
@@ -523,7 +527,7 @@ export default function SessionDetail() {
                   className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                 />
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className={`grid grid-cols-1 ${rsvpable ? 'sm:grid-cols-2' : ''} gap-3`}>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">Max Students</label>
                   <input
@@ -533,6 +537,7 @@ export default function SessionDetail() {
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                   />
                 </div>
+                {rsvpable && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff</label>
                   <input
@@ -542,6 +547,7 @@ export default function SessionDetail() {
                     className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm"
                   />
                 </div>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes to Parents</label>

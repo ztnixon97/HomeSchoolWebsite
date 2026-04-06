@@ -63,6 +63,9 @@ export default function ManageSessions() {
   const [notes, setNotes] = useState('');
   const [rsvpCutoff, setRsvpCutoff] = useState('');
   const [editStatus, setEditStatus] = useState('');
+  const [assignHostId, setAssignHostId] = useState('');
+  const [reserveHostName, setReserveHostName] = useState('');
+  const [allUsers, setAllUsers] = useState<{ id: number; display_name: string; email: string }[]>([]);
   const [sessionTypeId, setSessionTypeId] = useState('');
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
@@ -82,6 +85,7 @@ export default function ManageSessions() {
   const refresh = () => {
     api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
+    api.get<{ items: { id: number; display_name: string; email: string }[] }>('/api/admin/users?page_size=200').then(r => setAllUsers(r.items)).catch(() => {});
     if (features.class_groups) {
       api.get<ClassGroup[]>('/api/admin/class-groups').then(setClassGroups).catch(() => {});
     }
@@ -104,6 +108,8 @@ export default function ManageSessions() {
     setNotes('');
     setRsvpCutoff('');
     setEditStatus('');
+    setAssignHostId('');
+    setReserveHostName('');
     setSessionTypeId('');
     setSelectedGroupIds([]);
   };
@@ -122,6 +128,8 @@ export default function ManageSessions() {
     setCostDetails(s.cost_details || '');
     setMaxStudents(s.max_students != null ? String(s.max_students) : '');
     setEditStatus(s.status);
+    setAssignHostId(s.host_id != null ? String(s.host_id) : '');
+    setReserveHostName(s.host_id == null && s.host_name ? s.host_name : '');
     setNotes('');
     setRsvpCutoff(s.rsvp_cutoff || '');
     const matchedType = sessionTypes.find(t => t.label === s.session_type_label || t.name === s.session_type_name);
@@ -150,6 +158,8 @@ export default function ManageSessions() {
       session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
       class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
       ...(editingId && editStatus ? { status: editStatus } : {}),
+      ...(editingId && assignHostId ? { host_id: parseInt(assignHostId) } : {}),
+      ...(editingId && !assignHostId && reserveHostName ? { host_name: reserveHostName } : {}),
     };
     try {
       if (editingId) {
@@ -318,15 +328,34 @@ export default function ManageSessions() {
             </div>
           </div>
           {editingId && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-              <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className={inputClass}>
-                <option value="open">Open</option>
-                <option value="claimed">Claimed</option>
-                <option value="completed">Completed</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
+                  <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className={inputClass}>
+                    <option value="open">Open</option>
+                    <option value="claimed">Claimed</option>
+                    <option value="completed">Completed</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Host</label>
+                  <select value={assignHostId} onChange={e => { setAssignHostId(e.target.value); if (e.target.value) setReserveHostName(''); }} className={inputClass}>
+                    <option value="">— None —</option>
+                    {allUsers.map(u => (
+                      <option key={u.id} value={u.id}>{u.display_name} ({u.email})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {!assignHostId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Or enter host name</label>
+                  <input type="text" value={reserveHostName} onChange={e => setReserveHostName(e.target.value)} placeholder="Name (if not a registered user)" className={inputClass} />
+                </div>
+              )}
+            </>
           )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff</label>
@@ -427,8 +456,8 @@ export default function ManageSessions() {
               <div className="flex flex-wrap items-center gap-2">
                 <h3 className="font-semibold text-sm text-gray-900">{s.title}</h3>
                 <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
-                  s.status === 'open'
-                    ? 'bg-amber-100 text-amber-800'
+                  s.status === 'open' ? 'bg-amber-100 text-amber-800'
+                    : s.status === 'completed' ? 'bg-blue-100 text-blue-800'
                     : 'bg-emerald-100 text-emerald-800'
                 }`}>
                   {s.status}

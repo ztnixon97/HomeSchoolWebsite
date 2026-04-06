@@ -508,6 +508,9 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE invites ADD COLUMN max_uses INTEGER", []);
     let _ = conn.execute("ALTER TABLE invites ADD COLUMN use_count INTEGER NOT NULL DEFAULT 0", []);
 
+    // Session host reservation (free-text name when no account exists)
+    let _ = conn.execute("ALTER TABLE class_sessions ADD COLUMN reserved_for TEXT", []);
+
     // Document signature support
     let _ = conn.execute("ALTER TABLE document_submissions ADD COLUMN signature_file_id INTEGER REFERENCES files(id)", []);
 

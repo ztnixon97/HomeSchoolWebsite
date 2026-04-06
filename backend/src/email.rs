@@ -348,6 +348,36 @@ pub async fn send_class_reminder_email(
     .await
 }
 
+pub async fn send_host_assignment_email(
+    config: &EmailConfig,
+    to: &str,
+    host_name: &str,
+    session_title: &str,
+    session_date: &str,
+    session_id: i64,
+) -> Result<(), String> {
+    let session_url = format!("{}/sessions/{}", config.site_url, session_id);
+    let body = format!(
+        r#"<p>Hi <strong>{host_name}</strong>,</p>
+<p>You've been assigned to host <strong>{session_title}</strong> on <strong>{session_date}</strong>.</p>
+<p>Click below to view the session details and update your hosting info:</p>
+{button}
+<p style="font-size:13px;color:#888;">If you have any questions, please reach out to your co-op admin.</p>"#,
+        host_name = host_name,
+        session_title = session_title,
+        session_date = session_date,
+        button = make_button(&session_url, "View Session"),
+    );
+    let html = wrap_branded(&config.site_url, "You've Been Assigned to Host", &body);
+    send_email(
+        config,
+        to,
+        &format!("You've been assigned to host: {}", session_title),
+        &html,
+    )
+    .await
+}
+
 pub async fn send_bulk_email(
     config: &EmailConfig,
     recipients: Vec<(String, String)>,
