@@ -5,6 +5,7 @@ import RoleGuard from './components/RoleGuard';
 import FeatureGate from './components/FeatureGate';
 import ErrorBoundary from './components/ErrorBoundary';
 import { ToastProvider } from './components/Toast';
+import InstallPrompt from './components/InstallPrompt';
 
 // Public pages
 import Home from './pages/public/Home';
@@ -71,6 +72,7 @@ export default function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <ToastProvider>
+          <InstallPrompt />
           <AuthProvider>
             <SessionGuard />
             <Routes>
