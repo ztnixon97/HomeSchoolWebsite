@@ -80,17 +80,11 @@ pub async fn send_push_to_user(
     #[cfg(feature = "push-notifications")]
     {
         use web_push::{
-            ContentEncoding, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
-            WebPushMessageBuilder,
+            ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder,
+            WebPushClient, WebPushMessageBuilder,
         };
 
-        let client = match WebPushClient::new() {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("[push] failed to create client: {}", e);
-                return;
-            }
-        };
+        let client: HyperWebPushClient = HyperWebPushClient::new();
 
         for (sub_id, endpoint, p256dh, auth, prefs_json) in &subs {
             // Check preferences
@@ -108,7 +102,7 @@ pub async fn send_push_to_user(
                 &sub_info,
             ) {
                 Ok(mut builder) => {
-                    builder.add_claim("sub", &config.contact);
+                    builder.add_claim("sub", serde_json::Value::String(config.contact.clone()));
                     match builder.build() {
                         Ok(sig) => sig,
                         Err(e) => {
