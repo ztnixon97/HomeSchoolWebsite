@@ -146,6 +146,38 @@ fn group_or_all_members(conn: &rusqlite::Connection, session_id: i64) -> Vec<(i6
     }
 }
 
+/// Mark any past-dated sessions still in 'open' or 'claimed' status as 'completed'.
+/// Multi-day sessions use end_date; single-day use session_date.
+/// Leaves 'closed' (holidays/meetings) and already-'completed' rows untouched.
+/// Returns the number of rows updated.
+pub fn auto_complete_past_sessions(db: DbPool) -> usize {
+    let conn = match db.get() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[auto-complete] DB pool error: {}", e);
+            return 0;
+        }
+    };
+    match conn.execute(
+        "UPDATE class_sessions
+            SET status = 'completed'
+          WHERE status IN ('open', 'claimed')
+            AND COALESCE(end_date, session_date) < date('now')",
+        [],
+    ) {
+        Ok(n) => {
+            if n > 0 {
+                println!("[auto-complete] Marked {} past session(s) as completed.", n);
+            }
+            n
+        }
+        Err(e) => {
+            eprintln!("[auto-complete] Update failed: {}", e);
+            0
+        }
+    }
+}
+
 /// Send reminder emails/push for sessions happening tomorrow (Eastern time).
 /// Uses `reminder_sent` flag per session to prevent duplicates.
 /// Returns the number of notifications sent.
@@ -474,6 +506,10 @@ pub fn check_reminders_if_needed(db: DbPool, email_config: EmailConfig, push_con
     LAST_CHECK_TIME.store(now, Ordering::Relaxed);
 
     tokio::spawn(async move {
+        let completed = auto_complete_past_sessions(db.clone());
+        if completed > 0 {
+            println!("[reminders] Auto-completed {} past session(s) before reminder sweep.", completed);
+        }
         let sent = send_upcoming_reminders(db, email_config, push_config).await;
         if sent > 0 {
             println!("[reminders] Reminder check completed. {} notifications sent.", sent);

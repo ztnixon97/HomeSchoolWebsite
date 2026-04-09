@@ -79,6 +79,8 @@ async fn main() {
     backup::start_session_cleanup_task(pool.clone());
     // Start daily photo cleanup (30-day retention for session files)
     backup::start_photo_cleanup_task(pool.clone(), storage.clone());
+    // Auto-complete any past-dated sessions on startup (covers mid-day reboots)
+    reminders::auto_complete_past_sessions(pool.clone());
 
     // Initialize email config
     let email_config = EmailConfig::from_env();
