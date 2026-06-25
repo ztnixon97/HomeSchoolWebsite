@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import RichTextEditor from '../../components/RichTextEditor';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 interface User {
   id: number;
@@ -20,6 +21,7 @@ export default function CreateLessonPlan() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  useUnsavedChanges(title.trim() !== '' || description.replace(/<[^>]*>/g, '').trim() !== '');
   const [ageGroup, setAgeGroup] = useState('');
   const [category, setCategory] = useState('');
   const [files, setFiles] = useState<File[]>([]);

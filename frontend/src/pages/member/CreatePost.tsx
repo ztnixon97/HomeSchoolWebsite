@@ -3,11 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../api';
 import { POST_CATEGORIES } from '../../utils/postCategories';
 import RichTextEditor from '../../components/RichTextEditor';
+import { useUnsavedChanges } from '../../hooks/useUnsavedChanges';
 
 export default function CreatePost() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  useUnsavedChanges(title.trim() !== '' || content.replace(/<[^>]*>/g, '').trim() !== '');
   const [category, setCategory] = useState('');
   const [customCategory, setCustomCategory] = useState('');
   const [published, setPublished] = useState(false);

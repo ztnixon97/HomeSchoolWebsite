@@ -648,7 +648,7 @@ export default function ClassDetail() {
                       s.status === 'open' ? 'bg-emerald-100 text-emerald-800' :
                       s.status === 'closed' ? 'bg-gray-100 text-gray-600' :
                       'bg-amber-100 text-amber-800'
-                    }`}>{s.status}</span>
+                    }`}>{s.status === 'open' ? 'Needs host' : s.status === 'claimed' ? 'Hosted' : s.status === 'completed' ? 'Completed' : s.status === 'closed' ? 'Full' : s.status}</span>
                     <p className="text-xs text-gray-400 mt-1">
                       {s.rsvp_count}{s.max_students ? `/${s.max_students}` : ''} RSVP{s.rsvp_count !== 1 ? 's' : ''}
                     </p>
