@@ -14,6 +14,49 @@ use crate::models::User;
 
 const USER_ID_KEY: &str = "user_id";
 
+/// True if the user may see a session's roster-level details (RSVPs, attendance, supplies):
+/// admins, the host/creator, members of a class the session is linked to (teacher or a parent
+/// of an enrolled child), and anyone for an unassigned/global session. Mirrors the masking in
+/// `get_session` so a non-member viewing an "other class" session can't read its roster.
+pub fn can_view_session(conn: &rusqlite::Connection, user: &User, session_id: i64) -> bool {
+    if user.role == "admin" {
+        return true;
+    }
+    let owner: bool = conn
+        .query_row(
+            "SELECT (host_id = ?2 OR created_by = ?2) FROM class_sessions WHERE id = ?1",
+            rusqlite::params![session_id, user.id],
+            |r| r.get::<_, Option<bool>>(0),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(false);
+    if owner {
+        return true;
+    }
+    let has_links: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1",
+            rusqlite::params![session_id],
+            |r| r.get(0),
+        )
+        .unwrap_or(false);
+    if !has_links {
+        return true;
+    }
+    conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_session_groups csg WHERE csg.session_id = ?1 AND (
+            csg.group_id IN (SELECT group_id FROM class_group_teachers WHERE user_id = ?2)
+            OR csg.group_id IN (SELECT cgm.group_id FROM class_group_members cgm
+                                JOIN student_parents sp ON cgm.student_id = sp.student_id
+                                WHERE sp.user_id = ?2)
+         )",
+        rusqlite::params![session_id, user.id],
+        |r| r.get(0),
+    )
+    .unwrap_or(false)
+}
+
 /// True if the user may create/edit/delete a specific session: admins and global teachers
 /// manage any session; the session's host manages their own; a class teacher manages sessions
 /// linked to a class they teach.

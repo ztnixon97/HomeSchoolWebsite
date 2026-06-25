@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::{can_manage_class_content, RequireAuth, RequireTeacher};
+use crate::auth::{can_manage_class_content, can_view_session, RequireAuth, RequireTeacher};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::validate_date;
@@ -586,22 +586,7 @@ pub async fn get_session(
 
     // Class-aware visibility: a session restricted to classes the user isn't part of
     // is shown at public level only (no host/address/notes/cost details).
-    let visible = user.role == "admin"
-        || session.host_id == Some(user.id)
-        || session.created_by == Some(user.id)
-        || {
-            let has_links: bool = conn.query_row(
-                "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1",
-                params![id], |r| r.get(0)).unwrap_or(false);
-            !has_links || conn.query_row(
-                "SELECT COUNT(*) > 0 FROM class_session_groups csg WHERE csg.session_id = ?1 AND (
-                    csg.group_id IN (SELECT group_id FROM class_group_teachers WHERE user_id = ?2)
-                    OR csg.group_id IN (SELECT cgm.group_id FROM class_group_members cgm
-                                        JOIN student_parents sp ON cgm.student_id = sp.student_id
-                                        WHERE sp.user_id = ?2)
-                 )",
-                params![id, user.id], |r| r.get(0)).unwrap_or(false)
-        };
+    let visible = can_view_session(&conn, &user, id);
 
     if !visible {
         session.host_id = None;
@@ -818,11 +803,14 @@ pub async fn update_host_session(
 // ── RSVPs ──
 
 pub async fn list_session_rsvps(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<Rsvp>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT r.id, r.session_id, r.student_id, (s.first_name || ' ' || s.last_name), r.parent_id, u.display_name, r.status, r.note, r.created_at
          FROM rsvps r
@@ -1165,11 +1153,14 @@ pub async fn delete_rsvp(
 // ── Session Attendance ──
 
 pub async fn get_session_attendance(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<SessionAttendance>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT sa.id, sa.session_id, sa.student_id, s.first_name || ' ' || s.last_name, sa.present, sa.note
          FROM session_attendance sa
@@ -1226,11 +1217,14 @@ pub async fn save_session_attendance(
 // ── Session Supplies ──
 
 pub async fn list_session_supplies(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<SessionSupply>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT ss.id, ss.session_id, ss.item_name, ss.quantity, ss.claimed_by, u.display_name
          FROM session_supplies ss

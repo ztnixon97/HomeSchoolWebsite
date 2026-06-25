@@ -298,11 +298,11 @@ pub async fn delete_user(
     // password_reset_tokens) are handled automatically by SQLite.
 
     // Nullify references where we want to keep the content
-    conn.execute("UPDATE posts SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE post_comments SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE lesson_plans SET author_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE files SET uploader_id = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE uploader_id = ?1", params![id])?;
-    conn.execute("UPDATE milestones SET recorded_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE recorded_by = ?1", params![id])?;
+    conn.execute("UPDATE posts SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE post_comments SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE lesson_plans SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    conn.execute("UPDATE files SET uploader_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE uploader_id = ?1", params![id])?;
+    conn.execute("UPDATE milestones SET recorded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE recorded_by = ?1", params![id])?;
 
     // Nullify nullable references
     conn.execute("UPDATE invites SET used_by = NULL WHERE used_by = ?1", params![id])?;
@@ -345,9 +345,9 @@ pub async fn delete_user(
     )?;
 
     // Reassign authored/graded class content to an admin so it is preserved (these columns are NOT NULL)
-    conn.execute("UPDATE class_assignments SET created_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE created_by = ?1", params![id])?;
-    conn.execute("UPDATE class_grades SET graded_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE graded_by = ?1", params![id])?;
-    conn.execute("UPDATE class_group_announcements SET created_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE class_assignments SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE class_grades SET graded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE graded_by = ?1", params![id])?;
+    conn.execute("UPDATE class_group_announcements SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
 
     // Nullify nullable bookkeeping references we can keep
     conn.execute("UPDATE document_templates SET created_by = NULL WHERE created_by = ?1", params![id])?;
