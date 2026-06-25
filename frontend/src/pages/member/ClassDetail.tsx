@@ -472,7 +472,7 @@ export default function ClassDetail() {
   const deleteClassSession = async (sessionId: number) => {
     if (!confirm('Delete this session?')) return;
     try {
-      await api.del(`/api/class-groups/${id}/sessions/${sessionId}`);
+      await api.del(`/api/sessions/${sessionId}`);
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       showToast('Session deleted', 'success');
     } catch {

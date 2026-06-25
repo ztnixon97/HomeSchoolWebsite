@@ -391,6 +391,17 @@ pub async fn create_student(
     )?;
 
     let id = conn.last_insert_rowid();
+
+    // Link any selected parents/guardians to the new student
+    if let Some(parent_ids) = &req.parent_ids {
+        for uid in parent_ids {
+            let _ = conn.execute(
+                "INSERT OR IGNORE INTO student_parents (student_id, user_id) VALUES (?1, ?2)",
+                params![id, uid],
+            );
+        }
+    }
+
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     Ok(Json(Student {

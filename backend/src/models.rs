@@ -110,6 +110,8 @@ pub struct CreateStudentRequest {
     pub dietary_restrictions: Option<String>,
     pub emergency_contact_name: Option<String>,
     pub emergency_contact_phone: Option<String>,
+    /// Optional parent/guardian user ids to link to the new student.
+    pub parent_ids: Option<Vec<i64>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -423,17 +425,6 @@ pub struct EnrollStudentRequest {
     pub student_id: i64,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct BulkCreateClassSessionsRequest {
-    pub title: String,
-    pub theme: Option<String>,
-    pub start_time: Option<String>,
-    pub end_time: Option<String>,
-    pub max_students: Option<i64>,
-    pub notes: Option<String>,
-    pub session_type_id: Option<i64>,
-    pub dates: Vec<String>,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateSessionRequest {
@@ -982,19 +973,6 @@ pub struct UpdateAssignmentRequest {
     pub due_date: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct StudentGrade {
-    pub id: i64,
-    pub assignment_id: i64,
-    pub student_id: i64,
-    pub student_name: Option<String>,
-    pub score: Option<f64>,
-    pub notes: Option<String>,
-    pub graded_by: i64,
-    pub graded_by_name: Option<String>,
-    pub updated_at: String,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct SaveGradeRequest {
     pub student_id: i64,
@@ -1008,13 +986,6 @@ pub struct BulkSaveGradesRequest {
     pub grades: Vec<SaveGradeRequest>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CategoryWeight {
-    pub id: i64,
-    pub group_id: i64,
-    pub category: String,
-    pub weight: f64,
-}
 
 #[derive(Debug, Deserialize)]
 pub struct SaveCategoryWeightsRequest {
