@@ -42,15 +42,24 @@ pub async fn rate_limit_auth(
         return next.run(req).await;
     }
 
-    // Get client IP from X-Forwarded-For (Fly.io proxy) or fallback
+    // Determine the client IP from a trustworthy source. Fly.io sets `Fly-Client-IP`
+    // to the real client address; otherwise use the RIGHTMOST X-Forwarded-For entry
+    // (appended by our proxy). The leftmost XFF value is client-controlled and spoofable,
+    // so it must not be used as the rate-limit key.
     let ip = req
         .headers()
-        .get("x-forwarded-for")
+        .get("fly-client-ip")
         .and_then(|v| v.to_str().ok())
-        .and_then(|s| s.split(',').next())
-        .unwrap_or("unknown")
-        .trim()
-        .to_string();
+        .map(|s| s.trim().to_string())
+        .or_else(|| {
+            req.headers()
+                .get("x-forwarded-for")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|s| s.split(',').next_back())
+                .map(|s| s.trim().to_string())
+        })
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "unknown".to_string());
 
     let mut state = limiter.state.lock().await;
     let now = Instant::now();

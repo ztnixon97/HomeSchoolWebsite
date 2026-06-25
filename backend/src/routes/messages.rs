@@ -25,7 +25,7 @@ pub async fn list_conversations(
                 (SELECT strftime('%Y-%m-%dT%H:%M:%fZ', m.created_at) FROM messages m WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_message_at,
                 (SELECT u.display_name FROM messages m JOIN users u ON m.sender_id = u.id WHERE m.conversation_id = c.id ORDER BY m.created_at DESC LIMIT 1) as last_sender,
                 (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id
-                    AND m.created_at > COALESCE(cp.last_read_at, '1970-01-01')) as unread_count
+                    AND datetime(m.created_at) > datetime(COALESCE(cp.last_read_at, '1970-01-01'))) as unread_count
          FROM conversations c
          JOIN conversation_participants cp ON c.id = cp.conversation_id
          WHERE cp.user_id = ?1 AND cp.hidden_at IS NULL
@@ -406,7 +406,7 @@ pub async fn conversations_unread_count(
             JOIN conversation_participants cp ON m.conversation_id = cp.conversation_id
             WHERE cp.user_id = ?1
               AND cp.hidden_at IS NULL
-              AND m.created_at > COALESCE(cp.last_read_at, '1970-01-01')
+              AND datetime(m.created_at) > datetime(COALESCE(cp.last_read_at, '1970-01-01'))
         ) sub",
         params![user.id],
         |row| row.get(0),

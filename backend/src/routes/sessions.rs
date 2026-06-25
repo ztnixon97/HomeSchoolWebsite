@@ -991,21 +991,26 @@ pub async fn create_rsvp(
         }
     }
 
-    let is_full = max_students.map(|max| confirmed_count >= max).unwrap_or(false);
-    let status = if is_full {
-        "waitlisted"
-    } else if require_approval == 1 {
-        "pending"
-    } else {
-        "confirmed"
-    };
-
+    // Decide confirmed/waitlisted/pending atomically at insert time. SQLite serializes
+    // writes, so the COUNT subquery and the insert can't interleave — two concurrent
+    // RSVPs can't both claim the final seat. (`confirmed_count` above is only for messaging.)
+    let _ = confirmed_count;
     conn.execute(
-        "INSERT INTO rsvps (session_id, student_id, parent_id, note, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![req.session_id, req.student_id, user.id, req.note, status],
+        "INSERT INTO rsvps (session_id, student_id, parent_id, note, status)
+         SELECT ?1, ?2, ?3, ?4, CASE
+             WHEN ?5 IS NOT NULL
+                  AND (SELECT COUNT(*) FROM rsvps WHERE session_id = ?1 AND status = 'confirmed') >= ?5
+                  THEN 'waitlisted'
+             WHEN ?6 = 1 THEN 'pending'
+             ELSE 'confirmed'
+         END",
+        params![req.session_id, req.student_id, user.id, req.note, max_students, require_approval],
     )?;
 
     let id = conn.last_insert_rowid();
+    let status: String = conn
+        .query_row("SELECT status FROM rsvps WHERE id = ?1", params![id], |r| r.get(0))
+        .unwrap_or_else(|_| "confirmed".to_string());
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     // Push notification to session host
