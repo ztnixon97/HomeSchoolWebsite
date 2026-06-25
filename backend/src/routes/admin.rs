@@ -4,7 +4,7 @@ use axum::{
 };
 use rusqlite::params;
 
-use crate::auth::{RequireAdmin, RequireTeacher};
+use crate::auth::{can_manage_class_content, can_manage_session, RequireAdmin, RequireAuth};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::{sanitize_html, sanitize_text, validate_required};
@@ -343,6 +343,27 @@ pub async fn delete_user(
         )",
         params![id],
     )?;
+
+    // Reassign authored/graded class content to an admin so it is preserved (these columns are NOT NULL)
+    conn.execute("UPDATE class_assignments SET created_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE class_grades SET graded_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE graded_by = ?1", params![id])?;
+    conn.execute("UPDATE class_group_announcements SET created_by = (SELECT id FROM users WHERE role = 'admin' LIMIT 1) WHERE created_by = ?1", params![id])?;
+
+    // Nullify nullable bookkeeping references we can keep
+    conn.execute("UPDATE document_templates SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    conn.execute("UPDATE document_submissions SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
+    conn.execute("UPDATE session_attendance SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
+    conn.execute("UPDATE session_supplies SET claimed_by = NULL WHERE claimed_by = ?1", params![id])?;
+    conn.execute("UPDATE payment_ledger SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
+    conn.execute("UPDATE enrollment_requests SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
+
+    // Delete records that belong to this user (NOT NULL user references, no cascade)
+    conn.execute("DELETE FROM payment_ledger WHERE user_id = ?1", params![id])?;
+    conn.execute("DELETE FROM document_submissions WHERE user_id = ?1", params![id])?;
+    // Messaging: drop conversations this user started (cascades their messages + participants), then any stray messages
+    conn.execute("DELETE FROM conversations WHERE created_by = ?1", params![id])?;
+    conn.execute("DELETE FROM messages WHERE sender_id = ?1", params![id])?;
+    // class_group_teachers and enrollment_requests.requested_by are ON DELETE CASCADE
 
     // Remove the user (cascades handle student_parents, lesson_plan_collaborators, password_reset_tokens)
     conn.execute("DELETE FROM users WHERE id = ?1", params![id])?;
@@ -733,12 +754,19 @@ pub async fn create_session(
 }
 
 pub async fn update_session(
-    RequireAdmin(_user): RequireAdmin,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateSessionRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    if !can_manage_session(&conn, &user, id) {
+        return Err(AppError::Forbidden);
+    }
+    // Reassigning the host to a specific person is an admin-only action.
+    if req.host_id.is_some() && user.role != "admin" {
+        return Err(AppError::Forbidden);
+    }
 
     if let Some(title) = req.title {
         conn.execute("UPDATE class_sessions SET title = ?1 WHERE id = ?2", params![title, id])?;
@@ -882,11 +910,14 @@ pub async fn update_session(
 }
 
 pub async fn delete_session(
-    RequireAdmin(_user): RequireAdmin,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    if !can_manage_session(&conn, &user, id) {
+        return Err(AppError::Forbidden);
+    }
     conn.execute("DELETE FROM class_sessions WHERE id = ?1", params![id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1531,7 +1562,7 @@ pub async fn list_class_groups(
 ) -> Result<Json<Vec<ClassGroup>>, AppError> {
     let conn = state.db.get()?;
     let mut stmt = conn.prepare(
-        "SELECT id, name, description, sort_order, active, created_at, grading_enabled FROM class_groups ORDER BY sort_order, name",
+        "SELECT id, name, description, sort_order, active, created_at, grading_enabled, capacity, meeting_info, term_start, term_end FROM class_groups ORDER BY sort_order, name",
     )?;
     let groups = stmt
         .query_map([], |row| {
@@ -1543,6 +1574,10 @@ pub async fn list_class_groups(
                 active: row.get(4)?,
                 created_at: row.get(5)?,
                 grading_enabled: row.get(6)?,
+                capacity: row.get(7)?,
+                meeting_info: row.get(8)?,
+                term_start: row.get(9)?,
+                term_end: row.get(10)?,
             })
         })?
         .filter_map(|r| r.ok())
@@ -1558,12 +1593,13 @@ pub async fn create_class_group(
     let conn = state.db.get()?;
     let name = validate_required(&req.name, "name")?;
     conn.execute(
-        "INSERT INTO class_groups (name, description, sort_order) VALUES (?1, ?2, ?3)",
-        params![name, req.description, req.sort_order.unwrap_or(0)],
+        "INSERT INTO class_groups (name, description, sort_order, capacity, meeting_info, term_start, term_end) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![name, req.description, req.sort_order.unwrap_or(0),
+            req.capacity.filter(|c| *c > 0), req.meeting_info, req.term_start, req.term_end],
     )?;
     let id = conn.last_insert_rowid();
     let group = conn.query_row(
-        "SELECT id, name, description, sort_order, active, created_at, grading_enabled FROM class_groups WHERE id = ?1",
+        "SELECT id, name, description, sort_order, active, created_at, grading_enabled, capacity, meeting_info, term_start, term_end FROM class_groups WHERE id = ?1",
         [id],
         |row| {
             Ok(ClassGroup {
@@ -1574,6 +1610,10 @@ pub async fn create_class_group(
                 active: row.get(4)?,
                 created_at: row.get(5)?,
                 grading_enabled: row.get(6)?,
+                capacity: row.get(7)?,
+                meeting_info: row.get(8)?,
+                term_start: row.get(9)?,
+                term_end: row.get(10)?,
             })
         },
     )?;
@@ -1603,7 +1643,49 @@ pub async fn update_class_group(
     if let Some(grading_enabled) = req.grading_enabled {
         conn.execute("UPDATE class_groups SET grading_enabled = ?1 WHERE id = ?2", params![grading_enabled, id])?;
     }
+    if let Some(cap) = req.capacity {
+        // capacity <= 0 means "no limit"
+        let stored: Option<i64> = if cap > 0 { Some(cap) } else { None };
+        conn.execute("UPDATE class_groups SET capacity = ?1 WHERE id = ?2", params![stored, id])?;
+    }
+    if let Some(mi) = &req.meeting_info {
+        let stored: Option<&str> = if mi.trim().is_empty() { None } else { Some(mi.as_str()) };
+        conn.execute("UPDATE class_groups SET meeting_info = ?1 WHERE id = ?2", params![stored, id])?;
+    }
+    if let Some(ts) = &req.term_start {
+        let stored: Option<&str> = if ts.trim().is_empty() { None } else { Some(ts.as_str()) };
+        conn.execute("UPDATE class_groups SET term_start = ?1 WHERE id = ?2", params![stored, id])?;
+    }
+    if let Some(te) = &req.term_end {
+        let stored: Option<&str> = if te.trim().is_empty() { None } else { Some(te.as_str()) };
+        conn.execute("UPDATE class_groups SET term_end = ?1 WHERE id = ?2", params![stored, id])?;
+    }
     Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// POST /api/admin/class-groups/{id}/duplicate — copy a class's settings and teachers (not roster/sessions/grades)
+pub async fn duplicate_class_group(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let n = conn.execute(
+        "INSERT INTO class_groups (name, description, sort_order, grading_enabled, capacity, meeting_info, term_start, term_end)
+         SELECT name || ' (copy)', description, sort_order, grading_enabled, capacity, meeting_info, term_start, term_end
+         FROM class_groups WHERE id = ?1",
+        params![id],
+    )?;
+    if n == 0 {
+        return Err(AppError::NotFound("Class not found".to_string()));
+    }
+    let new_id = conn.last_insert_rowid();
+    let _ = conn.execute(
+        "INSERT OR IGNORE INTO class_group_teachers (group_id, user_id)
+         SELECT ?1, user_id FROM class_group_teachers WHERE group_id = ?2",
+        params![new_id, id],
+    );
+    Ok(Json(serde_json::json!({ "ok": true, "id": new_id })))
 }
 
 pub async fn delete_class_group(
@@ -1667,6 +1749,76 @@ pub async fn remove_group_member(
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
+// ── Enrollment Requests ──
+
+pub async fn list_enrollment_requests(
+    RequireAdmin(_user): RequireAdmin,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT er.id, er.group_id, cg.name, er.student_id, s.first_name || ' ' || s.last_name,
+                er.requested_by, u.display_name, er.status, er.created_at
+         FROM enrollment_requests er
+         JOIN class_groups cg ON er.group_id = cg.id
+         JOIN students s ON er.student_id = s.id
+         LEFT JOIN users u ON er.requested_by = u.id
+         WHERE er.status IN ('pending','waitlisted')
+         ORDER BY er.created_at ASC",
+    )?;
+    let out: Vec<serde_json::Value> = stmt.query_map([], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "group_id": row.get::<_, i64>(1)?,
+            "class_name": row.get::<_, String>(2)?,
+            "student_id": row.get::<_, i64>(3)?,
+            "student_name": row.get::<_, String>(4)?,
+            "requested_by": row.get::<_, Option<i64>>(5)?,
+            "requested_by_name": row.get::<_, Option<String>>(6)?,
+            "status": row.get::<_, String>(7)?,
+            "created_at": row.get::<_, String>(8)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(out))
+}
+
+pub async fn approve_enrollment_request(
+    RequireAdmin(user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let (group_id, student_id): (i64, i64) = conn.query_row(
+        "SELECT group_id, student_id FROM enrollment_requests WHERE id = ?1",
+        params![id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|_| AppError::NotFound("Request not found".to_string()))?;
+    conn.execute(
+        "INSERT OR IGNORE INTO class_group_members (group_id, student_id) VALUES (?1, ?2)",
+        params![group_id, student_id],
+    )?;
+    conn.execute(
+        "UPDATE enrollment_requests SET status = 'approved', reviewed_by = ?2, reviewed_at = datetime('now') WHERE id = ?1",
+        params![id, user.id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+pub async fn deny_enrollment_request(
+    RequireAdmin(user): RequireAdmin,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let conn = state.db.get()?;
+    let n = conn.execute(
+        "UPDATE enrollment_requests SET status = 'denied', reviewed_by = ?2, reviewed_at = datetime('now') WHERE id = ?1",
+        params![id, user.id],
+    )?;
+    if n == 0 {
+        return Err(AppError::NotFound("Request not found".to_string()));
+    }
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
 // ── Class Group Teachers ──
 
 pub async fn list_class_group_teachers(
@@ -1723,13 +1875,16 @@ pub async fn remove_group_teacher(
 // ── Class Group Announcements ──
 
 pub async fn create_class_group_announcement(
-    RequireAdmin(user): RequireAdmin,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Json(req): Json<CreateClassGroupAnnouncementRequest>,
 ) -> Result<Json<ClassGroupAnnouncement>, AppError> {
     let title = validate_required(&req.title, "title")?;
     let body = req.body.unwrap_or_default();
     let conn = state.db.get()?;
+    if !can_manage_class_content(&conn, &user, req.group_id) {
+        return Err(AppError::Forbidden);
+    }
     conn.execute(
         "INSERT INTO class_group_announcements (group_id, title, body, created_by) VALUES (?1, ?2, ?3, ?4)",
         params![req.group_id, title, body, user.id],
@@ -1755,12 +1910,18 @@ pub async fn create_class_group_announcement(
 }
 
 pub async fn update_class_group_announcement(
-    RequireAdmin(_user): RequireAdmin,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateClassGroupAnnouncementRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    let group_id: i64 = conn.query_row(
+        "SELECT group_id FROM class_group_announcements WHERE id = ?1", [id], |r| r.get(0),
+    ).map_err(|_| AppError::NotFound("Announcement not found".to_string()))?;
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
     if let Some(title) = &req.title {
         let title = validate_required(title, "title")?;
         conn.execute("UPDATE class_group_announcements SET title = ?1 WHERE id = ?2", params![title, id])?;
@@ -1772,11 +1933,17 @@ pub async fn update_class_group_announcement(
 }
 
 pub async fn delete_class_group_announcement(
-    RequireAdmin(_user): RequireAdmin,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    let group_id: i64 = conn.query_row(
+        "SELECT group_id FROM class_group_announcements WHERE id = ?1", [id], |r| r.get(0),
+    ).map_err(|_| AppError::NotFound("Announcement not found".to_string()))?;
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
     conn.execute("DELETE FROM class_group_announcements WHERE id = ?1", [id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
@@ -1784,12 +1951,15 @@ pub async fn delete_class_group_announcement(
 // ── Class Grades ──
 
 pub async fn create_assignment(
-    RequireTeacher(user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Json(req): Json<CreateAssignmentRequest>,
 ) -> Result<Json<ClassAssignment>, AppError> {
     crate::features::require_feature(&state.db, "class_groups")?;
     let conn = state.db.get()?;
+    if !can_manage_class_content(&conn, &user, req.group_id) {
+        return Err(AppError::Forbidden);
+    }
 
     // Verify grading is enabled for this group
     let enabled: bool = conn.query_row(
@@ -1833,12 +2003,18 @@ pub async fn create_assignment(
 }
 
 pub async fn update_assignment(
-    RequireTeacher(_user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateAssignmentRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    let group_id: i64 = conn.query_row(
+        "SELECT group_id FROM class_assignments WHERE id = ?1", [id], |r| r.get(0),
+    ).map_err(|_| AppError::NotFound("Assignment not found".to_string()))?;
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
     if let Some(title) = &req.title {
         let title = validate_required(title, "title")?;
         conn.execute("UPDATE class_assignments SET title = ?1 WHERE id = ?2", params![title, id])?;
@@ -1859,11 +2035,17 @@ pub async fn update_assignment(
 }
 
 pub async fn delete_assignment(
-    RequireTeacher(_user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+    let group_id: i64 = conn.query_row(
+        "SELECT group_id FROM class_assignments WHERE id = ?1", [id], |r| r.get(0),
+    ).map_err(|_| AppError::NotFound("Assignment not found".to_string()))?;
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
     // Cascade deletes grades too
     conn.execute("DELETE FROM class_assignments WHERE id = ?1", [id])?;
     Ok(Json(serde_json::json!({ "ok": true })))
@@ -1871,7 +2053,7 @@ pub async fn delete_assignment(
 
 /// Save grades for an assignment (bulk upsert — one request per assignment)
 pub async fn save_assignment_grades(
-    RequireTeacher(user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(assignment_id): Path<i64>,
     Json(req): Json<BulkSaveGradesRequest>,
@@ -1887,6 +2069,10 @@ pub async fn save_assignment_grades(
         [assignment_id],
         |row| row.get(0),
     ).map_err(|_| AppError::BadRequest("Assignment not found or grading not enabled".to_string()))?;
+
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
 
     for g in &req.grades {
         // Verify student is in the group
@@ -1920,13 +2106,16 @@ pub async fn save_assignment_grades(
 
 /// PUT /api/admin/class-groups/{id}/category-weights — save category weights for a class
 pub async fn save_category_weights(
-    RequireTeacher(_user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(group_id): Path<i64>,
     Json(req): Json<SaveCategoryWeightsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     crate::features::require_feature(&state.db, "class_groups")?;
     let conn = state.db.get()?;
+    if !can_manage_class_content(&conn, &user, group_id) {
+        return Err(AppError::Forbidden);
+    }
 
     // Verify grading is enabled
     let enabled: bool = conn.query_row(

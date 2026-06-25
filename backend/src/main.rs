@@ -306,7 +306,13 @@ async fn main() {
             "/api/session-types",
             get(routes::sessions::list_active_session_types),
         )
-        .route("/api/sessions/{id}", get(routes::sessions::get_session))
+        // Canonical session read/update/delete — unified permission (admin, host, or class teacher)
+        .route(
+            "/api/sessions/{id}",
+            get(routes::sessions::get_session)
+                .put(routes::admin::update_session)
+                .delete(routes::admin::delete_session),
+        )
         .route(
             "/api/sessions/{id}/claim",
             post(routes::sessions::claim_session),
@@ -438,22 +444,33 @@ async fn main() {
         .route("/api/admin/restore", post(routes::admin::restore_backup))
         .route("/api/admin/class-groups", get(routes::admin::list_class_groups).post(routes::admin::create_class_group))
         .route("/api/admin/class-groups/{id}", put(routes::admin::update_class_group).delete(routes::admin::delete_class_group))
+        .route("/api/admin/class-groups/{id}/duplicate", post(routes::admin::duplicate_class_group))
         .route("/api/admin/class-group-members", get(routes::admin::list_class_group_members).post(routes::admin::add_group_member))
         .route("/api/admin/class-group-members/{group_id}/{student_id}", delete(routes::admin::remove_group_member))
         .route("/api/admin/class-group-teachers", get(routes::admin::list_class_group_teachers).post(routes::admin::add_group_teacher))
         .route("/api/admin/class-group-teachers/{group_id}/{user_id}", delete(routes::admin::remove_group_teacher))
         .route("/api/admin/class-group-announcements", post(routes::admin::create_class_group_announcement))
         .route("/api/admin/class-group-announcements/{id}", put(routes::admin::update_class_group_announcement).delete(routes::admin::delete_class_group_announcement))
+        .route("/api/admin/enrollment-requests", get(routes::admin::list_enrollment_requests))
+        .route("/api/admin/enrollment-requests/{id}/approve", post(routes::admin::approve_enrollment_request))
+        .route("/api/admin/enrollment-requests/{id}/deny", post(routes::admin::deny_enrollment_request))
         // Member-facing class group routes
         .route("/api/class-groups", get(routes::class_groups::list_user_class_groups))
+        .route("/api/class-groups/browse", get(routes::class_groups::browse_classes))
         .route("/api/class-groups/{id}", get(routes::class_groups::get_class_group))
+        .route("/api/class-groups/{id}/enroll-request", post(routes::class_groups::request_enrollment))
+        .route("/api/class-groups/{id}/members", post(routes::class_groups::add_class_member))
+        .route("/api/class-groups/{id}/members/{student_id}", delete(routes::class_groups::remove_class_member))
+        .route("/api/class-groups/{id}/candidate-students", get(routes::class_groups::candidate_students))
         .route("/api/class-groups/{id}/sessions", get(routes::class_groups::get_group_sessions))
         .route("/api/class-groups/{id}/roster", get(routes::class_groups::get_group_roster))
         .route("/api/class-groups/{id}/attendance", get(routes::class_groups::get_group_attendance))
         .route("/api/class-groups/{id}/announcements", get(routes::class_groups::get_group_announcements))
         .route("/api/class-groups/{id}/grades", get(routes::class_groups::get_group_grades))
         .route("/api/class-groups/{id}/home", put(routes::class_groups::update_class_home))
+        .route("/api/class-groups/{id}/info", put(routes::class_groups::update_class_info))
         .route("/api/class-groups/{id}/sessions", post(routes::class_groups::create_class_session))
+        .route("/api/class-groups/{id}/sessions/bulk", post(routes::class_groups::create_class_sessions_bulk))
         .route("/api/class-groups/{id}/sessions/{session_id}", put(routes::class_groups::update_class_session).delete(routes::class_groups::delete_class_session))
         // Assignment & grade CRUD (teacher+)
         .route("/api/admin/class-assignments", post(routes::admin::create_assignment))

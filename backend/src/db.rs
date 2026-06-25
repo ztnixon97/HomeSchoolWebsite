@@ -512,6 +512,10 @@ fn run_migrations(pool: &DbPool) {
     let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN reference_number TEXT", []);
     let _ = conn.execute("ALTER TABLE payment_ledger ADD COLUMN external_payment_id TEXT", []);
     let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN home_content TEXT", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN capacity INTEGER", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN meeting_info TEXT", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN term_start TEXT", []);
+    let _ = conn.execute("ALTER TABLE class_groups ADD COLUMN term_end TEXT", []);
     let _ = conn.execute("ALTER TABLE class_grades ADD COLUMN status TEXT NOT NULL DEFAULT 'graded'", []);
     let _ = conn.execute("ALTER TABLE grade_category_weights ADD COLUMN drop_lowest INTEGER NOT NULL DEFAULT 0", []);
 
@@ -540,6 +544,24 @@ fn run_migrations(pool: &DbPool) {
             required INTEGER NOT NULL DEFAULT 1,
             sort_order INTEGER NOT NULL DEFAULT 0
         );
+    ").ok();
+
+    // Class enrollment requests (parent requests to join a class; admin approves)
+    conn.execute_batch("
+        CREATE TABLE IF NOT EXISTS enrollment_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            group_id INTEGER NOT NULL REFERENCES class_groups(id) ON DELETE CASCADE,
+            student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+            requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            status TEXT NOT NULL DEFAULT 'pending',
+            note TEXT,
+            reviewed_by INTEGER REFERENCES users(id),
+            reviewed_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(group_id, student_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_enroll_req_status ON enrollment_requests(status);
+        CREATE INDEX IF NOT EXISTS idx_enroll_req_group ON enrollment_requests(group_id);
     ").ok();
 
     // Messaging enhancements: soft-delete conversations + messages, fix timestamps

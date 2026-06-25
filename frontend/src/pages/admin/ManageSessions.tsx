@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
-import { useToast } from '../../components/Toast';
-import { useFeatures } from '../../features';
+import SessionEditor from '../../components/SessionEditor';
 
 interface Session {
   id: number;
@@ -37,44 +36,16 @@ interface SessionType {
   cost_label: string | null;
 }
 
-interface ClassGroup {
-  id: number;
-  name: string;
-}
-
 export default function ManageSessions() {
-  const { showToast } = useToast();
-  const features = useFeatures();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showHolidayForm, setShowHolidayForm] = useState(false);
-  const [title, setTitle] = useState('');
-  const [theme, setTheme] = useState('');
-  const [date, setDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [locationName, setLocationName] = useState('');
-  const [locationAddress, setLocationAddress] = useState('');
-  const [costAmount, setCostAmount] = useState('');
-  const [costDetails, setCostDetails] = useState('');
-  const [maxStudents, setMaxStudents] = useState('');
-  const [notes, setNotes] = useState('');
-  const [rsvpCutoff, setRsvpCutoff] = useState('');
-  const [editStatus, setEditStatus] = useState('');
-  const [assignHostId, setAssignHostId] = useState('');
-  const [reserveHostName, setReserveHostName] = useState('');
-  const [allUsers, setAllUsers] = useState<{ id: number; display_name: string; email: string }[]>([]);
-  const [sessionTypeId, setSessionTypeId] = useState('');
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
-  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
-  const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const sessionTypeMap = new Map(sessionTypes.map(t => [t.id, t]));
   const holidayType = sessionTypes.find(t => t.name === 'holiday');
 
   const [holidayTitle, setHolidayTitle] = useState('');
@@ -85,97 +56,14 @@ export default function ManageSessions() {
   const refresh = () => {
     api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
     api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
-    api.get<{ items: { id: number; display_name: string; email: string }[] }>('/api/admin/users?page_size=200').then(r => setAllUsers(r.items)).catch(() => {});
-    if (features.class_groups) {
-      api.get<ClassGroup[]>('/api/admin/class-groups').then(setClassGroups).catch(() => {});
-    }
   };
 
   useEffect(refresh, []);
 
-  const clearForm = () => {
-    setTitle('');
-    setTheme('');
-    setDate('');
-    setEndDate('');
-    setStartTime('');
-    setEndTime('');
-    setLocationName('');
-    setLocationAddress('');
-    setCostAmount('');
-    setCostDetails('');
-    setMaxStudents('');
-    setNotes('');
-    setRsvpCutoff('');
-    setEditStatus('');
-    setAssignHostId('');
-    setReserveHostName('');
-    setSessionTypeId('');
-    setSelectedGroupIds([]);
-  };
-
   const startEdit = (s: Session) => {
     setEditingId(s.id);
-    setTitle(s.title);
-    setTheme(s.theme || '');
-    setDate(s.session_date);
-    setEndDate(s.end_date || '');
-    setStartTime(s.start_time || '');
-    setEndTime(s.end_time || '');
-    setLocationName(s.location_name || '');
-    setLocationAddress(s.location_address || '');
-    setCostAmount(s.cost_amount != null ? String(s.cost_amount) : '');
-    setCostDetails(s.cost_details || '');
-    setMaxStudents(s.max_students != null ? String(s.max_students) : '');
-    setEditStatus(s.status);
-    setAssignHostId(s.host_id != null ? String(s.host_id) : '');
-    setReserveHostName(s.host_id == null && s.host_name ? s.host_name : '');
-    setNotes('');
-    setRsvpCutoff(s.rsvp_cutoff || '');
-    const matchedType = sessionTypes.find(t => t.label === s.session_type_label || t.name === s.session_type_name);
-    setSessionTypeId(matchedType ? String(matchedType.id) : '');
     setShowForm(true);
     setShowHolidayForm(false);
-  };
-
-  const addSession = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    const payload = {
-      title,
-      theme: theme || null,
-      session_date: date,
-      end_date: endDate || null,
-      start_time: startTime || null,
-      end_time: endTime || null,
-      location_name: locationName || null,
-      location_address: locationAddress || null,
-      cost_amount: costAmount ? parseFloat(costAmount) : null,
-      cost_details: costDetails || null,
-      max_students: maxStudents ? parseInt(maxStudents) : null,
-      notes: notes || null,
-      rsvp_cutoff: rsvpCutoff || null,
-      session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
-      class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
-      ...(editingId && editStatus ? { status: editStatus } : {}),
-      ...(editingId && assignHostId ? { host_id: parseInt(assignHostId) } : {}),
-      ...(editingId && !assignHostId && reserveHostName ? { host_name: reserveHostName } : {}),
-    };
-    try {
-      if (editingId) {
-        await api.put(`/api/admin/sessions/${editingId}`, payload);
-        showToast('Session updated', 'success');
-      } else {
-        await api.post('/api/admin/sessions', payload);
-        showToast('Session created', 'success');
-      }
-      clearForm();
-      setEditingId(null);
-      setShowForm(false);
-      refresh();
-    } catch (err: any) {
-      setError(err.message || (editingId ? 'Failed to update session' : 'Failed to create session'));
-    }
   };
 
   const addHoliday = async (e: React.FormEvent) => {
@@ -232,8 +120,12 @@ export default function ManageSessions() {
           <button
             onClick={() => {
               setShowHolidayForm(false);
-              if (showForm) { clearForm(); setEditingId(null); }
-              setShowForm(!showForm);
+              if (showForm) {
+                setShowForm(false);
+              } else {
+                setEditingId(null);
+                setShowForm(true);
+              }
             }}
             className="bg-emerald-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors"
           >
@@ -252,144 +144,12 @@ export default function ManageSessions() {
       </div>
 
       {showForm && (
-        <form onSubmit={addSession} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-4">
-          {error && <div className="text-red-700 text-sm bg-red-50 border border-red-100 p-3 rounded-lg">{error}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Title</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required placeholder="e.g. Tuesday Class" className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Weekly Theme</label>
-              <input type="text" value={theme} onChange={e => setTheme(e.target.value)} placeholder="e.g. Ocean Animals" className={inputClass} />
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Session Type</label>
-            <select value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className={inputClass}>
-              <option value="">Select...</option>
-              {sessionTypes.map(t => (
-                <option key={t.id} value={t.id}>{t.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} required className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Start Time</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">End Time</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className={inputClass} />
-            </div>
-          </div>
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.multi_day && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">End Date</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className={inputClass} />
-            </div>
-          )}
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.requires_location && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Name</label>
-                <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Location Address</label>
-                <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)} className={inputClass} />
-              </div>
-            </div>
-          )}
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.supports_cost && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">{sessionTypeMap.get(parseInt(sessionTypeId))?.cost_label || 'Cost'}</label>
-                <input type="number" step="0.01" value={costAmount} onChange={e => setCostAmount(e.target.value)} className={inputClass} />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Cost Notes</label>
-                <input type="text" value={costDetails} onChange={e => setCostDetails(e.target.value)} className={inputClass} />
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Max Students</label>
-              <input type="number" value={maxStudents} onChange={e => setMaxStudents(e.target.value)} placeholder="Optional" className={inputClass} />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
-              <input type="text" value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional notes" className={inputClass} />
-            </div>
-          </div>
-          {editingId && (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Status</label>
-                  <select value={editStatus} onChange={e => setEditStatus(e.target.value)} className={inputClass}>
-                    <option value="open">Open</option>
-                    <option value="claimed">Claimed</option>
-                    <option value="completed">Completed</option>
-                    <option value="closed">Closed</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Assign Host</label>
-                  {!assignHostId && reserveHostName && (
-                    <p className="text-xs text-amber-600 mb-1.5">Currently set to "{reserveHostName}" (not linked to an account). Select a user below to link them.</p>
-                  )}
-                  <select value={assignHostId} onChange={e => { setAssignHostId(e.target.value); if (e.target.value) setReserveHostName(''); }} className={inputClass}>
-                    <option value="">— None —</option>
-                    {allUsers.map(u => (
-                      <option key={u.id} value={u.id}>{u.display_name} ({u.email})</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {!assignHostId && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Or enter host name</label>
-                  <input type="text" value={reserveHostName} onChange={e => setReserveHostName(e.target.value)} placeholder="Name (if not a registered user)" className={inputClass} />
-                </div>
-              )}
-            </>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">RSVP Cutoff</label>
-            <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className={inputClass} />
-          </div>
-          {features.class_groups && classGroups.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Class Groups</label>
-              <div className="flex flex-wrap gap-2">
-                {classGroups.map(g => (
-                  <label key={g.id} className="flex items-center gap-1.5 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={selectedGroupIds.includes(g.id)}
-                      onChange={e => {
-                        if (e.target.checked) setSelectedGroupIds(prev => [...prev, g.id]);
-                        else setSelectedGroupIds(prev => prev.filter(id => id !== g.id));
-                      }}
-                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                    />
-                    {g.name}
-                  </label>
-                ))}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Sessions with no groups are open to all students.</p>
-            </div>
-          )}
-          <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
-            {editingId ? 'Update Session' : 'Create Session'}
-          </button>
-        </form>
+        <SessionEditor
+          editSessionId={editingId ?? undefined}
+          isAdmin
+          onSaved={() => { setShowForm(false); setEditingId(null); refresh(); }}
+          onCancel={() => { setShowForm(false); setEditingId(null); }}
+        />
       )}
 
       {showHolidayForm && (

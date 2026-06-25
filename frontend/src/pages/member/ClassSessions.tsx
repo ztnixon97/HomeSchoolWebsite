@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useFeatures } from '../../features';
 import { ServerPagination } from '../../components/Pagination';
+import SessionEditor from '../../components/SessionEditor';
 
 interface ClassGroup {
   id: number;
@@ -29,45 +30,20 @@ interface Session {
   location_address?: string | null;
   cost_amount?: number | null;
   cost_details?: string | null;
-}
-
-interface SessionType {
-  id: number;
-  name: string;
-  label: string;
-  multi_day: boolean;
-  hostable: boolean;
-  rsvpable: boolean;
-  requires_location: boolean;
-  supports_cost: boolean;
-  cost_label: string | null;
-  description?: string | null;
+  is_mine?: boolean;
+  limited?: boolean;
 }
 
 export default function ClassSessions() {
-  const { user } = useAuth();
+  const { user, isAdmin, isTeacher } = useAuth();
   const features = useFeatures();
   const isMobile = window.matchMedia('(max-width: 768px)').matches || window.matchMedia('(display-mode: standalone)').matches;
   const [view, setView] = useState<'list' | 'calendar' | 'week'>(isMobile ? 'list' : 'calendar');
   const [classGroups, setClassGroups] = useState<ClassGroup[]>([]);
   const [groupFilter, setGroupFilter] = useState('');
+  const [scope, setScope] = useState<'mine' | 'all'>('mine');
+  const [refreshKey, setRefreshKey] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
-  const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
-  const [title, setTitle] = useState('');
-  const [theme, setTheme] = useState('');
-  const [sessionTypeId, setSessionTypeId] = useState('');
-  const [date, setDate] = useState('');
-  const [endDate, setEndDate] = useState('');
-  const [startTime, setStartTime] = useState('');
-  const [endTime, setEndTime] = useState('');
-  const [locationName, setLocationName] = useState('');
-  const [locationAddress, setLocationAddress] = useState('');
-  const [costAmount, setCostAmount] = useState('');
-  const [costDetails, setCostDetails] = useState('');
-  const [maxStudents, setMaxStudents] = useState('');
-  const [notes, setNotes] = useState('');
-  const [rsvpCutoff, setRsvpCutoff] = useState('');
-  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showPast, setShowPast] = useState(false);
@@ -77,7 +53,6 @@ export default function ClassSessions() {
 
   // Load all sessions for calendar view
   useEffect(() => {
-    api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
     if (features.class_groups) {
       api.get<ClassGroup[]>('/api/class-groups').then(setClassGroups).catch(() => {});
     }
@@ -94,18 +69,16 @@ export default function ClassSessions() {
     if (search) params.set('q', search);
     if (statusFilter) params.set('status', statusFilter);
     if (groupFilter) params.set('class_group_id', groupFilter);
+    if (scope === 'all') params.set('scope', 'all');
     api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {
       setListSessions(res.items);
       setListTotal(res.total);
     }).catch(() => {});
-  }, [view, listPage, search, statusFilter, groupFilter, showPast]);
+  }, [view, listPage, search, statusFilter, groupFilter, showPast, scope, refreshKey]);
 
   // Reset page when filters change
   useEffect(() => { setListPage(1); }, [search, statusFilter, groupFilter, showPast]);
 
-  const today = new Date().toISOString().slice(0, 10);
-
-  const sessionTypeMap = new Map(sessionTypes.map(t => [t.id, t]));
   const statusBadge = (s: Session) => {
     if (s.session_type_name === 'holiday') {
       return <span className="text-xs px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">Holiday</span>;
@@ -125,7 +98,7 @@ export default function ClassSessions() {
           <p className="text-ink/60 text-sm mt-1">View and sign up for upcoming co-op sessions.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-          {user && (
+          {(isAdmin || isTeacher) && (
             <button
               onClick={() => setShowCreate(!showCreate)}
               className="px-3 py-1.5 rounded-md text-sm font-medium bg-emerald-700 text-white hover:bg-emerald-800"
@@ -145,137 +118,29 @@ export default function ClassSessions() {
             </button>
           ))}
           </div>
+          {features.class_groups && (
+            <div className="flex gap-1 bg-gray-100 p-0.5 rounded-lg">
+              {(['mine', 'all'] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setScope(s)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${scope === s ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                  title={s === 'mine' ? 'Your classes plus open events' : 'All classes — other classes show limited info'}
+                >
+                  {s === 'mine' ? 'My classes' : 'All classes'}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       {showCreate && (
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            setError('');
-            try {
-              await api.post('/api/sessions', {
-                title,
-                theme: theme || null,
-                session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
-                session_date: date,
-                end_date: endDate || null,
-                start_time: startTime || null,
-                end_time: endTime || null,
-                location_name: locationName || null,
-                location_address: locationAddress || null,
-                cost_amount: costAmount ? parseFloat(costAmount) : null,
-                cost_details: costDetails || null,
-                max_students: maxStudents ? parseInt(maxStudents) : null,
-                notes: notes || null,
-                rsvp_cutoff: rsvpCutoff || null,
-              });
-              setTitle('');
-              setTheme('');
-              setSessionTypeId('');
-              setDate('');
-              setEndDate('');
-              setStartTime('');
-              setEndTime('');
-              setLocationName('');
-              setLocationAddress('');
-              setCostAmount('');
-              setCostDetails('');
-              setMaxStudents('');
-              setNotes('');
-              setRsvpCutoff('');
-              setShowCreate(false);
-              const data = await api.get<Session[]>('/api/sessions');
-              setSessions(data);
-            } catch (err) {
-              const message = err instanceof Error ? err.message : 'Failed to create session';
-              setError(message);
-            }
-          }}
-          className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 space-y-3"
-        >
-          {error && <div className="text-red-600 text-sm">{error}</div>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Title</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Topic</label>
-              <input type="text" value={theme} onChange={e => setTheme(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Session Type</label>
-              <select value={sessionTypeId} onChange={e => setSessionTypeId(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors">
-                <option value="">Select...</option>
-                {sessionTypes.map(t => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Date</label>
-              <input type="date" value={date} onChange={e => setDate(e.target.value)} required className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-          </div>
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.multi_day && (
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">End Date</label>
-              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Start Time</label>
-              <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">End Time</label>
-              <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-          </div>
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.requires_location && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Location Name</label>
-                <input type="text" value={locationName} onChange={e => setLocationName(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Location Address</label>
-                <input type="text" value={locationAddress} onChange={e => setLocationAddress(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-              </div>
-            </div>
-          )}
-          {sessionTypeId && sessionTypeMap.get(parseInt(sessionTypeId))?.supports_cost && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">{sessionTypeMap.get(parseInt(sessionTypeId))?.cost_label || 'Cost'}</label>
-                <input type="number" step="0.01" value={costAmount} onChange={e => setCostAmount(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-500 mb-1">Cost Notes</label>
-                <input type="text" value={costDetails} onChange={e => setCostDetails(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-              </div>
-            </div>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Max Students</label>
-              <input type="number" value={maxStudents} onChange={e => setMaxStudents(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">RSVP Cutoff</label>
-              <input type="datetime-local" value={rsvpCutoff} onChange={e => setRsvpCutoff(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs text-gray-500 mb-1">Notes</label>
-            <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors" />
-          </div>
-          <button type="submit" className="bg-emerald-700 text-white px-4 py-2 rounded text-sm hover:bg-emerald-800">Create</button>
-        </form>
+        <SessionEditor
+          isAdmin={isAdmin}
+          onSaved={() => { setShowCreate(false); setRefreshKey(k => k + 1); }}
+          onCancel={() => setShowCreate(false)}
+        />
       )}
 
       {view === 'list' ? (
@@ -328,7 +193,10 @@ export default function ClassSessions() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="font-semibold text-gray-900">{s.title}</h3>
-                  {statusBadge(s)}
+                  <div className="flex items-center gap-2">
+                    {s.limited && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Other class</span>}
+                    {statusBadge(s)}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-500">
                   {new Date(s.session_date + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}
@@ -361,11 +229,11 @@ export default function ClassSessions() {
         </div>
       ) : view === 'week' ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
-          <WeekView />
+          <WeekView scope={scope} refreshKey={refreshKey} />
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 md:p-6">
-          <CalendarView />
+          <CalendarView scope={scope} refreshKey={refreshKey} />
         </div>
       )}
     </div>
@@ -416,7 +284,7 @@ function CalendarSubscribeButton() {
   );
 }
 
-function CalendarView() {
+function CalendarView({ scope, refreshKey }: { scope: 'mine' | 'all'; refreshKey: number }) {
   const [year, setYear] = useState(new Date().getFullYear());
   const [month, setMonth] = useState(new Date().getMonth());
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -427,14 +295,13 @@ function CalendarView() {
     const to = new Date(year, month + 2, 0);
     const dateFrom = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}-01`;
     const dateTo = `${to.getFullYear()}-${String(to.getMonth() + 1).padStart(2, '0')}-${String(to.getDate()).padStart(2, '0')}`;
-    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${dateFrom}&date_to=${dateTo}`).then(res => {
+    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${dateFrom}&date_to=${dateTo}${scope === 'all' ? '&scope=all' : ''}`).then(res => {
       setSessions(Array.isArray(res) ? res : res.items);
     }).catch(() => {});
-  }, [year, month]);
+  }, [year, month, scope, refreshKey]);
 
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDay = new Date(year, month, 1).getDay();
-  const monthName = new Date(year, month).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 
   const today = new Date();
   const currentYear = today.getFullYear();
@@ -539,7 +406,7 @@ function CalendarView() {
   );
 }
 
-function WeekView() {
+function WeekView({ scope, refreshKey }: { scope: 'mine' | 'all'; refreshKey: number }) {
   const [weekStart, setWeekStart] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - d.getDay()); // Start on Sunday
@@ -559,10 +426,10 @@ function WeekView() {
   useEffect(() => {
     const from = dateStr(weekStart);
     const to = dateStr(weekEnd);
-    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${from}&date_to=${to}`).then(res => {
+    api.get<Session[] | { items: Session[] }>(`/api/sessions?date_from=${from}&date_to=${to}${scope === 'all' ? '&scope=all' : ''}`).then(res => {
       setSessions(Array.isArray(res) ? res : res.items);
     }).catch(() => {});
-  }, [weekStart]);
+  }, [weekStart, scope, refreshKey]);
 
   const prevWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() - 7); return n; });
   const nextWeek = () => setWeekStart(d => { const n = new Date(d); n.setDate(n.getDate() + 7); return n; });
