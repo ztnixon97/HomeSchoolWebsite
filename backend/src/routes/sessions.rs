@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::{RequireAuth, RequireTeacher};
+use crate::auth::{can_manage_class_content, RequireAuth, RequireTeacher};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::validate_date;
@@ -12,11 +12,23 @@ use crate::AppState;
 // ── Class Sessions ──
 
 pub async fn create_session(
-    RequireTeacher(user): RequireTeacher,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Json(req): Json<CreateSessionRequest>,
 ) -> Result<Json<ClassSession>, AppError> {
     let conn = state.db.get()?;
+    // Only admins/teachers, or a teacher of a class this session is being attached to, may create.
+    let allowed = user.role == "admin"
+        || user.role == "teacher"
+        || req
+            .class_group_ids
+            .as_deref()
+            .unwrap_or(&[])
+            .iter()
+            .any(|gid| can_manage_class_content(&conn, &user, *gid));
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
     validate_date(&req.session_date, "session_date")?;
     let session_type_id = if let Some(id) = req.session_type_id {
         Some(id)
@@ -116,11 +128,16 @@ pub async fn create_session(
 }
 
 pub async fn list_sessions(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     axum::extract::Query(query): axum::extract::Query<SessionsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+
+    let scope = query.scope.as_deref().unwrap_or("mine");
+    let is_admin = user.role == "admin";
+    // Non-admins default to "mine": sessions in their classes + unassigned/global sessions.
+    let apply_mine_filter = !is_admin && scope != "all";
 
     let mut where_clauses = Vec::new();
     let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
@@ -164,6 +181,25 @@ pub async fn list_sessions(
         ));
     }
 
+    // "mine" = global (no class link) OR a class the user teaches/has a child in OR hosts/created.
+    let mine_predicate = |idx: usize| format!(
+        "(NOT EXISTS (SELECT 1 FROM class_session_groups csg WHERE csg.session_id = cs.id)
+          OR cs.host_id = ?{idx} OR cs.created_by = ?{idx}
+          OR EXISTS (SELECT 1 FROM class_session_groups csg WHERE csg.session_id = cs.id AND (
+              csg.group_id IN (SELECT group_id FROM class_group_teachers WHERE user_id = ?{idx})
+              OR csg.group_id IN (SELECT cgm.group_id FROM class_group_members cgm
+                                  JOIN student_parents sp ON cgm.student_id = sp.student_id
+                                  WHERE sp.user_id = ?{idx})
+          )))",
+        idx = idx
+    );
+
+    if apply_mine_filter {
+        params_vec.push(Box::new(user.id));
+        let clause = mine_predicate(params_vec.len());
+        where_clauses.push(clause);
+    }
+
     let where_sql = if where_clauses.is_empty() {
         String::new()
     } else {
@@ -178,6 +214,39 @@ pub async fn list_sessions(
     );
 
     let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    // In "all" scope (non-admin), we return other classes' sessions too but strip their
+    // details to public level. Pre-compute which session ids are "mine" for that masking.
+    let mine_ids: std::collections::HashSet<i64> = if !is_admin && scope == "all" {
+        let sql = format!("SELECT cs.id FROM class_sessions cs WHERE {}", mine_predicate(1));
+        let mut stmt = conn.prepare(&sql)?;
+        let set: std::collections::HashSet<i64> = stmt
+            .query_map(params![user.id], |row| row.get::<_, i64>(0))?
+            .filter_map(|r| r.ok()).collect();
+        set
+    } else {
+        std::collections::HashSet::new()
+    };
+
+    // Build the response array, masking non-"mine" sessions to public-level fields.
+    let to_items = |sessions: Vec<ClassSession>| -> Vec<serde_json::Value> {
+        sessions.into_iter().map(|s| {
+            let mine = is_admin || scope != "all" || mine_ids.contains(&s.id);
+            let mut v = serde_json::to_value(&s).unwrap_or_else(|_| serde_json::json!({}));
+            if let Some(obj) = v.as_object_mut() {
+                if !mine {
+                    for k in ["host_id", "host_name", "host_address", "location_address",
+                              "cost_amount", "cost_details", "lesson_plan_id",
+                              "materials_needed", "notes", "created_by"] {
+                        obj.insert(k.to_string(), serde_json::Value::Null);
+                    }
+                }
+                obj.insert("is_mine".to_string(), serde_json::json!(mine));
+                obj.insert("limited".to_string(), serde_json::json!(!mine));
+            }
+            v
+        }).collect()
+    };
 
     // If pagination requested, return paginated response
     if query.page.is_some() || query.page_size.is_some() {
@@ -221,7 +290,7 @@ pub async fn list_sessions(
             })
         })?.filter_map(|r| r.ok()).collect();
 
-        return Ok(Json(serde_json::json!({ "items": sessions, "total": total, "page": page, "page_size": page_size })));
+        return Ok(Json(serde_json::json!({ "items": to_items(sessions), "total": total, "page": page, "page_size": page_size })));
     }
 
     // No pagination — return all (backwards compatible for Dashboard, etc.)
@@ -251,7 +320,7 @@ pub async fn list_sessions(
         })
     })?.filter_map(|r| r.ok()).collect();
 
-    Ok(Json(serde_json::json!(sessions)))
+    Ok(Json(serde_json::json!(to_items(sessions))))
 }
 
 pub async fn list_users(
@@ -464,12 +533,12 @@ pub async fn list_active_session_types(
 }
 
 pub async fn get_session(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<ClassSession>, AppError> {
     let conn = state.db.get()?;
-    let session = conn
+    let mut session = conn
         .query_row(
             "SELECT cs.id, cs.title, cs.theme, cs.session_date, cs.end_date, cs.start_time, cs.end_time,
                     cs.host_id, COALESCE(u.display_name, cs.reserved_for), cs.host_address, cs.location_name, cs.location_address,
@@ -514,6 +583,38 @@ pub async fn get_session(
             },
         )
         .map_err(|_| AppError::NotFound("Session not found".to_string()))?;
+
+    // Class-aware visibility: a session restricted to classes the user isn't part of
+    // is shown at public level only (no host/address/notes/cost details).
+    let visible = user.role == "admin"
+        || session.host_id == Some(user.id)
+        || session.created_by == Some(user.id)
+        || {
+            let has_links: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1",
+                params![id], |r| r.get(0)).unwrap_or(false);
+            !has_links || conn.query_row(
+                "SELECT COUNT(*) > 0 FROM class_session_groups csg WHERE csg.session_id = ?1 AND (
+                    csg.group_id IN (SELECT group_id FROM class_group_teachers WHERE user_id = ?2)
+                    OR csg.group_id IN (SELECT cgm.group_id FROM class_group_members cgm
+                                        JOIN student_parents sp ON cgm.student_id = sp.student_id
+                                        WHERE sp.user_id = ?2)
+                 )",
+                params![id, user.id], |r| r.get(0)).unwrap_or(false)
+        };
+
+    if !visible {
+        session.host_id = None;
+        session.host_name = None;
+        session.host_address = None;
+        session.location_address = None;
+        session.cost_amount = None;
+        session.cost_details = None;
+        session.lesson_plan_id = None;
+        session.materials_needed = None;
+        session.notes = None;
+        session.created_by = None;
+    }
 
     Ok(Json(session))
 }
@@ -1070,14 +1171,22 @@ pub async fn save_session_attendance(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
 
-    // Only host or admin can record attendance
+    // Host, admin, or an assigned teacher of a class this session belongs to can record attendance
     let host_id: Option<i64> = conn.query_row(
         "SELECT host_id FROM class_sessions WHERE id = ?1",
         params![req.session_id],
         |row| row.get(0),
     ).map_err(|_| AppError::NotFound("Session not found".to_string()))?;
 
-    if host_id != Some(user.id) && user.role != "admin" {
+    let is_class_teacher: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_session_groups csg
+         JOIN class_group_teachers cgt ON csg.group_id = cgt.group_id
+         WHERE csg.session_id = ?1 AND cgt.user_id = ?2",
+        params![req.session_id, user.id],
+        |row| row.get(0),
+    ).unwrap_or(false);
+
+    if host_id != Some(user.id) && user.role != "admin" && !is_class_teacher {
         return Err(AppError::Forbidden);
     }
 

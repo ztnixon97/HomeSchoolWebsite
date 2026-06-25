@@ -14,6 +14,50 @@ use crate::models::User;
 
 const USER_ID_KEY: &str = "user_id";
 
+/// True if the user may create/edit/delete a specific session: admins and global teachers
+/// manage any session; the session's host manages their own; a class teacher manages sessions
+/// linked to a class they teach.
+pub fn can_manage_session(conn: &rusqlite::Connection, user: &User, session_id: i64) -> bool {
+    if user.role == "admin" || user.role == "teacher" {
+        return true;
+    }
+    let is_host: bool = conn
+        .query_row(
+            "SELECT host_id = ?2 FROM class_sessions WHERE id = ?1",
+            rusqlite::params![session_id, user.id],
+            |r| r.get::<_, Option<bool>>(0),
+        )
+        .ok()
+        .flatten()
+        .unwrap_or(false);
+    if is_host {
+        return true;
+    }
+    conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_session_groups csg
+         JOIN class_group_teachers cgt ON csg.group_id = cgt.group_id
+         WHERE csg.session_id = ?1 AND cgt.user_id = ?2",
+        rusqlite::params![session_id, user.id],
+        |r| r.get(0),
+    )
+    .unwrap_or(false)
+}
+
+/// True if the user may manage a class's content (announcements, assignments, grades,
+/// category weights): admins and global teachers can manage any class; everyone else must
+/// be an assigned teacher of that specific class. Regular parents get no management access.
+pub fn can_manage_class_content(conn: &rusqlite::Connection, user: &User, group_id: i64) -> bool {
+    if user.role == "admin" || user.role == "teacher" {
+        return true;
+    }
+    conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_group_teachers WHERE group_id = ?1 AND user_id = ?2",
+        rusqlite::params![group_id, user.id],
+        |r| r.get(0),
+    )
+    .unwrap_or(false)
+}
+
 pub fn hash_password(password: &str) -> Result<String, AppError> {
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();

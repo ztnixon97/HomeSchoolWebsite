@@ -60,7 +60,15 @@ export default function AdminDashboard() {
     activeInvites: 0,
   });
   const [openSessions, setOpenSessions] = useState<Session[]>([]);
+  const [pendingEnrollments, setPendingEnrollments] = useState(0);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!features.class_groups) return;
+    api.get<unknown[]>('/api/admin/enrollment-requests')
+      .then(r => setPendingEnrollments(r.length))
+      .catch(() => {});
+  }, [features.class_groups]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -106,15 +114,25 @@ export default function AdminDashboard() {
     </div>
   );
 
-  const AdminLink = ({ icon, title, description, href }: { icon: string; title: string; description: string; href: string }) => (
+  const AdminLink = ({ icon, title, description, href, badge }: { icon: string; title: string; description: string; href: string; badge?: number }) => (
     <Link
       to={href}
-      className="block bg-white rounded-xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-gray-200 transition-all no-underline group"
+      className="relative block bg-white rounded-xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-gray-200 transition-all no-underline group"
     >
+      {badge ? (
+        <span className="absolute top-4 right-4 bg-emerald-600 text-white text-xs font-semibold rounded-full min-w-[1.25rem] h-5 px-1.5 inline-flex items-center justify-center">{badge}</span>
+      ) : null}
       <div className="text-3xl mb-3">{icon}</div>
       <h3 className="text-lg font-semibold text-gray-900 group-hover:text-[#1e3a5f] transition-colors">{title}</h3>
       <p className="text-gray-500 text-sm mt-2">{description}</p>
     </Link>
+  );
+
+  const SubSection = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">{title}</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{children}</div>
+    </div>
   );
 
   return (
@@ -124,6 +142,25 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-bold text-ink">Admin Dashboard</h1>
         <p className="text-ink/60 text-sm mt-1">Manage members, sessions, and co-op operations.</p>
       </div>
+
+      {/* Action needed: pending enrollment requests */}
+      {pendingEnrollments > 0 && (
+        <Link
+          to="/admin/class-groups"
+          className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-xl p-4 no-underline hover:bg-emerald-100 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">📥</span>
+            <div>
+              <p className="font-medium text-emerald-900">
+                {pendingEnrollments} enrollment request{pendingEnrollments !== 1 ? 's' : ''} waiting for review
+              </p>
+              <p className="text-sm text-emerald-700">Approve or deny in Class Groups →</p>
+            </div>
+          </div>
+          <span className="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-full font-medium shrink-0">Review</span>
+        </Link>
+      )}
 
       {/* Overview Stats */}
       <section>
@@ -175,105 +212,18 @@ export default function AdminDashboard() {
       <RecentActivity />
 
       {/* Admin Navigation Grid */}
-      <section>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Admin Tools</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AdminLink
-            icon="📅"
-            title="Manage Sessions"
-            description="Create, edit, and schedule class sessions"
-            href="/admin/sessions"
-          />
-          <AdminLink
-            icon="👥"
-            title="Manage Users"
-            description="Invite members, manage roles and access"
-            href="/admin/users"
-          />
-          <AdminLink
-            icon="👨‍👩‍👧"
-            title="Manage Students"
-            description="Add students, link parents, track info"
-            href="/admin/students"
-          />
-          <AdminLink
-            icon="📚"
-            title="Manage Resources"
-            description="Shared documents and learning materials"
-            href="/admin/resources"
-          />
-          <AdminLink
-            icon="🏷️"
-            title="Session Types"
-            description="Configure session categories and settings"
-            href="/admin/session-types"
-          />
-          <AdminLink
-            icon="⚙️"
-            title="Bulk Create Sessions"
-            description="Generate recurring weekly sessions"
-            href="/admin/bulk-sessions"
-          />
-          <AdminLink
-            icon="📝"
-            title="Site Content"
-            description="Edit public pages"
-            href="/admin/site-content"
-          />
-          <AdminLink
-            icon="📧"
-            title="Email Parents"
-            description="Send announcements"
-            href="/admin/email-parents"
-          />
-          <AdminLink
-            icon="📢"
-            title="Announcements"
-            description="Post quick alerts and notices"
-            href="/admin/announcements"
-          />
-          <AdminLink
-            icon="📁"
-            title="File Management"
-            description="Monitor storage and manage uploaded files"
-            href="/admin/files"
-          />
-          <AdminLink
-            icon="⚙️"
-            title="Feature Settings"
-            description="Enable or disable site features"
-            href="/admin/features"
-          />
-          {features.class_groups && <AdminLink
-            icon="🏫"
-            title="Class Groups"
-            description="Organize students into named groups"
-            href="/admin/class-groups"
-          />}
-          {features.payments && <AdminLink
-            icon="💰"
-            title="Manage Payments"
-            description="Charges, payments, invoices, and balances"
-            href="/admin/payments"
-          />}
-          {features.documents && <AdminLink
-            icon="📄"
-            title="Manage Documents"
-            description="Document templates and submission tracking"
-            href="/admin/documents"
-          />}
-          {features.standards && <AdminLink
-            icon="📊"
-            title="Manage Standards"
-            description="Curriculum standards and assignment mapping"
-            href="/admin/standards"
-          />}
-          <AdminLink
-            icon="📈"
-            title="Reports"
-            description="Attendance and enrollment reports"
-            href="/admin/reports"
-          />
+      <section className="space-y-6">
+        <h2 className="text-lg font-semibold text-gray-900">Admin Tools</h2>
+
+        <SubSection title="People & Access">
+          <AdminLink icon="👥" title="Manage Users" description="Invite members, manage roles and access" href="/admin/users" />
+          <AdminLink icon="👨‍👩‍👧" title="Manage Students" description="Add students, link parents, track info" href="/admin/students" />
+        </SubSection>
+
+        <SubSection title="Scheduling">
+          <AdminLink icon="📅" title="Manage Sessions" description="Create, edit, and schedule class sessions" href="/admin/sessions" />
+          <AdminLink icon="⚙️" title="Bulk Create Sessions" description="Generate recurring weekly sessions" href="/admin/bulk-sessions" />
+          <AdminLink icon="🏷️" title="Session Types" description="Configure session categories and settings" href="/admin/session-types" />
           <button
             onClick={sendReminders}
             disabled={sendingReminders}
@@ -283,7 +233,27 @@ export default function AdminDashboard() {
             <h3 className="text-lg font-semibold text-gray-900">{sendingReminders ? 'Sending...' : 'Send Reminders'}</h3>
             <p className="text-gray-500 text-sm mt-2">Send session reminder emails to parents</p>
           </button>
-        </div>
+        </SubSection>
+
+        <SubSection title="Classes & Academics">
+          {features.class_groups && <AdminLink icon="🏫" title="Class Groups" description="Classes, rosters, and enrollment requests" href="/admin/class-groups" badge={pendingEnrollments || undefined} />}
+          {features.standards && <AdminLink icon="📊" title="Manage Standards" description="Curriculum standards and assignment mapping" href="/admin/standards" />}
+          <AdminLink icon="📈" title="Reports" description="Attendance and enrollment reports" href="/admin/reports" />
+        </SubSection>
+
+        <SubSection title="Content & Communication">
+          <AdminLink icon="📝" title="Site Content" description="Edit public pages" href="/admin/site-content" />
+          <AdminLink icon="📢" title="Announcements" description="Post quick alerts and notices" href="/admin/announcements" />
+          <AdminLink icon="📧" title="Email Parents" description="Send announcements" href="/admin/email-parents" />
+          <AdminLink icon="📚" title="Manage Resources" description="Shared documents and learning materials" href="/admin/resources" />
+          <AdminLink icon="📁" title="File Management" description="Monitor storage and manage uploaded files" href="/admin/files" />
+        </SubSection>
+
+        <SubSection title="Settings & Money">
+          {features.payments && <AdminLink icon="💰" title="Manage Payments" description="Charges, payments, invoices, and balances" href="/admin/payments" />}
+          {features.documents && <AdminLink icon="📄" title="Manage Documents" description="Document templates and submission tracking" href="/admin/documents" />}
+          <AdminLink icon="⚙️" title="Feature Settings" description="Enable or disable site features" href="/admin/features" />
+        </SubSection>
       </section>
     </div>
   );

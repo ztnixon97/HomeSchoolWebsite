@@ -309,6 +309,38 @@ export default function SessionDetail() {
         &larr; Back to Sessions
       </Link>
 
+      {canEdit && (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+          <h2 className="text-sm font-semibold text-ink mb-2">Session checklist</h2>
+          <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+            {hostable && (() => {
+              const done = !!(session.host_id || session.host_name);
+              return (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={done ? 'text-emerald-600' : 'text-amber-500'}>{done ? '✓' : '○'}</span>
+                  <span className={done ? 'text-ink' : 'text-amber-700 font-medium'}>{done ? 'Host assigned' : 'Needs a host'}</span>
+                </span>
+              );
+            })()}
+            {rsvpable && (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="text-gray-400">●</span>
+                <span className="text-ink">{confirmedCount} RSVP{confirmedCount !== 1 ? 's' : ''}{cutoffPassed ? ' · closed' : ''}</span>
+              </span>
+            )}
+            {allowAttendance && (() => {
+              const done = attendance.length > 0;
+              return (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className={done ? 'text-emerald-600' : 'text-gray-300'}>{done ? '✓' : '○'}</span>
+                  <span className={done ? 'text-ink' : 'text-ink/50'}>{done ? 'Attendance taken' : 'Attendance not taken'}</span>
+                </span>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
           <div>

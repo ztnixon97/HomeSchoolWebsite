@@ -16,7 +16,12 @@
       "Bash(cargo doc:*)",
       "Read(//c/Users/ztnix/.cargo/registry/src/**)",
       "Bash(find /c/Users/ztnix/Documents/JessicasHomeSchool -type f -name *nav* -o -name *header* -o -name *menu*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(npx sharp-cli:*)",
+      "Bash(ls -la pwa-*.png apple-touch-icon.png)",
+      "Bash(node:*)",
+      "Bash(cargo tree:*)",
+      "Bash(gh run:*)"
     ]
   }
 }
