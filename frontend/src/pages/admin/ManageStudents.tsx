@@ -53,6 +53,7 @@ export default function ManageStudents() {
   const [notes, setNotes] = useState('');
   const [emergencyName, setEmergencyName] = useState('');
   const [emergencyPhone, setEmergencyPhone] = useState('');
+  const [selectedParentIds, setSelectedParentIds] = useState<number[]>([]);
 
   const refresh = () => {
     api.get<Student[]>('/api/students').then(setStudents).catch(() => {});
@@ -75,6 +76,7 @@ export default function ManageStudents() {
     setNotes('');
     setEmergencyName('');
     setEmergencyPhone('');
+    setSelectedParentIds([]);
   };
 
   const startEdit = (s: Student) => {
@@ -88,6 +90,7 @@ export default function ManageStudents() {
     setEmergencyName(s.emergency_contact_name || '');
     setEmergencyPhone(s.emergency_contact_phone || '');
     setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const addStudent = async (e: React.FormEvent) => {
@@ -107,7 +110,7 @@ export default function ManageStudents() {
         await api.put(`/api/admin/students/${editingId}`, payload);
         showToast('Student updated', 'success');
       } else {
-        await api.post('/api/admin/students', payload);
+        await api.post('/api/admin/students', { ...payload, parent_ids: selectedParentIds.length ? selectedParentIds : undefined });
         showToast('Student added', 'success');
       }
       clearForm();
@@ -207,6 +210,25 @@ export default function ManageStudents() {
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Notes</label>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={2} placeholder="Any additional notes" className={`w-full ${inputClass}`} />
           </div>
+          {!editingId && parents.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Link to Parents / Guardians</label>
+              <div className="flex flex-wrap gap-x-4 gap-y-2">
+                {parents.map(p => (
+                  <label key={p.id} className="flex items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedParentIds.includes(p.id)}
+                      onChange={e => setSelectedParentIds(prev => e.target.checked ? [...prev, p.id] : prev.filter(x => x !== p.id))}
+                      className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    {p.display_name}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">You can also link parents later from the student list below.</p>
+            </div>
+          )}
           <button type="submit" className="bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-emerald-800 transition-colors">
             {editingId ? 'Update Student' : 'Save Student'}
           </button>

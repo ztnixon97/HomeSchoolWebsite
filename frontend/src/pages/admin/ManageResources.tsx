@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 import RichTextEditor from '../../components/RichTextEditor';
 
 interface Resource {
@@ -13,6 +14,7 @@ interface Resource {
 }
 
 export default function ManageResources() {
+  const { showToast } = useToast();
   const [resources, setResources] = useState<Resource[]>([]);
   const [editing, setEditing] = useState<Resource | null>(null);
   const [title, setTitle] = useState('');
@@ -29,16 +31,21 @@ export default function ManageResources() {
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editing) {
-      await api.put(`/api/admin/resources/${editing.id}`, { title, content, category });
-    } else {
-      await api.post('/api/admin/resources', { title, content, category });
+    try {
+      if (editing) {
+        await api.put(`/api/admin/resources/${editing.id}`, { title, content, category });
+      } else {
+        await api.post('/api/admin/resources', { title, content, category });
+      }
+      setTitle('');
+      setContent('');
+      setCategory('general');
+      setEditing(null);
+      showToast(editing ? 'Resource updated' : 'Resource created', 'success');
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save resource', 'error');
     }
-    setTitle('');
-    setContent('');
-    setCategory('general');
-    setEditing(null);
-    refresh();
   };
 
   const startEdit = (r: Resource) => {
@@ -49,9 +56,14 @@ export default function ManageResources() {
   };
 
   const deleteResource = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this?')) return;
-    await api.del(`/api/admin/resources/${id}`);
-    refresh();
+    if (!confirm('Delete this resource?')) return;
+    try {
+      await api.del(`/api/admin/resources/${id}`);
+      showToast('Resource deleted', 'success');
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete resource', 'error');
+    }
   };
 
   const inputClass = "w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";

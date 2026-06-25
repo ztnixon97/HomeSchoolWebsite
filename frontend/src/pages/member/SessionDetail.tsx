@@ -139,6 +139,7 @@ export default function SessionDetail() {
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
   const [attendanceEdits, setAttendanceEdits] = useState<Record<number, boolean>>({});
   const [sessionPhotos, setSessionPhotos] = useState<{ id: number; filename: string }[]>([]);
+  const [sessionClasses, setSessionClasses] = useState<{ id: number; name: string }[]>([]);
 
   const refresh = () => {
     if (!id) return;
@@ -147,6 +148,7 @@ export default function SessionDetail() {
     api.get<Supply[]>(`/api/sessions/${id}/supplies`).then(setSupplies).catch(() => {});
     api.get<AttendanceRecord[]>(`/api/sessions/${id}/attendance`).then(setAttendance).catch(() => {});
     api.get<{ id: number; filename: string }[]>(`/api/files/session/${id}`).then(setSessionPhotos).catch(() => setSessionPhotos([]));
+    api.get<{ id: number; name: string }[]>(`/api/sessions/${id}/class-groups`).then(setSessionClasses).catch(() => {});
   };
 
   useEffect(() => {
@@ -176,8 +178,13 @@ export default function SessionDetail() {
   };
 
   const handleUnclaim = async () => {
-    await api.post(`/api/sessions/${id}/unclaim`, {});
-    refresh();
+    if (!confirm('Withdraw as host for this session? Families may be counting on a host.')) return;
+    try {
+      await api.post(`/api/sessions/${id}/unclaim`, {});
+      refresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to withdraw as host');
+    }
   };
 
   const handleRsvp = async (studentId: number) => {
@@ -190,8 +197,13 @@ export default function SessionDetail() {
   };
 
   const handleRemoveRsvp = async (rsvpId: number) => {
-    await api.del(`/api/rsvps/${rsvpId}`);
-    refresh();
+    if (!confirm('Remove this RSVP?')) return;
+    try {
+      await api.del(`/api/rsvps/${rsvpId}`);
+      refresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove RSVP');
+    }
   };
 
   const handleApproveRsvp = async (rsvpId: number) => {
@@ -309,47 +321,22 @@ export default function SessionDetail() {
         &larr; Back to Sessions
       </Link>
 
-      {canEdit && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
-          <h2 className="text-sm font-semibold text-ink mb-2">Session checklist</h2>
-          <div className="flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
-            {hostable && (() => {
-              const done = !!(session.host_id || session.host_name);
-              return (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className={done ? 'text-emerald-600' : 'text-amber-500'}>{done ? '✓' : '○'}</span>
-                  <span className={done ? 'text-ink' : 'text-amber-700 font-medium'}>{done ? 'Host assigned' : 'Needs a host'}</span>
-                </span>
-              );
-            })()}
-            {rsvpable && (
-              <span className="inline-flex items-center gap-1.5">
-                <span className="text-gray-400">●</span>
-                <span className="text-ink">{confirmedCount} RSVP{confirmedCount !== 1 ? 's' : ''}{cutoffPassed ? ' · closed' : ''}</span>
-              </span>
-            )}
-            {allowAttendance && (() => {
-              const done = attendance.length > 0;
-              return (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className={done ? 'text-emerald-600' : 'text-gray-300'}>{done ? '✓' : '○'}</span>
-                  <span className={done ? 'text-ink' : 'text-ink/50'}>{done ? 'Attendance taken' : 'Attendance not taken'}</span>
-                </span>
-              );
-            })()}
-          </div>
-        </div>
-      )}
-
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-ink">{session.title}</h1>
-            {session.theme && (
-              <span className="inline-block mt-2 text-xs bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full font-medium">
-                {session.theme}
-              </span>
-            )}
+            <div className="flex flex-wrap items-center gap-1.5 mt-2">
+              {sessionClasses.length > 0 ? (
+                sessionClasses.map(c => (
+                  <span key={c.id} className="inline-block text-xs bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full font-medium">{c.name}</span>
+                ))
+              ) : (
+                <span className="inline-block text-xs bg-gray-100 text-gray-500 px-2.5 py-0.5 rounded-full font-medium">Open to all (no class)</span>
+              )}
+              {session.theme && (
+                <span className="inline-block text-xs bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full font-medium">{session.theme}</span>
+              )}
+            </div>
           </div>
           <span className={`text-xs px-3 py-1 rounded-full font-medium whitespace-nowrap ${
             session.status === 'open'

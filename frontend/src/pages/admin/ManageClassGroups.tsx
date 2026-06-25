@@ -164,7 +164,7 @@ export default function ManageClassGroups() {
         description: editDescription || null,
         sort_order: editSortOrder ? parseInt(editSortOrder) : 0,
         grading_enabled: editGradingEnabled,
-        capacity: editCapacity ? parseInt(editCapacity) : 0,
+        capacity: editCapacity ? parseInt(editCapacity) : null,
         meeting_info: editMeetingInfo,
         term_start: editTermStart,
         term_end: editTermEnd,

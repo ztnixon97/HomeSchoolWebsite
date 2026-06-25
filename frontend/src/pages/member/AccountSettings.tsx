@@ -79,7 +79,12 @@ export default function AccountSettings() {
   const handlePrefChange = async (key: string, value: boolean) => {
     const updated = { ...pushPrefs, [key]: value };
     setPushPrefs(updated);
-    await api.put('/api/push/preferences', { [key]: value }).catch(() => {});
+    try {
+      await api.put('/api/push/preferences', { [key]: value });
+    } catch (err: any) {
+      setPushPrefs(pushPrefs); // revert the optimistic toggle
+      showToast(err.message || 'Failed to update notification preference', 'error');
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {

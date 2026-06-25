@@ -78,7 +78,10 @@ export default function MyRsvps() {
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                     r.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
                   }`}>
-                    {r.status}
+                    {r.status === 'confirmed' ? 'Confirmed'
+                      : r.status === 'waitlisted' ? 'Waitlisted'
+                      : r.status === 'pending' ? 'Awaiting approval'
+                      : r.status}
                   </span>
                   <button onClick={() => handleCancel(r.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">
                     Cancel

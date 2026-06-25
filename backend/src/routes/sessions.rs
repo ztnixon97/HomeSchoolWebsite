@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::{can_manage_class_content, RequireAuth, RequireTeacher};
+use crate::auth::{can_manage_class_content, can_view_session, RequireAuth, RequireTeacher};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::validate_date;
@@ -586,22 +586,7 @@ pub async fn get_session(
 
     // Class-aware visibility: a session restricted to classes the user isn't part of
     // is shown at public level only (no host/address/notes/cost details).
-    let visible = user.role == "admin"
-        || session.host_id == Some(user.id)
-        || session.created_by == Some(user.id)
-        || {
-            let has_links: bool = conn.query_row(
-                "SELECT COUNT(*) > 0 FROM class_session_groups WHERE session_id = ?1",
-                params![id], |r| r.get(0)).unwrap_or(false);
-            !has_links || conn.query_row(
-                "SELECT COUNT(*) > 0 FROM class_session_groups csg WHERE csg.session_id = ?1 AND (
-                    csg.group_id IN (SELECT group_id FROM class_group_teachers WHERE user_id = ?2)
-                    OR csg.group_id IN (SELECT cgm.group_id FROM class_group_members cgm
-                                        JOIN student_parents sp ON cgm.student_id = sp.student_id
-                                        WHERE sp.user_id = ?2)
-                 )",
-                params![id, user.id], |r| r.get(0)).unwrap_or(false)
-        };
+    let visible = can_view_session(&conn, &user, id);
 
     if !visible {
         session.host_id = None;
@@ -617,6 +602,27 @@ pub async fn get_session(
     }
 
     Ok(Json(session))
+}
+
+/// GET /api/sessions/{id}/class-groups — the class group(s) this session is assigned to
+pub async fn session_class_groups(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT cg.id, cg.name FROM class_groups cg
+         JOIN class_session_groups csg ON cg.id = csg.group_id
+         WHERE csg.session_id = ?1 ORDER BY cg.name",
+    )?;
+    let out: Vec<serde_json::Value> = stmt
+        .query_map(params![id], |row| {
+            Ok(serde_json::json!({ "id": row.get::<_, i64>(0)?, "name": row.get::<_, String>(1)? }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(out))
 }
 
 pub async fn claim_session(
@@ -797,11 +803,14 @@ pub async fn update_host_session(
 // ── RSVPs ──
 
 pub async fn list_session_rsvps(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<Rsvp>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT r.id, r.session_id, r.student_id, (s.first_name || ' ' || s.last_name), r.parent_id, u.display_name, r.status, r.note, r.created_at
          FROM rsvps r
@@ -982,21 +991,26 @@ pub async fn create_rsvp(
         }
     }
 
-    let is_full = max_students.map(|max| confirmed_count >= max).unwrap_or(false);
-    let status = if is_full {
-        "waitlisted"
-    } else if require_approval == 1 {
-        "pending"
-    } else {
-        "confirmed"
-    };
-
+    // Decide confirmed/waitlisted/pending atomically at insert time. SQLite serializes
+    // writes, so the COUNT subquery and the insert can't interleave — two concurrent
+    // RSVPs can't both claim the final seat. (`confirmed_count` above is only for messaging.)
+    let _ = confirmed_count;
     conn.execute(
-        "INSERT INTO rsvps (session_id, student_id, parent_id, note, status) VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![req.session_id, req.student_id, user.id, req.note, status],
+        "INSERT INTO rsvps (session_id, student_id, parent_id, note, status)
+         SELECT ?1, ?2, ?3, ?4, CASE
+             WHEN ?5 IS NOT NULL
+                  AND (SELECT COUNT(*) FROM rsvps WHERE session_id = ?1 AND status = 'confirmed') >= ?5
+                  THEN 'waitlisted'
+             WHEN ?6 = 1 THEN 'pending'
+             ELSE 'confirmed'
+         END",
+        params![req.session_id, req.student_id, user.id, req.note, max_students, require_approval],
     )?;
 
     let id = conn.last_insert_rowid();
+    let status: String = conn
+        .query_row("SELECT status FROM rsvps WHERE id = ?1", params![id], |r| r.get(0))
+        .unwrap_or_else(|_| "confirmed".to_string());
     let now = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
 
     // Push notification to session host
@@ -1128,10 +1142,14 @@ pub async fn delete_rsvp(
 
     conn.execute("DELETE FROM rsvps WHERE id = ?1", params![id])?;
 
-    // If a confirmed RSVP was removed, auto-promote the first waitlisted
+    // If a confirmed RSVP was removed, auto-promote the first waitlisted — but if the
+    // session requires approval, promote to 'pending' (don't bypass the approval step).
     if was_confirmed == "confirmed" {
         let _ = conn.execute(
-            "UPDATE rsvps SET status = 'confirmed' WHERE id = (
+            "UPDATE rsvps SET status = CASE
+                 WHEN (SELECT require_approval FROM class_sessions WHERE id = ?1) = 1 THEN 'pending'
+                 ELSE 'confirmed' END
+             WHERE id = (
                 SELECT id FROM rsvps WHERE session_id = ?1 AND status = 'waitlisted' ORDER BY created_at ASC LIMIT 1
             )",
             params![session_id],
@@ -1144,11 +1162,14 @@ pub async fn delete_rsvp(
 // ── Session Attendance ──
 
 pub async fn get_session_attendance(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<SessionAttendance>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT sa.id, sa.session_id, sa.student_id, s.first_name || ' ' || s.last_name, sa.present, sa.note
          FROM session_attendance sa
@@ -1205,11 +1226,14 @@ pub async fn save_session_attendance(
 // ── Session Supplies ──
 
 pub async fn list_session_supplies(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(session_id): Path<i64>,
 ) -> Result<Json<Vec<SessionSupply>>, AppError> {
     let conn = state.db.get()?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Ok(Json(Vec::new()));
+    }
     let mut stmt = conn.prepare(
         "SELECT ss.id, ss.session_id, ss.item_name, ss.quantity, ss.claimed_by, u.display_name
          FROM session_supplies ss
@@ -1256,6 +1280,13 @@ pub async fn claim_supply(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+
+    let session_id: i64 = conn
+        .query_row("SELECT session_id FROM session_supplies WHERE id = ?1", params![id], |r| r.get(0))
+        .map_err(|_| AppError::NotFound("Supply not found".to_string()))?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Err(AppError::Forbidden);
+    }
 
     let claimed = conn.execute(
         "UPDATE session_supplies SET claimed_by = ?1 WHERE id = ?2 AND claimed_by IS NULL",

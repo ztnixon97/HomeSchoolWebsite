@@ -387,6 +387,7 @@ export default function ManagePayments() {
       showToast('Please enter a valid amount', 'error');
       return;
     }
+    if (!confirm(`Charge $${parsedAmount.toFixed(2)} to every confirmed RSVP for this session? This creates real charges.`)) return;
     setBulkSubmitting(true);
     setBulkResult(null);
     try {

@@ -77,8 +77,12 @@ export default function BulkSessions() {
       return;
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+    // Parse and format in LOCAL time — `new Date('YYYY-MM-DD')` parses as UTC midnight,
+    // which shifts the weekday/date by a day in US timezones (Friday becomes Thursday).
+    const parseLocal = (s: string) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+    const fmtLocal = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    const start = parseLocal(startDate);
+    const end = parseLocal(endDate);
     const skipSet = new Set(skipDates.filter(d => d)); // Filter out empty strings
     const targetDayNum = getDayOfWeekNumber(dayOfWeek);
     const generated: GeneratedSession[] = [];
@@ -91,7 +95,7 @@ export default function BulkSessions() {
       const convertedDay = jsDay === 0 ? 0 : jsDay;
 
       if (convertedDay === targetDayNum) {
-        const dateStr = current.toISOString().split('T')[0];
+        const dateStr = fmtLocal(current);
         generated.push({
           date: dateStr,
           skipped: skipSet.has(dateStr),

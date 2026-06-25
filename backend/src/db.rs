@@ -648,7 +648,7 @@ fn run_migrations(pool: &DbPool) {
 
     // Performance indexes
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_author ON posts(author_id)", []);
-    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_status ON posts(status)", []);
+    let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(published)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_date ON class_sessions(session_date)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_status ON class_sessions(status)", []);
     let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_host ON class_sessions(host_id)", []);

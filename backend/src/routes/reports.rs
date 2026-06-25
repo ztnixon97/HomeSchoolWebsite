@@ -31,6 +31,18 @@ pub async fn get_report_card(
         }
     }
 
+    // The student must actually be enrolled in this class group
+    let in_group: bool = conn
+        .query_row(
+            "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+            params![group_id, student_id],
+            |row| row.get(0),
+        )
+        .unwrap_or(false);
+    if !in_group {
+        return Err(AppError::NotFound("Student is not in this class".into()));
+    }
+
     // Get student name
     let student_name: String = conn
         .query_row(

@@ -172,12 +172,53 @@ pub async fn submit_document(
         return Err(AppError::NotFound("Document template not found".into()));
     }
 
+    // The referenced student must be the submitter's child, and any referenced files theirs.
+    if let Some(sid) = req.student_id {
+        let owns: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM student_parents WHERE user_id = ?1 AND student_id = ?2",
+                params![user.id, sid],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !owns {
+            return Err(AppError::Forbidden);
+        }
+    }
+    for fid in [req.file_id, req.signature_file_id].into_iter().flatten() {
+        let owns: bool = conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM files WHERE id = ?1 AND uploader_id = ?2",
+                params![fid, user.id],
+                |r| r.get(0),
+            )
+            .unwrap_or(false);
+        if !owns {
+            return Err(AppError::Forbidden);
+        }
+    }
+
+    // Upsert keeps the same row id; a resubmission resets it to 'submitted' for re-review.
     conn.execute(
-        "INSERT OR REPLACE INTO document_submissions (template_id, user_id, student_id, file_id, signature_file_id, status)
-         VALUES (?1, ?2, ?3, ?4, ?5, 'submitted')",
+        "INSERT INTO document_submissions (template_id, user_id, student_id, file_id, signature_file_id, status)
+         VALUES (?1, ?2, ?3, ?4, ?5, 'submitted')
+         ON CONFLICT(template_id, user_id) DO UPDATE SET
+            student_id = excluded.student_id,
+            file_id = excluded.file_id,
+            signature_file_id = excluded.signature_file_id,
+            status = 'submitted',
+            reviewed_by = NULL,
+            reviewed_at = NULL,
+            created_at = datetime('now')",
         params![template_id, user.id, req.student_id, req.file_id, req.signature_file_id],
     )?;
-    let id = conn.last_insert_rowid();
+    let id: i64 = conn
+        .query_row(
+            "SELECT id FROM document_submissions WHERE template_id = ?1 AND user_id = ?2",
+            params![template_id, user.id],
+            |r| r.get(0),
+        )
+        .unwrap_or_else(|_| conn.last_insert_rowid());
 
     Ok(Json(serde_json::json!({ "id": id })))
 }

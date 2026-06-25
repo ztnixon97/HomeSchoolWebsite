@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface FileSummary {
   total_bytes: number;
@@ -30,6 +31,7 @@ function formatSize(bytes: number): string {
 }
 
 export default function ManageFiles() {
+  const { showToast } = useToast();
   const [summary, setSummary] = useState<FileSummary | null>(null);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
@@ -45,8 +47,13 @@ export default function ManageFiles() {
 
   const handleDelete = async (id: number, filename: string) => {
     if (!window.confirm(`Delete "${filename}"? This cannot be undone.`)) return;
-    await api.del(`/api/admin/files/${id}`);
-    refresh();
+    try {
+      await api.del(`/api/admin/files/${id}`);
+      showToast('File deleted', 'success');
+      refresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete file', 'error');
+    }
   };
 
   const filtered = typeFilter

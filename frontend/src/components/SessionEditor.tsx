@@ -58,6 +58,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
 
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroupOpt[]>([]);
+  const [classGroupsLoaded, setClassGroupsLoaded] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: number; display_name: string; email: string }[]>([]);
   const [loading, setLoading] = useState(editSessionId != null);
 
@@ -110,6 +111,11 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
           const m = types.find(x => x.label === full.session_type_label || x.name === full.session_type_name);
           setSessionTypeId(m ? String(m.id) : '');
         }
+        // Pre-load the session's current class assignment so the editor reflects it
+        if (!lockedClassGroupId) {
+          const cgs = await api.get<{ id: number }[]>(`/api/sessions/${editSessionId}/class-groups`).catch(() => [] as { id: number }[]);
+          setSelectedGroupIds(cgs.map(c => c.id));
+        }
         setLoading(false);
       } else {
         const cls = types.find(x => x.name === 'class');
@@ -119,7 +125,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
     load();
     if (features.class_groups && !lockedClassGroupId) {
       const url = isAdmin ? '/api/admin/class-groups' : '/api/class-groups';
-      api.get<ClassGroupOpt[]>(url).then(setClassGroups).catch(() => {});
+      api.get<ClassGroupOpt[]>(url).then(cgs => { setClassGroups(cgs); setClassGroupsLoaded(true); }).catch(() => {});
     }
     if (isAdmin && editSessionId != null) {
       api.get<{ items: { id: number; display_name: string; email: string }[] }>('/api/admin/users?page_size=200')
@@ -130,23 +136,35 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
 
   const selectedType = sessionTypeId ? sessionTypes.find(t => t.id === parseInt(sessionTypeId)) : undefined;
 
-  const basePayload = () => ({
-    title,
-    theme: theme || null,
-    session_date: date,
-    end_date: endDate || null,
-    start_time: startTime || null,
-    end_time: endTime || null,
-    location_name: locationName || null,
-    location_address: locationAddress || null,
-    cost_amount: costAmount ? parseFloat(costAmount) : null,
-    cost_details: costDetails || null,
-    max_students: maxStudents ? parseInt(maxStudents) : null,
-    notes: notes || null,
-    rsvp_cutoff: rsvpCutoff || null,
-    session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
-    class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
-  });
+  const basePayload = () => {
+    // Class assignment is only editable where the selector is shown (admin / not class-locked).
+    // When locked to a class page, leave an existing session's assignment untouched on edit.
+    let class_group_ids: number[] | undefined;
+    if (lockedClassGroupId) {
+      class_group_ids = editing ? undefined : [lockedClassGroupId];
+    } else if (features.class_groups && classGroupsLoaded) {
+      // Only send the class set once the selector actually loaded, so a failed
+      // class-groups fetch can't silently unassign the session on an unrelated edit.
+      class_group_ids = selectedGroupIds; // empty array on edit clears the assignment
+    }
+    return {
+      title,
+      theme: theme || null,
+      session_date: date,
+      end_date: endDate || null,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      location_name: locationName || null,
+      location_address: locationAddress || null,
+      cost_amount: costAmount ? parseFloat(costAmount) : null,
+      cost_details: costDetails || null,
+      max_students: maxStudents ? parseInt(maxStudents) : null,
+      notes: notes || null,
+      rsvp_cutoff: rsvpCutoff || null,
+      session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
+      class_group_ids,
+    };
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,6 +177,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
           payload.status = status;
           if (assignHostId) payload.host_id = parseInt(assignHostId);
           else if (reserveHostName) payload.host_name = reserveHostName;
+          else payload.host_id = 0; // both cleared → unassign the host (backend treats 0 as "none")
         }
         await api.put(`/api/sessions/${editSessionId}`, payload);
         showToast('Session updated', 'success');

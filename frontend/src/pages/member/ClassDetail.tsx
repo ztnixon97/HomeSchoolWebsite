@@ -246,6 +246,7 @@ export default function ClassDetail() {
   };
 
   const deleteAnnouncement = async (annId: number) => {
+    if (!confirm('Delete this announcement?')) return;
     try {
       await api.del(`/api/admin/class-group-announcements/${annId}`);
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
@@ -279,6 +280,7 @@ export default function ClassDetail() {
   };
 
   const deleteAssignment = async (assignmentId: number) => {
+    if (!confirm('Delete this assignment? This permanently removes every student’s grade for it.')) return;
     try {
       await api.del(`/api/admin/class-assignments/${assignmentId}`);
       setAssignments(prev => prev.filter(a => a.id !== assignmentId));
@@ -472,7 +474,7 @@ export default function ClassDetail() {
   const deleteClassSession = async (sessionId: number) => {
     if (!confirm('Delete this session?')) return;
     try {
-      await api.del(`/api/class-groups/${id}/sessions/${sessionId}`);
+      await api.del(`/api/sessions/${sessionId}`);
       setSessions(prev => prev.filter(s => s.id !== sessionId));
       showToast('Session deleted', 'success');
     } catch {
@@ -646,7 +648,7 @@ export default function ClassDetail() {
                       s.status === 'open' ? 'bg-emerald-100 text-emerald-800' :
                       s.status === 'closed' ? 'bg-gray-100 text-gray-600' :
                       'bg-amber-100 text-amber-800'
-                    }`}>{s.status}</span>
+                    }`}>{s.status === 'open' ? 'Needs host' : s.status === 'claimed' ? 'Hosted' : s.status === 'completed' ? 'Completed' : s.status === 'closed' ? 'Full' : s.status}</span>
                     <p className="text-xs text-gray-400 mt-1">
                       {s.rsvp_count}{s.max_students ? `/${s.max_students}` : ''} RSVP{s.rsvp_count !== 1 ? 's' : ''}
                     </p>

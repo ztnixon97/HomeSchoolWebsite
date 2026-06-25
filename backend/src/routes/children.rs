@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::{RequireAuth, RequireTeacher};
+use crate::auth::{RequireAuth, RequireStaff};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::{sanitize_text, validate_required};
@@ -226,7 +226,7 @@ pub async fn get_my_child_milestones(
 // ── Students & Milestones (Teacher+) ──
 
 pub async fn list_students(
-    RequireTeacher(_user): RequireTeacher,
+    RequireStaff(_user): RequireStaff,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Student>>, AppError> {
     let conn = state.db.get()?;
@@ -257,7 +257,7 @@ pub async fn list_students(
 }
 
 pub async fn get_student_milestones(
-    RequireTeacher(_user): RequireTeacher,
+    RequireStaff(_user): RequireStaff,
     State(state): State<AppState>,
     Path(student_id): Path<i64>,
 ) -> Result<Json<Vec<Milestone>>, AppError> {
@@ -288,7 +288,7 @@ pub async fn get_student_milestones(
 }
 
 pub async fn create_milestone(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
     Json(req): Json<CreateMilestoneRequest>,
 ) -> Result<Json<Milestone>, AppError> {
@@ -315,7 +315,7 @@ pub async fn create_milestone(
 }
 
 pub async fn update_milestone(
-    RequireTeacher(_user): RequireTeacher,
+    RequireStaff(_user): RequireStaff,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateMilestoneRequest>,
@@ -340,7 +340,7 @@ pub async fn update_milestone(
 }
 
 pub async fn delete_milestone(
-    RequireTeacher(_user): RequireTeacher,
+    RequireStaff(_user): RequireStaff,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -353,7 +353,7 @@ pub async fn delete_milestone(
 // ── Attendance ──
 
 pub async fn record_attendance(
-    RequireTeacher(_user): RequireTeacher,
+    RequireStaff(_user): RequireStaff,
     State(state): State<AppState>,
     Json(req): Json<RecordAttendanceRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {

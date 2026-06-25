@@ -128,7 +128,8 @@ pub async fn calendar_ics_by_token(
                     let parts: Vec<&str> = s.split(':').collect();
                     let h: u32 = parts.first().and_then(|p| p.parse().ok()).unwrap_or(9) + 1;
                     let m = parts.get(1).unwrap_or(&"00");
-                    format!("{:02}{}", h, m)
+                    // Avoid emitting an invalid hour 24 (RFC 5545); clamp to end of day.
+                    if h >= 24 { "2359".to_string() } else { format!("{:02}{}", h, m) }
                 }).unwrap_or_else(|| "1000".to_string()))
             } else {
                 date_clean.clone()

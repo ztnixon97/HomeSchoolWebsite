@@ -42,6 +42,7 @@ export default function AdminDashboard() {
   const [sendingReminders, setSendingReminders] = useState(false);
 
   const sendReminders = async () => {
+    if (!confirm('Send reminder emails to parents for tomorrow’s sessions now?')) return;
     setSendingReminders(true);
     try {
       const res = await api.post<{ reminders_sent: number }>('/api/admin/send-reminders', {});
