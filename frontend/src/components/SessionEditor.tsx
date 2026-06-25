@@ -110,6 +110,11 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
           const m = types.find(x => x.label === full.session_type_label || x.name === full.session_type_name);
           setSessionTypeId(m ? String(m.id) : '');
         }
+        // Pre-load the session's current class assignment so the editor reflects it
+        if (!lockedClassGroupId) {
+          const cgs = await api.get<{ id: number }[]>(`/api/sessions/${editSessionId}/class-groups`).catch(() => [] as { id: number }[]);
+          setSelectedGroupIds(cgs.map(c => c.id));
+        }
         setLoading(false);
       } else {
         const cls = types.find(x => x.name === 'class');
@@ -130,23 +135,33 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
 
   const selectedType = sessionTypeId ? sessionTypes.find(t => t.id === parseInt(sessionTypeId)) : undefined;
 
-  const basePayload = () => ({
-    title,
-    theme: theme || null,
-    session_date: date,
-    end_date: endDate || null,
-    start_time: startTime || null,
-    end_time: endTime || null,
-    location_name: locationName || null,
-    location_address: locationAddress || null,
-    cost_amount: costAmount ? parseFloat(costAmount) : null,
-    cost_details: costDetails || null,
-    max_students: maxStudents ? parseInt(maxStudents) : null,
-    notes: notes || null,
-    rsvp_cutoff: rsvpCutoff || null,
-    session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
-    class_group_ids: features.class_groups && selectedGroupIds.length > 0 ? selectedGroupIds : undefined,
-  });
+  const basePayload = () => {
+    // Class assignment is only editable where the selector is shown (admin / not class-locked).
+    // When locked to a class page, leave an existing session's assignment untouched on edit.
+    let class_group_ids: number[] | undefined;
+    if (lockedClassGroupId) {
+      class_group_ids = editing ? undefined : [lockedClassGroupId];
+    } else if (features.class_groups) {
+      class_group_ids = selectedGroupIds; // empty array on edit clears the assignment
+    }
+    return {
+      title,
+      theme: theme || null,
+      session_date: date,
+      end_date: endDate || null,
+      start_time: startTime || null,
+      end_time: endTime || null,
+      location_name: locationName || null,
+      location_address: locationAddress || null,
+      cost_amount: costAmount ? parseFloat(costAmount) : null,
+      cost_details: costDetails || null,
+      max_students: maxStudents ? parseInt(maxStudents) : null,
+      notes: notes || null,
+      rsvp_cutoff: rsvpCutoff || null,
+      session_type_id: sessionTypeId ? parseInt(sessionTypeId) : null,
+      class_group_ids,
+    };
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();

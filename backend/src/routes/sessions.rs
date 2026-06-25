@@ -619,6 +619,27 @@ pub async fn get_session(
     Ok(Json(session))
 }
 
+/// GET /api/sessions/{id}/class-groups — the class group(s) this session is assigned to
+pub async fn session_class_groups(
+    RequireAuth(_user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT cg.id, cg.name FROM class_groups cg
+         JOIN class_session_groups csg ON cg.id = csg.group_id
+         WHERE csg.session_id = ?1 ORDER BY cg.name",
+    )?;
+    let out: Vec<serde_json::Value> = stmt
+        .query_map(params![id], |row| {
+            Ok(serde_json::json!({ "id": row.get::<_, i64>(0)?, "name": row.get::<_, String>(1)? }))
+        })?
+        .filter_map(|r| r.ok())
+        .collect();
+    Ok(Json(out))
+}
+
 pub async fn claim_session(
     RequireAuth(user): RequireAuth,
     State(state): State<AppState>,

@@ -314,6 +314,10 @@ async fn main() {
                 .delete(routes::admin::delete_session),
         )
         .route(
+            "/api/sessions/{id}/class-groups",
+            get(routes::sessions::session_class_groups),
+        )
+        .route(
             "/api/sessions/{id}/claim",
             post(routes::sessions::claim_session),
         )

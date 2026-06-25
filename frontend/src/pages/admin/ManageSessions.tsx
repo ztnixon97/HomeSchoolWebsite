@@ -145,6 +145,7 @@ export default function ManageSessions() {
 
       {showForm && (
         <SessionEditor
+          key={editingId ?? 'new'}
           editSessionId={editingId ?? undefined}
           isAdmin
           onSaved={() => { setShowForm(false); setEditingId(null); refresh(); }}
