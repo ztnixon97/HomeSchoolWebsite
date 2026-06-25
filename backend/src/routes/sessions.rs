@@ -1137,10 +1137,14 @@ pub async fn delete_rsvp(
 
     conn.execute("DELETE FROM rsvps WHERE id = ?1", params![id])?;
 
-    // If a confirmed RSVP was removed, auto-promote the first waitlisted
+    // If a confirmed RSVP was removed, auto-promote the first waitlisted — but if the
+    // session requires approval, promote to 'pending' (don't bypass the approval step).
     if was_confirmed == "confirmed" {
         let _ = conn.execute(
-            "UPDATE rsvps SET status = 'confirmed' WHERE id = (
+            "UPDATE rsvps SET status = CASE
+                 WHEN (SELECT require_approval FROM class_sessions WHERE id = ?1) = 1 THEN 'pending'
+                 ELSE 'confirmed' END
+             WHERE id = (
                 SELECT id FROM rsvps WHERE session_id = ?1 AND status = 'waitlisted' ORDER BY created_at ASC LIMIT 1
             )",
             params![session_id],
@@ -1271,6 +1275,13 @@ pub async fn claim_supply(
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
+
+    let session_id: i64 = conn
+        .query_row("SELECT session_id FROM session_supplies WHERE id = ?1", params![id], |r| r.get(0))
+        .map_err(|_| AppError::NotFound("Supply not found".to_string()))?;
+    if !can_view_session(&conn, &user, session_id) {
+        return Err(AppError::Forbidden);
+    }
 
     let claimed = conn.execute(
         "UPDATE session_supplies SET claimed_by = ?1 WHERE id = ?2 AND claimed_by IS NULL",

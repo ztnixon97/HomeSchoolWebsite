@@ -369,6 +369,11 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
 
     // ── Phase 2: Send emails (async) ──
     let mut total_sent = 0;
+    // Track which sessions had at least one successful send, so a total SMTP outage
+    // doesn't permanently mark reminders as sent (they'll be retried next sweep).
+    let sessions_with_targets: std::collections::HashSet<i64> =
+        targets.iter().map(|t| t.session_id).collect();
+    let mut sent_sessions: std::collections::HashSet<i64> = std::collections::HashSet::new();
     for target in &targets {
         match send_class_reminder_email(
             &email_config,
@@ -392,6 +397,7 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
         {
             Ok(()) => {
                 total_sent += 1;
+                sent_sessions.insert(target.session_id);
                 println!(
                     "[reminders] Sent reminder to {} for '{}'",
                     target.user_email, target.session_title
@@ -442,8 +448,15 @@ pub async fn send_upcoming_reminders(db: DbPool, email_config: EmailConfig, push
     }
 
     // ── Phase 3: Mark sessions as reminder-sent ──
+    // Only mark a session if it had at least one successful send, or had no recipients
+    // at all (nothing to send). Sessions whose every send failed stay unmarked for retry.
     if let Ok(conn) = db.get() {
         for id in &session_ids {
+            let had_targets = sessions_with_targets.contains(id);
+            let succeeded = sent_sessions.contains(id);
+            if had_targets && !succeeded {
+                continue;
+            }
             let _ = conn.execute(
                 "UPDATE class_sessions SET reminder_sent = 1 WHERE id = ?1",
                 params![id],

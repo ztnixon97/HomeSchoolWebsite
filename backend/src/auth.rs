@@ -201,6 +201,26 @@ impl FromRequestParts<crate::AppState> for RequireTeacher {
     }
 }
 
+/// Requires the user to be staff — a teacher or admin (NOT a parent).
+/// Use this for endpoints that expose or mutate data across families/students.
+pub struct RequireStaff(pub User);
+
+impl FromRequestParts<crate::AppState> for RequireStaff {
+    type Rejection = AppError;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &crate::AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let RequireAuth(user) = RequireAuth::from_request_parts(parts, state).await?;
+        if user.role == "teacher" || user.role == "admin" {
+            Ok(RequireStaff(user))
+        } else {
+            Err(AppError::Forbidden)
+        }
+    }
+}
+
 /// Requires the user to be an admin.
 pub struct RequireAdmin(pub User);
 

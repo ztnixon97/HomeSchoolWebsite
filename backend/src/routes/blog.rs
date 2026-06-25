@@ -3,7 +3,7 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::{RequireAuth, RequireTeacher};
+use crate::auth::{RequireAuth, RequireStaff};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::sanitize::{sanitize_html, sanitize_text, validate_required, validate_max_length};
@@ -12,7 +12,7 @@ use crate::AppState;
 // ── Blog Posts (Teacher+) ──
 
 pub async fn create_post(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
     Json(req): Json<CreatePostRequest>,
 ) -> Result<Json<Post>, AppError> {
@@ -45,7 +45,7 @@ pub async fn create_post(
 }
 
 pub async fn update_post(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdatePostRequest>,
@@ -79,7 +79,7 @@ pub async fn update_post(
 }
 
 pub async fn list_draft_posts(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Post>>, AppError> {
     crate::features::require_feature(&state.db, "blog")?;
@@ -123,7 +123,7 @@ pub async fn list_draft_posts(
 }
 
 pub async fn get_post_internal(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<Post>, AppError> {
@@ -159,7 +159,7 @@ pub async fn get_post_internal(
 }
 
 pub async fn delete_post(
-    RequireTeacher(user): RequireTeacher,
+    RequireStaff(user): RequireStaff,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, AppError> {

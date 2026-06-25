@@ -291,48 +291,48 @@ pub async fn delete_user(
         return Err(AppError::BadRequest("You cannot delete your own account".to_string()));
     }
 
-    let conn = state.db.get()?;
-
-    // Clean up all foreign key references to this user before deletion.
-    // Tables with ON DELETE CASCADE (student_parents, lesson_plan_collaborators,
-    // password_reset_tokens) are handled automatically by SQLite.
+    let mut conn = state.db.get()?;
+    // All cleanup runs in one transaction so a mid-way failure rolls back cleanly
+    // instead of leaving a half-deleted user. Tables with ON DELETE CASCADE
+    // (student_parents, lesson_plan_collaborators, password_reset_tokens) are automatic.
+    let tx = conn.transaction()?;
 
     // Nullify references where we want to keep the content
-    conn.execute("UPDATE posts SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE post_comments SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE lesson_plans SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
-    conn.execute("UPDATE files SET uploader_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE uploader_id = ?1", params![id])?;
-    conn.execute("UPDATE milestones SET recorded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE recorded_by = ?1", params![id])?;
+    tx.execute("UPDATE posts SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    tx.execute("UPDATE post_comments SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    tx.execute("UPDATE lesson_plans SET author_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE author_id = ?1", params![id])?;
+    tx.execute("UPDATE files SET uploader_id = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE uploader_id = ?1", params![id])?;
+    tx.execute("UPDATE milestones SET recorded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE recorded_by = ?1", params![id])?;
 
     // Nullify nullable references
-    conn.execute("UPDATE invites SET used_by = NULL WHERE used_by = ?1", params![id])?;
-    conn.execute("UPDATE events SET created_by = NULL WHERE created_by = ?1", params![id])?;
-    conn.execute("UPDATE class_sessions SET host_id = NULL, status = 'open' WHERE host_id = ?1", params![id])?;
-    conn.execute("UPDATE class_sessions SET created_by = NULL WHERE created_by = ?1", params![id])?;
-    conn.execute("UPDATE announcements SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE invites SET used_by = NULL WHERE used_by = ?1", params![id])?;
+    tx.execute("UPDATE events SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE class_sessions SET host_id = NULL, status = 'open' WHERE host_id = ?1", params![id])?;
+    tx.execute("UPDATE class_sessions SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE announcements SET created_by = NULL WHERE created_by = ?1", params![id])?;
 
     // Clean up family references
-    conn.execute("DELETE FROM family_invites WHERE invited_by = ?1 OR invited_user_id = ?1", params![id])?;
-    conn.execute("UPDATE families SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    tx.execute("DELETE FROM family_invites WHERE invited_by = ?1 OR invited_user_id = ?1", params![id])?;
+    tx.execute("UPDATE families SET created_by = NULL WHERE created_by = ?1", params![id])?;
     // Remove user from family; delete family if empty
-    let user_family: Option<i64> = conn.query_row(
+    let user_family: Option<i64> = tx.query_row(
         "SELECT family_id FROM users WHERE id = ?1", params![id], |row| row.get(0),
     ).unwrap_or(None);
-    conn.execute("UPDATE users SET family_id = NULL WHERE id = ?1", params![id])?;
+    tx.execute("UPDATE users SET family_id = NULL WHERE id = ?1", params![id])?;
     if let Some(fid) = user_family {
-        let remaining: i64 = conn.query_row(
+        let remaining: i64 = tx.query_row(
             "SELECT COUNT(*) FROM users WHERE family_id = ?1", params![fid], |row| row.get(0),
         ).unwrap_or(0);
         if remaining == 0 {
-            conn.execute("DELETE FROM families WHERE id = ?1", params![fid])?;
+            tx.execute("DELETE FROM families WHERE id = ?1", params![fid])?;
         }
     }
 
     // Remove RSVPs submitted by this user
-    conn.execute("DELETE FROM rsvps WHERE parent_id = ?1", params![id])?;
+    tx.execute("DELETE FROM rsvps WHERE parent_id = ?1", params![id])?;
 
     // Delete students that belong only to this parent (no other parent linked)
-    conn.execute(
+    tx.execute(
         "DELETE FROM students WHERE id IN (
             SELECT sp.student_id FROM student_parents sp
             WHERE sp.user_id = ?1
@@ -345,29 +345,30 @@ pub async fn delete_user(
     )?;
 
     // Reassign authored/graded class content to an admin so it is preserved (these columns are NOT NULL)
-    conn.execute("UPDATE class_assignments SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
-    conn.execute("UPDATE class_grades SET graded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE graded_by = ?1", params![id])?;
-    conn.execute("UPDATE class_group_announcements SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE class_assignments SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE class_grades SET graded_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE graded_by = ?1", params![id])?;
+    tx.execute("UPDATE class_group_announcements SET created_by = (SELECT id FROM users WHERE role = 'admin' AND id <> ?1 LIMIT 1) WHERE created_by = ?1", params![id])?;
 
     // Nullify nullable bookkeeping references we can keep
-    conn.execute("UPDATE document_templates SET created_by = NULL WHERE created_by = ?1", params![id])?;
-    conn.execute("UPDATE document_submissions SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
-    conn.execute("UPDATE session_attendance SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
-    conn.execute("UPDATE session_supplies SET claimed_by = NULL WHERE claimed_by = ?1", params![id])?;
-    conn.execute("UPDATE payment_ledger SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
-    conn.execute("UPDATE enrollment_requests SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
+    tx.execute("UPDATE document_templates SET created_by = NULL WHERE created_by = ?1", params![id])?;
+    tx.execute("UPDATE document_submissions SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
+    tx.execute("UPDATE session_attendance SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
+    tx.execute("UPDATE session_supplies SET claimed_by = NULL WHERE claimed_by = ?1", params![id])?;
+    tx.execute("UPDATE payment_ledger SET recorded_by = NULL WHERE recorded_by = ?1", params![id])?;
+    tx.execute("UPDATE enrollment_requests SET reviewed_by = NULL WHERE reviewed_by = ?1", params![id])?;
 
     // Delete records that belong to this user (NOT NULL user references, no cascade)
-    conn.execute("DELETE FROM payment_ledger WHERE user_id = ?1", params![id])?;
-    conn.execute("DELETE FROM document_submissions WHERE user_id = ?1", params![id])?;
+    tx.execute("DELETE FROM payment_ledger WHERE user_id = ?1", params![id])?;
+    tx.execute("DELETE FROM document_submissions WHERE user_id = ?1", params![id])?;
     // Messaging: drop conversations this user started (cascades their messages + participants), then any stray messages
-    conn.execute("DELETE FROM conversations WHERE created_by = ?1", params![id])?;
-    conn.execute("DELETE FROM messages WHERE sender_id = ?1", params![id])?;
+    tx.execute("DELETE FROM conversations WHERE created_by = ?1", params![id])?;
+    tx.execute("DELETE FROM messages WHERE sender_id = ?1", params![id])?;
     // class_group_teachers and enrollment_requests.requested_by are ON DELETE CASCADE
 
     // Remove the user (cascades handle student_parents, lesson_plan_collaborators, password_reset_tokens)
-    conn.execute("DELETE FROM users WHERE id = ?1", params![id])?;
+    tx.execute("DELETE FROM users WHERE id = ?1", params![id])?;
 
+    tx.commit()?;
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -1327,8 +1328,8 @@ pub async fn create_announcement(
     State(state): State<AppState>,
     Json(req): Json<CreateAnnouncementRequest>,
 ) -> Result<Json<Announcement>, AppError> {
-    validate_required("title", &req.title)?;
-    validate_required("body", &req.body)?;
+    validate_required(&req.title, "title")?;
+    validate_required(&req.body, "body")?;
 
     let title = sanitize_text(&req.title);
     let body = sanitize_html(&req.body);
@@ -1417,7 +1418,7 @@ pub async fn update_announcement(
     let mut params: Vec<rusqlite::types::Value> = Vec::new();
 
     if let Some(title) = req.title {
-        validate_required("title", &title)?;
+        validate_required(&title, "title")?;
         updates.push("title = ?");
         params.push(sanitize_text(&title).into());
     }

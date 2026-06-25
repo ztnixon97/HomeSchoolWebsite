@@ -6,10 +6,46 @@ use axum::{
     Json,
 };
 use rusqlite::params;
-use crate::auth::RequireAuth;
+use crate::auth::{can_view_session, RequireAuth};
 use crate::errors::AppError;
 use crate::models::*;
 use crate::AppState;
+
+/// True if the user may see the entity a file is linked to (admins always can).
+fn can_access_linked(conn: &rusqlite::Connection, user: &User, linked_type: Option<&str>, linked_id: Option<i64>) -> bool {
+    if user.role == "admin" {
+        return true;
+    }
+    match (linked_type, linked_id) {
+        (Some("session"), Some(sid)) => can_view_session(conn, user, sid),
+        (Some("document"), Some(s)) | (Some("document_submission"), Some(s)) | (Some("submission"), Some(s)) => conn
+            .query_row(
+                "SELECT user_id = ?2 FROM document_submissions WHERE id = ?1",
+                params![s, user.id],
+                |r| r.get::<_, Option<bool>>(0),
+            )
+            .ok()
+            .flatten()
+            .unwrap_or(false),
+        (Some("conversation"), Some(c)) | (Some("message"), Some(c)) => conn
+            .query_row(
+                "SELECT COUNT(*) > 0 FROM conversation_participants WHERE conversation_id = ?1 AND user_id = ?2",
+                params![c, user.id],
+                |r| r.get(0),
+            )
+            .unwrap_or(false),
+        // Shared content visible to any authenticated member
+        (Some("lesson_plan"), _) | (Some("post"), _) | (Some("blog"), _) | (Some("resource"), _)
+        | (Some("announcement"), _) | (Some("page"), _) | (Some("site"), _) => true,
+        // Unknown / unlinked files: uploader or admin only (handled by the caller)
+        _ => false,
+    }
+}
+
+/// True if the user may read a file: admin, the uploader, or anyone who can see the linked entity.
+fn can_read_file(conn: &rusqlite::Connection, user: &User, uploader_id: i64, linked_type: Option<&str>, linked_id: Option<i64>) -> bool {
+    user.id == uploader_id || can_access_linked(conn, user, linked_type, linked_id)
+}
 
 // ── File Upload ──
 
@@ -107,7 +143,7 @@ pub async fn upload_file(
 }
 
 pub async fn get_file_info(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
 ) -> Result<Json<FileRecord>, AppError> {
@@ -132,6 +168,10 @@ pub async fn get_file_info(
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
 
+    if !can_read_file(&conn, &user, file.uploader_id, file.linked_type.as_deref(), file.linked_id) {
+        return Err(AppError::Forbidden);
+    }
+
     Ok(Json(file))
 }
 
@@ -142,19 +182,24 @@ pub struct DownloadQuery {
 }
 
 pub async fn download_file(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path(id): Path<i64>,
     Query(query): Query<DownloadQuery>,
 ) -> Result<Response, AppError> {
     let conn = state.db.get()?;
-    let (filename, storage_path, mime_type, _size_bytes): (String, String, String, i64) = conn
+    let (filename, storage_path, mime_type, uploader_id, linked_type, linked_id):
+        (String, String, String, i64, Option<String>, Option<i64>) = conn
         .query_row(
-            "SELECT filename, storage_path, mime_type, size_bytes FROM files WHERE id = ?1",
+            "SELECT filename, storage_path, mime_type, uploader_id, linked_type, linked_id FROM files WHERE id = ?1",
             params![id],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?, row.get(5)?)),
         )
         .map_err(|_| AppError::NotFound("File not found".to_string()))?;
+
+    if !can_read_file(&conn, &user, uploader_id, linked_type.as_deref(), linked_id) {
+        return Err(AppError::Forbidden);
+    }
 
     // If storage supports presigned URLs (R2), redirect directly — zero bandwidth through our server.
     // Use ?proxy=true to force proxying through backend (needed for in-browser fetch/CORS).
@@ -213,11 +258,14 @@ pub async fn delete_file(
 // ── Files for linked entities ──
 
 pub async fn list_files_for_entity(
-    RequireAuth(_user): RequireAuth,
+    RequireAuth(user): RequireAuth,
     State(state): State<AppState>,
     Path((linked_type, linked_id)): Path<(String, i64)>,
 ) -> Result<Json<Vec<FileRecord>>, AppError> {
     let conn = state.db.get()?;
+    if !can_access_linked(&conn, &user, Some(linked_type.as_str()), Some(linked_id)) {
+        return Err(AppError::Forbidden);
+    }
     let mut stmt = conn.prepare(
         "SELECT id, uploader_id, filename, storage_path, mime_type, size_bytes, linked_type, linked_id, created_at
          FROM files WHERE linked_type = ?1 AND linked_id = ?2 ORDER BY created_at",
