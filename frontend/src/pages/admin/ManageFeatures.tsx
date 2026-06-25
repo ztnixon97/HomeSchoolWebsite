@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface FeatureFlags {
   blog: boolean;
@@ -37,6 +38,7 @@ const featureLabels: Record<string, { label: string; description: string }> = {
 };
 
 export default function ManageFeatures() {
+  const { showToast } = useToast();
   const [flags, setFlags] = useState<FeatureFlags | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,8 +53,8 @@ export default function ManageFeatures() {
     try {
       await api.put('/api/admin/features', { [key]: newValue });
       setFlags({ ...flags, [key]: newValue });
-    } catch {
-      // revert on error
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update feature', 'error');
     } finally {
       setSaving(false);
     }

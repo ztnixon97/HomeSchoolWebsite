@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../../api';
+import { useToast } from '../../components/Toast';
 
 interface Student {
   id: number;
@@ -19,6 +20,7 @@ interface Milestone {
 
 export default function StudentProgress() {
   const { id } = useParams();
+  const { showToast } = useToast();
   const [students, setStudents] = useState<Student[]>([]);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [selected, setSelected] = useState<number | null>(id ? parseInt(id) : null);
@@ -61,7 +63,9 @@ export default function StudentProgress() {
       // Refresh
       const ms = await api.get<Milestone[]>(`/api/students/${selected}/milestones`);
       setMilestones(ms);
-    } catch {
+      showToast('Milestone added', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add milestone', 'error');
     } finally {
       setSaving(false);
     }
@@ -89,20 +93,30 @@ export default function StudentProgress() {
 
   const saveEditMilestone = async () => {
     if (!editingMilestone) return;
-    await api.put(`/api/milestones/${editingMilestone}`, {
-      title: editTitle,
-      notes: editNotes || null,
-      category: editCategory,
-      achieved_date: editAchievedDate || null,
-    });
-    setEditingMilestone(null);
-    refreshMilestones();
+    try {
+      await api.put(`/api/milestones/${editingMilestone}`, {
+        title: editTitle,
+        notes: editNotes || null,
+        category: editCategory,
+        achieved_date: editAchievedDate || null,
+      });
+      setEditingMilestone(null);
+      showToast('Milestone updated', 'success');
+      refreshMilestones();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update milestone', 'error');
+    }
   };
 
   const deleteMilestone = async (mid: number) => {
     if (!window.confirm('Delete this milestone?')) return;
-    await api.del(`/api/milestones/${mid}`);
-    refreshMilestones();
+    try {
+      await api.del(`/api/milestones/${mid}`);
+      showToast('Milestone deleted', 'success');
+      refreshMilestones();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete milestone', 'error');
+    }
   };
 
   const selectedStudent = students.find(s => s.id === selected);
