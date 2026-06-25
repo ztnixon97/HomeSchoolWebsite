@@ -245,6 +245,7 @@ function NavLinks({ user, isAdmin, onClick, mobile }: {
   if (features.my_children) myItems.push(<Link key="children" to="/my-children" onClick={onClick}>My Children</Link>);
   if (features.my_rsvps) myItems.push(<Link key="rsvps" to="/my-rsvps" onClick={onClick}>My RSVPs</Link>);
   if (features.class_groups) myItems.push(<Link key="classes" to="/my-classes" onClick={onClick}>My Classes</Link>);
+  if (features.class_groups) myItems.push(<Link key="browse-classes" to="/browse-classes" onClick={onClick}>Browse Classes</Link>);
   if (features.documents) myItems.push(<Link key="docs" to="/my-documents" onClick={onClick}>Documents</Link>);
   if (features.payments) myItems.push(<Link key="pay" to="/my-payments" onClick={onClick}>Payments</Link>);
 

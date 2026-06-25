@@ -47,6 +47,176 @@ fn is_class_teacher(state: &AppState, user_id: i64, group_id: i64) -> bool {
     ).unwrap_or(false)
 }
 
+/// GET /api/class-groups/browse — active classes with the user's children's enrollment status
+pub async fn browse_classes(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let conn = state.db.get()?;
+
+    let mut cstmt = conn.prepare(
+        "SELECT s.id, s.first_name || ' ' || s.last_name
+         FROM students s JOIN student_parents sp ON s.id = sp.student_id
+         WHERE sp.user_id = ?1 ORDER BY s.first_name",
+    )?;
+    let children: Vec<(i64, String)> = cstmt.query_map(params![user.id], |row| {
+        Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?))
+    })?.filter_map(|r| r.ok()).collect();
+
+    let mut gstmt = conn.prepare(
+        "SELECT cg.id, cg.name, cg.description, cg.capacity,
+                (SELECT COUNT(*) FROM class_group_members m WHERE m.group_id = cg.id) as member_count
+         FROM class_groups cg WHERE cg.active = 1 ORDER BY cg.sort_order, cg.name",
+    )?;
+    let rows: Vec<(i64, String, Option<String>, Option<i64>, i64)> = gstmt.query_map([], |row| {
+        Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?))
+    })?.filter_map(|r| r.ok()).collect();
+
+    let mut out = Vec::new();
+    for (gid, name, description, capacity, member_count) in rows {
+        let mut my_students = Vec::new();
+        for (sid, sname) in &children {
+            let enrolled: bool = conn.query_row(
+                "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+                params![gid, sid], |row| row.get(0)).unwrap_or(false);
+            let status = if enrolled {
+                "enrolled".to_string()
+            } else {
+                conn.query_row(
+                    "SELECT status FROM enrollment_requests WHERE group_id = ?1 AND student_id = ?2",
+                    params![gid, sid], |row| row.get::<_, String>(0)).unwrap_or_else(|_| "none".to_string())
+            };
+            my_students.push(serde_json::json!({ "student_id": sid, "name": sname, "status": status }));
+        }
+        let is_full = capacity.map(|c| member_count >= c).unwrap_or(false);
+        out.push(serde_json::json!({
+            "id": gid, "name": name, "description": description,
+            "capacity": capacity, "member_count": member_count, "is_full": is_full,
+            "my_students": my_students,
+        }));
+    }
+    Ok(Json(out))
+}
+
+/// POST /api/class-groups/{id}/enroll-request — parent requests to enroll a child
+pub async fn request_enrollment(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<EnrollStudentRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let conn = state.db.get()?;
+
+    let is_parent: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM student_parents WHERE user_id = ?1 AND student_id = ?2",
+        params![user.id, req.student_id], |row| row.get(0)).unwrap_or(false);
+    if !is_parent {
+        return Err(AppError::Forbidden);
+    }
+
+    let (active, capacity): (bool, Option<i64>) = conn.query_row(
+        "SELECT active, capacity FROM class_groups WHERE id = ?1",
+        params![group_id], |row| Ok((row.get(0)?, row.get(1)?)))
+        .map_err(|_| AppError::NotFound("Class not found".to_string()))?;
+    if !active {
+        return Err(AppError::BadRequest("Class is not active".to_string()));
+    }
+
+    let enrolled: bool = conn.query_row(
+        "SELECT COUNT(*) > 0 FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+        params![group_id, req.student_id], |row| row.get(0)).unwrap_or(false);
+    if enrolled {
+        return Err(AppError::BadRequest("Student is already enrolled".to_string()));
+    }
+
+    let member_count: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM class_group_members WHERE group_id = ?1",
+        params![group_id], |row| row.get(0)).unwrap_or(0);
+    let status = match capacity {
+        Some(c) if member_count >= c => "waitlisted",
+        _ => "pending",
+    };
+
+    conn.execute(
+        "INSERT INTO enrollment_requests (group_id, student_id, requested_by, status)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(group_id, student_id) DO UPDATE SET status = ?4, requested_by = ?3, reviewed_by = NULL, reviewed_at = NULL, created_at = datetime('now')",
+        params![group_id, req.student_id, user.id, status],
+    )?;
+
+    Ok(Json(serde_json::json!({ "ok": true, "status": status })))
+}
+
+/// POST /api/class-groups/{id}/members — admin/class teacher adds a student to the roster
+pub async fn add_class_member(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<EnrollStudentRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    if user.role != "admin" && !is_class_teacher(&state, user.id, group_id) {
+        return Err(AppError::Forbidden);
+    }
+    let conn = state.db.get()?;
+    conn.execute(
+        "INSERT OR IGNORE INTO class_group_members (group_id, student_id) VALUES (?1, ?2)",
+        params![group_id, req.student_id],
+    )?;
+    let _ = conn.execute(
+        "UPDATE enrollment_requests SET status = 'approved', reviewed_by = ?3, reviewed_at = datetime('now')
+         WHERE group_id = ?1 AND student_id = ?2 AND status IN ('pending','waitlisted')",
+        params![group_id, req.student_id, user.id],
+    );
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// DELETE /api/class-groups/{id}/members/{student_id} — admin/class teacher removes a student
+pub async fn remove_class_member(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path((group_id, student_id)): Path<(i64, i64)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    if user.role != "admin" && !is_class_teacher(&state, user.id, group_id) {
+        return Err(AppError::Forbidden);
+    }
+    let conn = state.db.get()?;
+    conn.execute(
+        "DELETE FROM class_group_members WHERE group_id = ?1 AND student_id = ?2",
+        params![group_id, student_id],
+    )?;
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// GET /api/class-groups/{id}/candidate-students — students not yet in the class (manager only)
+pub async fn candidate_students(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    if user.role != "admin" && !is_class_teacher(&state, user.id, group_id) {
+        return Err(AppError::Forbidden);
+    }
+    let conn = state.db.get()?;
+    let mut stmt = conn.prepare(
+        "SELECT s.id, s.first_name, s.last_name FROM students s
+         WHERE s.id NOT IN (SELECT student_id FROM class_group_members WHERE group_id = ?1)
+         ORDER BY s.last_name, s.first_name",
+    )?;
+    let out: Vec<serde_json::Value> = stmt.query_map(params![group_id], |row| {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "first_name": row.get::<_, String>(1)?,
+            "last_name": row.get::<_, String>(2)?,
+        }))
+    })?.filter_map(|r| r.ok()).collect();
+    Ok(Json(out))
+}
+
 /// GET /api/class-groups — list groups visible to the user
 pub async fn list_user_class_groups(
     RequireAuth(user): RequireAuth,
@@ -122,7 +292,9 @@ pub async fn get_class_group(
     let is_assigned_teacher = is_class_teacher(&state, user.id, id);
 
     let group = conn.query_row(
-        "SELECT cg.id, cg.name, cg.description, cg.grading_enabled, cg.home_content
+        "SELECT cg.id, cg.name, cg.description, cg.grading_enabled, cg.home_content, cg.capacity,
+                (SELECT COUNT(*) FROM class_group_members m WHERE m.group_id = cg.id) as member_count,
+                cg.meeting_info, cg.term_start, cg.term_end
          FROM class_groups cg WHERE cg.id = ?1 AND cg.active = 1",
         [id],
         |row| {
@@ -132,6 +304,11 @@ pub async fn get_class_group(
                 "description": row.get::<_, Option<String>>(2)?,
                 "grading_enabled": row.get::<_, bool>(3)?,
                 "home_content": row.get::<_, Option<String>>(4)?,
+                "capacity": row.get::<_, Option<i64>>(5)?,
+                "member_count": row.get::<_, i64>(6)?,
+                "meeting_info": row.get::<_, Option<String>>(7)?,
+                "term_start": row.get::<_, Option<String>>(8)?,
+                "term_end": row.get::<_, Option<String>>(9)?,
                 "is_class_teacher": is_assigned_teacher,
             }))
         },
@@ -161,6 +338,29 @@ pub async fn update_class_home(
         params![req.home_content, id],
     )?;
 
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+/// PUT /api/class-groups/{id}/info — assigned teacher or admin edits class description + meeting info
+pub async fn update_class_info(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<UpdateClassInfoRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    if user.role != "admin" && !is_class_teacher(&state, user.id, id) {
+        return Err(AppError::Forbidden);
+    }
+    let conn = state.db.get()?;
+    if let Some(desc) = &req.description {
+        let stored: Option<&str> = if desc.trim().is_empty() { None } else { Some(desc.as_str()) };
+        conn.execute("UPDATE class_groups SET description = ?1 WHERE id = ?2", params![stored, id])?;
+    }
+    if let Some(mi) = &req.meeting_info {
+        let stored: Option<&str> = if mi.trim().is_empty() { None } else { Some(mi.as_str()) };
+        conn.execute("UPDATE class_groups SET meeting_info = ?1 WHERE id = ?2", params![stored, id])?;
+    }
     Ok(Json(serde_json::json!({ "ok": true })))
 }
 
@@ -520,6 +720,59 @@ pub async fn create_class_session(
     );
 
     Ok(Json(serde_json::json!({ "ok": true, "id": session_id })))
+}
+
+/// POST /api/class-groups/{id}/sessions/bulk — assigned teacher creates many sessions at once (recurring)
+pub async fn create_class_sessions_bulk(
+    RequireAuth(user): RequireAuth,
+    State(state): State<AppState>,
+    Path(group_id): Path<i64>,
+    Json(req): Json<BulkCreateClassSessionsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_feature(&state.db, "class_groups")?;
+    let allowed = user.role == "admin" || is_class_teacher(&state, user.id, group_id);
+    if !allowed {
+        return Err(AppError::Forbidden);
+    }
+    if req.dates.is_empty() {
+        return Err(AppError::BadRequest("No dates provided".to_string()));
+    }
+    if req.dates.len() > 100 {
+        return Err(AppError::BadRequest("Too many sessions at once (max 100)".to_string()));
+    }
+    for d in &req.dates {
+        crate::sanitize::validate_date(d, "session_date")?;
+    }
+
+    let conn = state.db.get()?;
+    let session_type_id = if let Some(id) = req.session_type_id {
+        Some(id)
+    } else {
+        conn.query_row("SELECT id FROM session_types WHERE name = 'class'", [], |row| row.get(0)).ok()
+    };
+
+    let mut ids: Vec<i64> = Vec::with_capacity(req.dates.len());
+    for d in &req.dates {
+        conn.execute(
+            "INSERT INTO class_sessions (
+                title, theme, session_date, start_time, end_time,
+                max_students, notes, status, session_type_id, created_by
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 'open', ?8, ?9)",
+            params![
+                req.title, req.theme, d,
+                req.start_time, req.end_time, req.max_students,
+                req.notes, session_type_id, user.id
+            ],
+        )?;
+        let session_id = conn.last_insert_rowid();
+        let _ = conn.execute(
+            "INSERT OR IGNORE INTO class_session_groups (session_id, group_id) VALUES (?1, ?2)",
+            params![session_id, group_id],
+        );
+        ids.push(session_id);
+    }
+
+    Ok(Json(serde_json::json!({ "ok": true, "count": ids.len(), "ids": ids })))
 }
 
 /// PUT /api/class-groups/{group_id}/sessions/{session_id} — assigned teacher updates a session

@@ -4,6 +4,7 @@ import { api } from '../../api';
 import { useAuth } from '../../auth';
 import { useToast } from '../../components/Toast';
 import { useFeatures } from '../../features';
+import SessionEditor from '../../components/SessionEditor';
 
 interface ClassGroup {
   id: number;
@@ -12,6 +13,11 @@ interface ClassGroup {
   grading_enabled?: boolean;
   home_content?: string | null;
   is_class_teacher?: boolean;
+  capacity?: number | null;
+  member_count?: number;
+  meeting_info?: string | null;
+  term_start?: string | null;
+  term_end?: string | null;
 }
 
 interface GroupSession {
@@ -100,8 +106,8 @@ type Tab = 'home' | 'sessions' | 'roster' | 'attendance' | 'announcements' | 'gr
 
 export default function ClassDetail() {
   const { id } = useParams<{ id: string }>();
-  const { user, isAdmin, isTeacher } = useAuth();
-  const { addToast } = useToast();
+  const { isAdmin, isTeacher } = useAuth();
+  const { showToast } = useToast();
   const features = useFeatures();
   // canManage is computed dynamically to include assigned class teachers
 
@@ -113,7 +119,9 @@ export default function ClassDetail() {
   const [sessions, setSessions] = useState<GroupSession[]>([]);
   // Roster
   const [roster, setRoster] = useState<RosterStudent[]>([]);
-  // Attendance
+  const [candidateStudents, setCandidateStudents] = useState<RosterStudent[]>([]);
+  const [addStudentId, setAddStudentId] = useState('');
+  // Attendance (read-only overview; taking attendance happens on the session page)
   const [attSessions, setAttSessions] = useState<AttendanceSession[]>([]);
   const [attRecords, setAttRecords] = useState<AttendanceRecord[]>([]);
   // Announcements
@@ -139,13 +147,13 @@ export default function ClassDetail() {
   // Home content editing
   const [editingHome, setEditingHome] = useState(false);
   const [homeContent, setHomeContent] = useState('');
-  // Session creation (for class teachers)
+  // Class info editing (description + meeting info)
+  const [editingInfo, setEditingInfo] = useState(false);
+  const [infoDescription, setInfoDescription] = useState('');
+  const [infoMeeting, setInfoMeeting] = useState('');
+  // Session create/edit (via shared SessionEditor)
   const [showSessionForm, setShowSessionForm] = useState(false);
-  const [sessionTitle, setSessionTitle] = useState('');
-  const [sessionDate, setSessionDate] = useState('');
-  const [sessionStartTime, setSessionStartTime] = useState('');
-  const [sessionEndTime, setSessionEndTime] = useState('');
-  const [sessionMax, setSessionMax] = useState('');
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
 
   const isClassTeacher = group?.is_class_teacher || false;
   const canManageClass = isAdmin || isClassTeacher;
@@ -166,11 +174,18 @@ export default function ClassDetail() {
       api.get<GroupSession[]>(`/api/class-groups/${id}/sessions`).then(setSessions).catch(() => {});
     } else if (tab === 'roster') {
       api.get<RosterStudent[]>(`/api/class-groups/${id}/roster`).then(setRoster).catch(() => {});
+      if (canManageClass) {
+        api.get<RosterStudent[]>(`/api/class-groups/${id}/candidate-students`).then(setCandidateStudents).catch(() => {});
+      }
     } else if (tab === 'attendance') {
       api.get<{ sessions: AttendanceSession[]; records: AttendanceRecord[] }>(`/api/class-groups/${id}/attendance`).then(data => {
         setAttSessions(data.sessions);
         setAttRecords(data.records);
       }).catch(() => {});
+      // Managers need the full roster to mark students who have no record yet
+      if (canManage && roster.length === 0) {
+        api.get<RosterStudent[]>(`/api/class-groups/${id}/roster`).then(setRoster).catch(() => {});
+      }
     } else if (tab === 'announcements') {
       api.get<Announcement[]>(`/api/class-groups/${id}/announcements`).then(setAnnouncements).catch(() => {});
     } else if (tab === 'grades') {
@@ -186,6 +201,33 @@ export default function ClassDetail() {
     }
   }, [id, tab]);
 
+  const addRosterMember = async () => {
+    if (!addStudentId) return;
+    try {
+      await api.post(`/api/class-groups/${id}/members`, { student_id: Number(addStudentId) });
+      setAddStudentId('');
+      showToast('Student added', 'success');
+      api.get<RosterStudent[]>(`/api/class-groups/${id}/roster`).then(setRoster).catch(() => {});
+      api.get<RosterStudent[]>(`/api/class-groups/${id}/candidate-students`).then(setCandidateStudents).catch(() => {});
+      api.get<ClassGroup>(`/api/class-groups/${id}`).then(setGroup).catch(() => {});
+    } catch {
+      showToast('Failed to add student', 'error');
+    }
+  };
+
+  const removeRosterMember = async (studentId: number) => {
+    if (!confirm('Remove this student from the class?')) return;
+    try {
+      await api.del(`/api/class-groups/${id}/members/${studentId}`);
+      setRoster(prev => prev.filter(s => s.id !== studentId));
+      showToast('Student removed', 'success');
+      api.get<RosterStudent[]>(`/api/class-groups/${id}/candidate-students`).then(setCandidateStudents).catch(() => {});
+      api.get<ClassGroup>(`/api/class-groups/${id}`).then(setGroup).catch(() => {});
+    } catch {
+      showToast('Failed to remove student', 'error');
+    }
+  };
+
   const createAnnouncement = async () => {
     if (!newTitle.trim()) return;
     try {
@@ -196,10 +238,10 @@ export default function ClassDetail() {
       });
       setNewTitle('');
       setNewBody('');
-      addToast('Announcement created', 'success');
+      showToast('Announcement created', 'success');
       api.get<Announcement[]>(`/api/class-groups/${id}/announcements`).then(setAnnouncements).catch(() => {});
     } catch {
-      addToast('Failed to create announcement', 'error');
+      showToast('Failed to create announcement', 'error');
     }
   };
 
@@ -207,9 +249,9 @@ export default function ClassDetail() {
     try {
       await api.del(`/api/admin/class-group-announcements/${annId}`);
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
-      addToast('Announcement deleted', 'success');
+      showToast('Announcement deleted', 'success');
     } catch {
-      addToast('Failed to delete announcement', 'error');
+      showToast('Failed to delete announcement', 'error');
     }
   };
 
@@ -230,9 +272,9 @@ export default function ClassDetail() {
       setNewAssignmentCategory('');
       setNewAssignmentMax('100');
       setNewAssignmentDue('');
-      addToast('Assignment created', 'success');
+      showToast('Assignment created', 'success');
     } catch {
-      addToast('Failed to create assignment', 'error');
+      showToast('Failed to create assignment', 'error');
     }
   };
 
@@ -242,9 +284,9 @@ export default function ClassDetail() {
       setAssignments(prev => prev.filter(a => a.id !== assignmentId));
       setGrades(prev => prev.filter(g => g.assignment_id !== assignmentId));
       if (gradingAssignmentId === assignmentId) setGradingAssignmentId(null);
-      addToast('Assignment deleted', 'success');
+      showToast('Assignment deleted', 'success');
     } catch {
-      addToast('Failed to delete assignment', 'error');
+      showToast('Failed to delete assignment', 'error');
     }
   };
 
@@ -278,9 +320,9 @@ export default function ClassDetail() {
         due_date: editAssignment.due_date || null,
       } : a));
       setEditingAssignmentId(null);
-      addToast('Assignment updated', 'success');
+      showToast('Assignment updated', 'success');
     } catch {
-      addToast('Failed to update assignment', 'error');
+      showToast('Failed to update assignment', 'error');
     }
   };
 
@@ -313,9 +355,9 @@ export default function ClassDetail() {
       setGrades(data.grades);
       setCategoryWeights(data.category_weights || []);
       setGradingAssignmentId(null);
-      addToast('Grades saved', 'success');
+      showToast('Grades saved', 'success');
     } catch {
-      addToast('Failed to save grades', 'error');
+      showToast('Failed to save grades', 'error');
     }
   };
 
@@ -339,9 +381,9 @@ export default function ClassDetail() {
       const data = await api.get<{ grading_enabled: boolean; assignments: ClassAssignment[]; grades: StudentGrade[]; category_weights: CategoryWeight[] }>(`/api/class-groups/${id}/grades`);
       setCategoryWeights(data.category_weights || []);
       setEditingWeights(false);
-      addToast('Category weights saved', 'success');
+      showToast('Category weights saved', 'success');
     } catch {
-      addToast('Failed to save weights', 'error');
+      showToast('Failed to save weights', 'error');
     }
   };
 
@@ -401,32 +443,29 @@ export default function ClassDetail() {
       await api.put(`/api/class-groups/${id}/home`, { home_content: homeContent || null });
       setGroup(prev => prev ? { ...prev, home_content: homeContent || null } : prev);
       setEditingHome(false);
-      addToast('Home page updated', 'success');
+      showToast('Home page updated', 'success');
     } catch {
-      addToast('Failed to update home page', 'error');
+      showToast('Failed to update home page', 'error');
     }
   };
 
-  const createClassSession = async () => {
-    if (!sessionTitle.trim() || !sessionDate) return;
+  const startEditInfo = () => {
+    setInfoDescription(group?.description || '');
+    setInfoMeeting(group?.meeting_info || '');
+    setEditingInfo(true);
+  };
+
+  const saveClassInfo = async () => {
     try {
-      await api.post(`/api/class-groups/${id}/sessions`, {
-        title: sessionTitle,
-        session_date: sessionDate,
-        start_time: sessionStartTime || null,
-        end_time: sessionEndTime || null,
-        max_students: sessionMax ? parseInt(sessionMax) : null,
+      await api.put(`/api/class-groups/${id}/info`, {
+        description: infoDescription,
+        meeting_info: infoMeeting,
       });
-      setSessionTitle('');
-      setSessionDate('');
-      setSessionStartTime('');
-      setSessionEndTime('');
-      setSessionMax('');
-      setShowSessionForm(false);
-      addToast('Session created', 'success');
-      api.get<GroupSession[]>(`/api/class-groups/${id}/sessions`).then(setSessions).catch(() => {});
+      setGroup(prev => prev ? { ...prev, description: infoDescription || null, meeting_info: infoMeeting || null } : prev);
+      setEditingInfo(false);
+      showToast('Class details updated', 'success');
     } catch {
-      addToast('Failed to create session', 'error');
+      showToast('Failed to update class details', 'error');
     }
   };
 
@@ -435,9 +474,9 @@ export default function ClassDetail() {
     try {
       await api.del(`/api/class-groups/${id}/sessions/${sessionId}`);
       setSessions(prev => prev.filter(s => s.id !== sessionId));
-      addToast('Session deleted', 'success');
+      showToast('Session deleted', 'success');
     } catch {
-      addToast('Failed to delete session', 'error');
+      showToast('Failed to delete session', 'error');
     }
   };
 
@@ -474,7 +513,32 @@ export default function ClassDetail() {
       <Link to="/my-classes" className="text-emerald-700 text-sm mb-4 inline-block hover:underline">&larr; Back to My Classes</Link>
 
       <h1 className="text-2xl font-bold text-ink mb-1">{group.name}</h1>
-      {group.description && <p className="text-gray-500 text-sm mb-6">{group.description}</p>}
+      {editingInfo ? (
+        <div className="bg-white rounded-xl border border-emerald-200 shadow-sm p-4 space-y-2 mb-6">
+          <input value={infoDescription} onChange={e => setInfoDescription(e.target.value)} className={inputClass} placeholder="Class description" />
+          <input value={infoMeeting} onChange={e => setInfoMeeting(e.target.value)} className={inputClass} placeholder="Meeting info (e.g. Mondays 9–11am)" />
+          <div className="flex gap-2">
+            <button onClick={saveClassInfo} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800">Save</button>
+            <button onClick={() => setEditingInfo(false)} className="px-4 py-2 text-gray-500 text-sm">Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          {group.description && <p className="text-gray-500 text-sm mb-1">{group.description}</p>}
+          {(group.meeting_info || group.term_start || group.term_end) && (
+            <p className="text-gray-400 text-xs mb-1">
+              {group.meeting_info}
+              {group.meeting_info && (group.term_start || group.term_end) && ' · '}
+              {group.term_start && group.term_end ? `${group.term_start} – ${group.term_end}` : (group.term_start || group.term_end || '')}
+            </p>
+          )}
+          {canManageClass ? (
+            <button onClick={startEditInfo} className="text-xs text-emerald-700 hover:text-emerald-900 mb-6 inline-block">Edit details</button>
+          ) : (
+            <div className="mb-6" />
+          )}
+        </>
+      )}
 
       {/* Tabs */}
       <div className="overflow-x-auto -mx-4 px-4">
@@ -540,22 +604,12 @@ export default function ClassDetail() {
           {canManageClass && (
             <div className="mb-2">
               {showSessionForm ? (
-                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
-                  <h3 className="text-sm font-medium text-ink">Create Session</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input type="text" placeholder="Title" value={sessionTitle} onChange={e => setSessionTitle(e.target.value)} className={inputClass} />
-                    <input type="date" value={sessionDate} onChange={e => setSessionDate(e.target.value)} className={inputClass} />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                    <input type="time" value={sessionStartTime} onChange={e => setSessionStartTime(e.target.value)} className={inputClass} placeholder="Start time" />
-                    <input type="time" value={sessionEndTime} onChange={e => setSessionEndTime(e.target.value)} className={inputClass} placeholder="End time" />
-                    <input type="number" value={sessionMax} onChange={e => setSessionMax(e.target.value)} className={inputClass} placeholder="Max students" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={createClassSession} disabled={!sessionTitle.trim() || !sessionDate} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 disabled:opacity-50 transition-colors">Create</button>
-                    <button onClick={() => setShowSessionForm(false)} className="px-4 py-2 text-gray-500 text-sm">Cancel</button>
-                  </div>
-                </div>
+                <SessionEditor
+                  lockedClassGroupId={Number(id)}
+                  isAdmin={isAdmin}
+                  onSaved={() => { setShowSessionForm(false); api.get<GroupSession[]>(`/api/class-groups/${id}/sessions`).then(setSessions).catch(() => {}); }}
+                  onCancel={() => setShowSessionForm(false)}
+                />
               ) : (
                 <button onClick={() => setShowSessionForm(true)} className="text-sm text-emerald-700 hover:text-emerald-800 font-medium">+ Add Session</button>
               )}
@@ -565,13 +619,20 @@ export default function ClassDetail() {
             <p className="text-ink/40 text-sm">No sessions assigned to this class yet.</p>
           ) : (
             sessions.map(s => (
-              <Link
-                key={s.id}
-                to={`/sessions/${s.id}`}
-                className="block bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:border-emerald-300 transition-colors no-underline"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
+              editingSessionId === s.id ? (
+                <div key={s.id}>
+                  <SessionEditor
+                    editSessionId={s.id}
+                    lockedClassGroupId={Number(id)}
+                    isAdmin={isAdmin}
+                    onSaved={() => { setEditingSessionId(null); api.get<GroupSession[]>(`/api/class-groups/${id}/sessions`).then(setSessions).catch(() => {}); }}
+                    onCancel={() => setEditingSessionId(null)}
+                  />
+                </div>
+              ) : (
+              <div key={s.id} className="block bg-white rounded-lg border border-gray-100 shadow-sm p-4 hover:border-emerald-300 transition-colors">
+                <div className="flex items-start justify-between gap-3">
+                  <Link to={`/sessions/${s.id}`} className="flex-1 no-underline">
                     <h3 className="font-medium text-ink">{s.title}</h3>
                     <p className="text-sm text-gray-500 mt-0.5">
                       {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -579,7 +640,7 @@ export default function ClassDetail() {
                       {s.end_time && ` - ${s.end_time}`}
                     </p>
                     {s.host_name && <p className="text-xs text-gray-400 mt-0.5">Host: {s.host_name}</p>}
-                  </div>
+                  </Link>
                   <div className="text-right">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
                       s.status === 'open' ? 'bg-emerald-100 text-emerald-800' :
@@ -589,17 +650,16 @@ export default function ClassDetail() {
                     <p className="text-xs text-gray-400 mt-1">
                       {s.rsvp_count}{s.max_students ? `/${s.max_students}` : ''} RSVP{s.rsvp_count !== 1 ? 's' : ''}
                     </p>
+                    {canManageClass && (
+                      <div className="mt-2 flex gap-2 justify-end">
+                        <button onClick={() => setEditingSessionId(s.id)} className="text-xs text-emerald-700 hover:text-emerald-900">Edit</button>
+                        <button onClick={() => deleteClassSession(s.id)} className="text-xs text-red-500 hover:text-red-700">Delete</button>
+                      </div>
+                    )}
                   </div>
-                {canManageClass && (
-                  <button
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteClassSession(s.id); }}
-                    className="text-xs text-red-500 hover:text-red-700 mt-2 py-2 px-3 rounded-lg"
-                  >
-                    Delete
-                  </button>
-                )}
                 </div>
-              </Link>
+              </div>
+              )
             ))
           )}
         </div>
@@ -607,83 +667,136 @@ export default function ClassDetail() {
 
       {/* Roster Tab */}
       {tab === 'roster' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          {roster.length === 0 ? (
-            <p className="text-ink/40 text-sm p-6">No students in this class.</p>
-          ) : (
-            <table className="w-full text-sm min-w-[500px]">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Date of Birth</th>
-                  {canManage && <th className="text-left px-4 py-3 font-medium text-gray-600">Allergies</th>}
-                  {canManage && <th className="text-left px-4 py-3 font-medium text-gray-600">Dietary</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {roster.map(s => (
-                  <tr key={s.id}>
-                    <td className="px-4 py-3 text-ink">{s.first_name} {s.last_name}</td>
-                    <td className="px-4 py-3 text-gray-500">{s.date_of_birth || '—'}</td>
-                    {canManage && <td className="px-4 py-3 text-gray-500">{s.allergies || '—'}</td>}
-                    {canManage && <td className="px-4 py-3 text-gray-500">{s.dietary_restrictions || '—'}</td>}
-                  </tr>
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-ink/60">
+              {roster.length} student{roster.length !== 1 ? 's' : ''}
+              {group?.capacity != null && ` of ${group.capacity}`}
+              {group?.capacity != null && roster.length >= group.capacity && (
+                <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800">Full</span>
+              )}
+            </p>
+          </div>
+
+          {canManageClass && (
+            <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 flex flex-col sm:flex-row gap-2">
+              <select value={addStudentId} onChange={e => setAddStudentId(e.target.value)} className={inputClass}>
+                <option value="">Add a student…</option>
+                {candidateStudents.map(s => (
+                  <option key={s.id} value={s.id}>{s.first_name} {s.last_name}</option>
                 ))}
-              </tbody>
-            </table>
+              </select>
+              <button onClick={addRosterMember} disabled={!addStudentId} className="px-4 py-2 bg-emerald-700 text-white text-sm rounded-lg hover:bg-emerald-800 disabled:opacity-50 whitespace-nowrap">Add</button>
+            </div>
           )}
+
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+            {roster.length === 0 ? (
+              <p className="text-ink/40 text-sm p-6">No students in this class.</p>
+            ) : (
+              <table className="w-full text-sm min-w-[500px]">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-600">Date of Birth</th>
+                    {canManage && <th className="text-left px-4 py-3 font-medium text-gray-600">Allergies</th>}
+                    {canManage && <th className="text-left px-4 py-3 font-medium text-gray-600">Dietary</th>}
+                    {canManageClass && <th className="px-4 py-3"></th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {roster.map(s => (
+                    <tr key={s.id}>
+                      <td className="px-4 py-3 text-ink">{s.first_name} {s.last_name}</td>
+                      <td className="px-4 py-3 text-gray-500">{s.date_of_birth || '—'}</td>
+                      {canManage && <td className="px-4 py-3 text-gray-500">{s.allergies || '—'}</td>}
+                      {canManage && <td className="px-4 py-3 text-gray-500">{s.dietary_restrictions || '—'}</td>}
+                      {canManageClass && (
+                        <td className="px-4 py-3 text-right">
+                          <button onClick={() => removeRosterMember(s.id)} className="text-xs text-red-500 hover:text-red-700">Remove</button>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
       )}
 
       {/* Attendance Tab */}
       {tab === 'attendance' && (
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-          {attSessions.length === 0 ? (
-            <p className="text-ink/40 text-sm p-6">No attendance records yet.</p>
-          ) : (
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600 sticky left-0 bg-gray-50">Student</th>
-                  {attSessions.map(s => (
-                    <th key={s.id} className="text-center px-3 py-3 font-medium text-gray-600 whitespace-nowrap">
-                      {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {(() => {
-                  const students = new Map<number, { name: string; records: Map<number, boolean> }>();
-                  attRecords.forEach(r => {
-                    if (!students.has(r.student_id)) {
-                      students.set(r.student_id, { name: `${r.first_name} ${r.last_name}`, records: new Map() });
-                    }
-                    students.get(r.student_id)!.records.set(r.session_id, r.present);
-                  });
-                  return Array.from(students.entries()).map(([sid, data]) => (
-                    <tr key={sid}>
-                      <td className="px-4 py-3 text-ink sticky left-0 bg-white whitespace-nowrap">{data.name}</td>
-                      {attSessions.map(s => {
-                        const present = data.records.get(s.id);
-                        return (
-                          <td key={s.id} className="text-center px-3 py-3">
-                            {present === undefined ? (
-                              <span className="text-gray-300">—</span>
-                            ) : present ? (
-                              <span className="text-emerald-600 font-medium">P</span>
-                            ) : (
-                              <span className="text-red-500 font-medium">A</span>
-                            )}
-                          </td>
-                        );
-                      })}
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+            {attSessions.length === 0 ? (
+              <p className="text-ink/40 text-sm p-6">
+                {canManage ? 'No past sessions yet. Once a class session date has passed, you can take attendance here.' : 'No attendance records yet.'}
+              </p>
+            ) : (
+              <>
+                {canManage && (
+                  <p className="text-xs text-ink/40 px-4 pt-3">Tap a date to open that session, where you can take attendance.</p>
+                )}
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      <th className="text-left px-4 py-3 font-medium text-gray-600 sticky left-0 bg-gray-50">Student</th>
+                      {attSessions.map(s => (
+                        <th key={s.id} className="text-center px-3 py-3 font-medium text-gray-600 whitespace-nowrap">
+                          {canManage ? (
+                            <Link to={`/sessions/${s.id}`} className="text-gray-600 hover:text-emerald-700 hover:underline">
+                              {new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            </Link>
+                          ) : (
+                            new Date(s.session_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                          )}
+                        </th>
+                      ))}
                     </tr>
-                  ));
-                })()}
-              </tbody>
-            </table>
-          )}
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {(() => {
+                      const students = new Map<number, { name: string; records: Map<number, boolean> }>();
+                      if (canManage && roster.length > 0) {
+                        roster.forEach(s => students.set(s.id, { name: `${s.first_name} ${s.last_name}`, records: new Map() }));
+                      }
+                      attRecords.forEach(r => {
+                        if (!students.has(r.student_id)) {
+                          students.set(r.student_id, { name: `${r.first_name} ${r.last_name}`, records: new Map() });
+                        }
+                        students.get(r.student_id)!.records.set(r.session_id, r.present);
+                      });
+                      if (students.size === 0) {
+                        return (
+                          <tr><td colSpan={attSessions.length + 1} className="px-4 py-6 text-ink/40 text-sm">No attendance recorded yet.</td></tr>
+                        );
+                      }
+                      return Array.from(students.entries()).map(([sid, data]) => (
+                        <tr key={sid}>
+                          <td className="px-4 py-3 text-ink sticky left-0 bg-white whitespace-nowrap">{data.name}</td>
+                          {attSessions.map(s => {
+                            const present = data.records.get(s.id);
+                            return (
+                              <td key={s.id} className="text-center px-3 py-3">
+                                {present === undefined ? (
+                                  <span className="text-gray-300">—</span>
+                                ) : present ? (
+                                  <span className="text-emerald-600 font-medium">P</span>
+                                ) : (
+                                  <span className="text-red-500 font-medium">A</span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
         </div>
       )}
 

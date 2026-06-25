@@ -419,6 +419,23 @@ pub struct CreateSessionRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct EnrollStudentRequest {
+    pub student_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkCreateClassSessionsRequest {
+    pub title: String,
+    pub theme: Option<String>,
+    pub start_time: Option<String>,
+    pub end_time: Option<String>,
+    pub max_students: Option<i64>,
+    pub notes: Option<String>,
+    pub session_type_id: Option<i64>,
+    pub dates: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct UpdateSessionRequest {
     pub title: Option<String>,
     pub theme: Option<String>,
@@ -763,6 +780,9 @@ pub struct SessionsQuery {
     pub date_from: Option<String>,
     pub date_to: Option<String>,
     pub class_group_id: Option<i64>,
+    /// "mine" (default): sessions in classes the user belongs to + unassigned/global sessions.
+    /// "all": also include other classes' sessions, with details stripped (public-level).
+    pub scope: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -848,6 +868,10 @@ pub struct ClassGroup {
     pub active: bool,
     pub grading_enabled: bool,
     pub created_at: String,
+    pub capacity: Option<i64>,
+    pub meeting_info: Option<String>,
+    pub term_start: Option<String>,
+    pub term_end: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -855,6 +879,10 @@ pub struct CreateClassGroupRequest {
     pub name: String,
     pub description: Option<String>,
     pub sort_order: Option<i32>,
+    pub capacity: Option<i64>,
+    pub meeting_info: Option<String>,
+    pub term_start: Option<String>,
+    pub term_end: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -864,6 +892,10 @@ pub struct UpdateClassGroupRequest {
     pub sort_order: Option<i32>,
     pub active: Option<bool>,
     pub grading_enabled: Option<bool>,
+    pub capacity: Option<i64>,
+    pub meeting_info: Option<String>,
+    pub term_start: Option<String>,
+    pub term_end: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -881,6 +913,12 @@ pub struct AddGroupTeacherRequest {
 #[derive(Debug, Deserialize)]
 pub struct UpdateClassHomeContentRequest {
     pub home_content: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClassInfoRequest {
+    pub description: Option<String>,
+    pub meeting_info: Option<String>,
 }
 
 // ── Class Group Announcements ──
