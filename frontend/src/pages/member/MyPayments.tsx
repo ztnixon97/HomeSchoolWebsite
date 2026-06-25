@@ -240,7 +240,7 @@ export default function MyPayments() {
                       <span className="font-medium text-gray-800">{p.description}</span>
                       {p.session_id && p.session_title && (
                         <Link
-                          to={`/dashboard/sessions/${p.session_id}`}
+                          to={`/sessions/${p.session_id}`}
                           className="block text-xs text-emerald-700 hover:text-emerald-800 mt-0.5"
                         >
                           {p.session_title}

@@ -58,6 +58,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
 
   const [sessionTypes, setSessionTypes] = useState<SessionType[]>([]);
   const [classGroups, setClassGroups] = useState<ClassGroupOpt[]>([]);
+  const [classGroupsLoaded, setClassGroupsLoaded] = useState(false);
   const [allUsers, setAllUsers] = useState<{ id: number; display_name: string; email: string }[]>([]);
   const [loading, setLoading] = useState(editSessionId != null);
 
@@ -124,7 +125,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
     load();
     if (features.class_groups && !lockedClassGroupId) {
       const url = isAdmin ? '/api/admin/class-groups' : '/api/class-groups';
-      api.get<ClassGroupOpt[]>(url).then(setClassGroups).catch(() => {});
+      api.get<ClassGroupOpt[]>(url).then(cgs => { setClassGroups(cgs); setClassGroupsLoaded(true); }).catch(() => {});
     }
     if (isAdmin && editSessionId != null) {
       api.get<{ items: { id: number; display_name: string; email: string }[] }>('/api/admin/users?page_size=200')
@@ -141,7 +142,9 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
     let class_group_ids: number[] | undefined;
     if (lockedClassGroupId) {
       class_group_ids = editing ? undefined : [lockedClassGroupId];
-    } else if (features.class_groups) {
+    } else if (features.class_groups && classGroupsLoaded) {
+      // Only send the class set once the selector actually loaded, so a failed
+      // class-groups fetch can't silently unassign the session on an unrelated edit.
       class_group_ids = selectedGroupIds; // empty array on edit clears the assignment
     }
     return {
@@ -174,6 +177,7 @@ export default function SessionEditor({ editSessionId, lockedClassGroupId, isAdm
           payload.status = status;
           if (assignHostId) payload.host_id = parseInt(assignHostId);
           else if (reserveHostName) payload.host_name = reserveHostName;
+          else payload.host_id = 0; // both cleared → unassign the host (backend treats 0 as "none")
         }
         await api.put(`/api/sessions/${editSessionId}`, payload);
         showToast('Session updated', 'success');

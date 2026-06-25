@@ -62,6 +62,7 @@ export default function ClassSessions() {
   const [listSessions, setListSessions] = useState<Session[]>([]);
   useEffect(() => {
     if (view !== 'list') return;
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
     const params = new URLSearchParams();
     params.set('page', String(listPage));
     params.set('page_size', String(PAGE_SIZE));
@@ -71,9 +72,11 @@ export default function ClassSessions() {
     if (groupFilter) params.set('class_group_id', groupFilter);
     if (scope === 'all') params.set('scope', 'all');
     api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {
+      if (ignore) return;
       setListSessions(res.items);
       setListTotal(res.total);
     }).catch(() => {});
+    return () => { ignore = true; };
   }, [view, listPage, search, statusFilter, groupFilter, showPast, scope, refreshKey]);
 
   // Reset page when filters change
