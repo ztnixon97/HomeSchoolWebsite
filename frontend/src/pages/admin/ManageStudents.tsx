@@ -90,6 +90,7 @@ export default function ManageStudents() {
     setEmergencyName(s.emergency_contact_name || '');
     setEmergencyPhone(s.emergency_contact_phone || '');
     setShowForm(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const addStudent = async (e: React.FormEvent) => {

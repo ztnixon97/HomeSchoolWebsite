@@ -178,8 +178,13 @@ export default function SessionDetail() {
   };
 
   const handleUnclaim = async () => {
-    await api.post(`/api/sessions/${id}/unclaim`, {});
-    refresh();
+    if (!confirm('Withdraw as host for this session? Families may be counting on a host.')) return;
+    try {
+      await api.post(`/api/sessions/${id}/unclaim`, {});
+      refresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to withdraw as host');
+    }
   };
 
   const handleRsvp = async (studentId: number) => {
@@ -192,8 +197,13 @@ export default function SessionDetail() {
   };
 
   const handleRemoveRsvp = async (rsvpId: number) => {
-    await api.del(`/api/rsvps/${rsvpId}`);
-    refresh();
+    if (!confirm('Remove this RSVP?')) return;
+    try {
+      await api.del(`/api/rsvps/${rsvpId}`);
+      refresh();
+    } catch (err: any) {
+      setError(err.message || 'Failed to remove RSVP');
+    }
   };
 
   const handleApproveRsvp = async (rsvpId: number) => {

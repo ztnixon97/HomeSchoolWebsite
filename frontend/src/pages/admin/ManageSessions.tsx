@@ -64,6 +64,7 @@ export default function ManageSessions() {
     setEditingId(s.id);
     setShowForm(true);
     setShowHolidayForm(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const addHoliday = async (e: React.FormEvent) => {

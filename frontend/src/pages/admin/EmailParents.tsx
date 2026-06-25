@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
@@ -10,8 +10,15 @@ export default function EmailParents() {
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [sentCount, setSentCount] = useState(0);
+  const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    api.get<{ active: boolean }[]>('/api/admin/users')
+      .then(users => setRecipientCount(users.filter(u => u.active).length))
+      .catch(() => {});
+  }, []);
 
   const handleSend = async () => {
     // Strip tags to check if there's actual content
@@ -24,13 +31,13 @@ export default function EmailParents() {
   };
 
   const confirmSend = async () => {
-    setShowConfirm(false);
     setLoading(true);
     try {
       const response = await api.post<{ sent_count: number }>('/api/admin/email-parents', {
         subject,
         body,
       });
+      setShowConfirm(false);
       setSentCount(response.sent_count);
       setSent(true);
       setSubject('');
@@ -114,7 +121,7 @@ export default function EmailParents() {
           <div className="bg-white rounded-lg p-6 max-w-sm mx-auto">
             <h2 className="text-lg font-semibold text-ink mb-4">Confirm Send</h2>
             <p className="text-ink/70 mb-6">
-              Are you sure you want to send this email to all co-op members? This action cannot be undone.
+              Send this email to {recipientCount != null ? <strong>all {recipientCount} active members</strong> : 'all co-op members'}? This can't be undone.
             </p>
             <div className="flex gap-3">
               <button

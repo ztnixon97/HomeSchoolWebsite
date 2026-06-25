@@ -246,6 +246,7 @@ export default function ClassDetail() {
   };
 
   const deleteAnnouncement = async (annId: number) => {
+    if (!confirm('Delete this announcement?')) return;
     try {
       await api.del(`/api/admin/class-group-announcements/${annId}`);
       setAnnouncements(prev => prev.filter(a => a.id !== annId));
@@ -279,6 +280,7 @@ export default function ClassDetail() {
   };
 
   const deleteAssignment = async (assignmentId: number) => {
+    if (!confirm('Delete this assignment? This permanently removes every student’s grade for it.')) return;
     try {
       await api.del(`/api/admin/class-assignments/${assignmentId}`);
       setAssignments(prev => prev.filter(a => a.id !== assignmentId));
