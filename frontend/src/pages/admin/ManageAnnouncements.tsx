@@ -13,6 +13,10 @@ interface Announcement {
   expires_at: string | null;
 }
 
+function isExpired(a: Announcement): boolean {
+  return !!a.expires_at && new Date(a.expires_at) < new Date();
+}
+
 export default function ManageAnnouncements() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [editing, setEditing] = useState<Announcement | null>(null);
@@ -20,6 +24,7 @@ export default function ManageAnnouncements() {
   const [body, setBody] = useState('');
   const [type, setType] = useState('info');
   const [expiresAt, setExpiresAt] = useState('');
+  const [showExpired, setShowExpired] = useState(false);
 
   const refresh = () => {
     api.get<Announcement[]>('/api/admin/announcements').then(setAnnouncements).catch(() => {});
@@ -95,6 +100,9 @@ export default function ManageAnnouncements() {
 
   const inputClass = 'w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors';
 
+  const visibleAnnouncements = showExpired ? announcements : announcements.filter(a => !isExpired(a));
+  const expiredCount = announcements.length - announcements.filter(a => !isExpired(a)).length;
+
   return (
     <div className="space-y-6">
       <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
@@ -165,13 +173,24 @@ export default function ManageAnnouncements() {
         </div>
       </form>
 
+      {announcements.length > 0 && (
+        <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+          <input type="checkbox" checked={showExpired} onChange={e => setShowExpired(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+          Show expired announcements{expiredCount > 0 && !showExpired ? ` (${expiredCount} hidden)` : ''}
+        </label>
+      )}
+
       {announcements.length === 0 ? (
         <div className="text-center py-12 bg-cream/40 rounded-xl">
           <p className="text-ink/50 text-sm">No announcements yet. Create one above.</p>
         </div>
+      ) : visibleAnnouncements.length === 0 ? (
+        <div className="text-center py-12 bg-cream/40 rounded-xl">
+          <p className="text-ink/50 text-sm">All announcements are expired. Check "Show expired" to view them.</p>
+        </div>
       ) : (
         <div className="space-y-2">
-          {announcements.map(a => {
+          {visibleAnnouncements.map(a => {
             const bgColor = a.announcement_type === 'urgent' ? 'bg-red-50' : a.announcement_type === 'warning' ? 'bg-amber-50' : 'bg-blue-50';
             const borderColor = a.announcement_type === 'urgent' ? 'border-l-red-400' : a.announcement_type === 'warning' ? 'border-l-amber-400' : 'border-l-cobalt';
 
@@ -182,6 +201,9 @@ export default function ManageAnnouncements() {
                     <h3 className="font-semibold text-ink text-sm truncate">{a.title}</h3>
                     {!a.active && (
                       <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">Inactive</span>
+                    )}
+                    {isExpired(a) && (
+                      <span className="text-xs bg-gray-200 text-gray-700 px-2 py-0.5 rounded-full">Expired</span>
                     )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                       a.announcement_type === 'urgent' ? 'bg-red-200 text-red-700' :

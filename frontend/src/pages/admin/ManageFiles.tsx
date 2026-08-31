@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { ServerPagination } from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 interface FileSummary {
   total_bytes: number;
@@ -10,6 +13,9 @@ interface FileSummary {
   session_bytes: number;
   lesson_plan_bytes: number;
   other_bytes: number;
+  session_count: number;
+  lesson_plan_count: number;
+  other_count: number;
   r2_free_tier_gb: number;
 }
 
@@ -35,15 +41,31 @@ export default function ManageFiles() {
   const [summary, setSummary] = useState<FileSummary | null>(null);
   const [files, setFiles] = useState<FileEntry[]>([]);
   const [typeFilter, setTypeFilter] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const refresh = () => {
-    api.get<{ summary: FileSummary; files: FileEntry[] }>('/api/admin/files').then(res => {
+  const refresh = () => setRefreshKey(k => k + 1);
+
+  useEffect(() => {
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('page_size', String(PAGE_SIZE));
+    if (search) params.set('q', search);
+    if (typeFilter) params.set('linked_type', typeFilter);
+    api.get<{ summary: FileSummary; files: FileEntry[]; total: number }>(`/api/admin/files?${params}`).then(res => {
+      if (ignore) return;
       setSummary(res.summary);
       setFiles(res.files);
+      setTotal(res.total);
     }).catch(() => {});
-  };
+    return () => { ignore = true; };
+  }, [page, search, typeFilter, refreshKey]);
 
-  useEffect(refresh, []);
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
 
   const handleDelete = async (id: number, filename: string) => {
     if (!window.confirm(`Delete "${filename}"? This cannot be undone.`)) return;
@@ -55,10 +77,6 @@ export default function ManageFiles() {
       showToast(err.message || 'Failed to delete file', 'error');
     }
   };
-
-  const filtered = typeFilter
-    ? files.filter(f => (f.linked_type || 'other') === typeFilter)
-    : files;
 
   const usagePercent = summary ? (summary.total_bytes / (summary.r2_free_tier_gb * 1024 * 1024 * 1024)) * 100 : 0;
 
@@ -105,23 +123,30 @@ export default function ManageFiles() {
         </div>
       )}
 
-      {/* Filter */}
-      <div className="flex gap-3">
+      {/* Search and Filter */}
+      <div className="flex flex-wrap gap-3">
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by filename or uploader..."
+          className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+        />
         <select
           value={typeFilter}
           onChange={e => setTypeFilter(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
         >
-          <option value="">All Files ({files.length})</option>
-          <option value="session">Session Photos ({files.filter(f => f.linked_type === 'session').length})</option>
-          <option value="lesson_plan">Lesson Plan Files ({files.filter(f => f.linked_type === 'lesson_plan').length})</option>
-          <option value="other">Other ({files.filter(f => !f.linked_type).length})</option>
+          <option value="">All Files ({summary?.file_count ?? 0})</option>
+          <option value="session">Session Photos ({summary?.session_count ?? 0})</option>
+          <option value="lesson_plan">Lesson Plan Files ({summary?.lesson_plan_count ?? 0})</option>
+          <option value="other">Other ({summary?.other_count ?? 0})</option>
         </select>
       </div>
 
       {/* File List */}
       <div className="space-y-2">
-        {filtered.map(f => (
+        {files.map(f => (
           <div key={f.id} className="bg-white rounded-lg border border-gray-100 p-4 flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
@@ -149,10 +174,11 @@ export default function ManageFiles() {
             </button>
           </div>
         ))}
-        {filtered.length === 0 && (
+        {files.length === 0 && (
           <p className="text-center text-ink/40 py-8 text-sm">No files found.</p>
         )}
       </div>
+      <ServerPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
     </div>
   );
 }

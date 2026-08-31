@@ -348,45 +348,88 @@ pub async fn admin_delete_template(
 pub async fn admin_list_submissions(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    axum::extract::Query(query): axum::extract::Query<DocumentSubmissionsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_feature(&state.db, "documents")?;
     let conn = state.db.get()?;
 
-    let mut stmt = conn.prepare(
-        "SELECT ds.id, ds.template_id, dt.title as template_title,
-                ds.user_id, u.display_name as user_name,
-                ds.student_id, ds.file_id, ds.status, ds.reviewed_by,
-                ru.display_name as reviewed_by_name,
-                ds.reviewed_at, ds.notes, ds.created_at, ds.signature_file_id
-         FROM document_submissions ds
+    let mut where_clauses = vec!["1=1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern.clone()));
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("(u.display_name LIKE ?{} OR dt.title LIKE ?{})", params_vec.len() - 1, params_vec.len()));
+        }
+    }
+    if let Some(ref status) = query.status {
+        if !status.is_empty() {
+            params_vec.push(Box::new(status.clone()));
+            where_clauses.push(format!("ds.status = ?{}", params_vec.len()));
+        }
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!(
+        "FROM document_submissions ds
          JOIN document_templates dt ON ds.template_id = dt.id
          JOIN users u ON ds.user_id = u.id
          LEFT JOIN users ru ON ds.reviewed_by = ru.id
-         ORDER BY ds.created_at DESC",
-    )?;
-    let rows: Vec<serde_json::Value> = stmt
-        .query_map([], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, i64>(0)?,
-                "template_id": row.get::<_, i64>(1)?,
-                "template_title": row.get::<_, String>(2)?,
-                "user_id": row.get::<_, i64>(3)?,
-                "user_name": row.get::<_, String>(4)?,
-                "student_id": row.get::<_, Option<i64>>(5)?,
-                "file_id": row.get::<_, Option<i64>>(6)?,
-                "status": row.get::<_, String>(7)?,
-                "reviewed_by": row.get::<_, Option<i64>>(8)?,
-                "reviewed_by_name": row.get::<_, Option<String>>(9)?,
-                "reviewed_at": row.get::<_, Option<String>>(10)?,
-                "notes": row.get::<_, Option<String>>(11)?,
-                "created_at": row.get::<_, String>(12)?,
-                "signature_file_id": row.get::<_, Option<i64>>(13)?,
-            }))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+         WHERE {}",
+        where_sql
+    );
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
 
-    Ok(Json(rows))
+    let make_row = |row: &rusqlite::Row| -> rusqlite::Result<serde_json::Value> {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "template_id": row.get::<_, i64>(1)?,
+            "template_title": row.get::<_, String>(2)?,
+            "user_id": row.get::<_, i64>(3)?,
+            "user_name": row.get::<_, String>(4)?,
+            "student_id": row.get::<_, Option<i64>>(5)?,
+            "file_id": row.get::<_, Option<i64>>(6)?,
+            "status": row.get::<_, String>(7)?,
+            "reviewed_by": row.get::<_, Option<i64>>(8)?,
+            "reviewed_by_name": row.get::<_, Option<String>>(9)?,
+            "reviewed_at": row.get::<_, Option<String>>(10)?,
+            "notes": row.get::<_, Option<String>>(11)?,
+            "created_at": row.get::<_, String>(12)?,
+            "signature_file_id": row.get::<_, Option<i64>>(13)?,
+        }))
+    };
+    let select = "SELECT ds.id, ds.template_id, dt.title as template_title,
+                ds.user_id, u.display_name as user_name,
+                ds.student_id, ds.file_id, ds.status, ds.reviewed_by,
+                ru.display_name as reviewed_by_name,
+                ds.reviewed_at, ds.notes, ds.created_at, ds.signature_file_id";
+
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!("{} {} ORDER BY ds.created_at DESC LIMIT ?{} OFFSET ?{}", select, base, lp.len() - 1, lp.len());
+        let mut stmt = conn.prepare(&sql)?;
+        let rows: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&lp), make_row)?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": rows, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    let sql = format!("{} {} ORDER BY ds.created_at DESC", select, base);
+    let mut stmt = conn.prepare(&sql)?;
+    let rows: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&params_refs), make_row)?.filter_map(|r| r.ok()).collect();
+
+    Ok(Json(serde_json::json!(rows)))
 }
 
 /// PUT /api/admin/document-submissions/{id} — approve/reject (update status, reviewed_by, reviewed_at)

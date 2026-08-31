@@ -128,6 +128,11 @@ export default function ManageStudents() {
     refresh();
   };
 
+  const toggleEnrolled = async (s: Student) => {
+    await api.put(`/api/admin/students/${s.id}`, { enrolled: !s.enrolled });
+    refresh();
+  };
+
   const linkParent = async (studentId: number, userId: number) => {
     await api.post('/api/admin/student-parents', { student_id: studentId, user_id: userId });
     refresh();
@@ -140,10 +145,12 @@ export default function ManageStudents() {
   };
 
   const [search, setSearch] = useState('');
+  const [showUnenrolled, setShowUnenrolled] = useState(false);
   const parents = users.filter(u => u.role === 'parent' || u.role === 'teacher');
   const inputClass = "px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
 
   const filteredStudents = students.filter(s => {
+    if (!showUnenrolled && !s.enrolled) return false;
     if (!search) return true;
     const q = search.toLowerCase();
     return s.first_name.toLowerCase().includes(q) ||
@@ -236,7 +243,7 @@ export default function ManageStudents() {
       )}
 
       {/* Search */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-wrap gap-3 items-center">
         <input
           type="text"
           value={search}
@@ -244,6 +251,10 @@ export default function ManageStudents() {
           placeholder="Search by name or allergies..."
           className={`flex-1 min-w-[200px] ${inputClass}`}
         />
+        <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+          <input type="checkbox" checked={showUnenrolled} onChange={e => setShowUnenrolled(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+          Show unenrolled students
+        </label>
       </div>
 
       <div className="space-y-4">
@@ -251,7 +262,12 @@ export default function ManageStudents() {
           <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
             <div className="flex items-start justify-between mb-3">
               <div>
-                <h3 className="font-semibold text-gray-900">{s.first_name} {s.last_name}</h3>
+                <h3 className="font-semibold text-gray-900">
+                  {s.first_name} {s.last_name}
+                  {!s.enrolled && (
+                    <span className="ml-2 text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full align-middle">Unenrolled</span>
+                  )}
+                </h3>
                 {s.date_of_birth && <p className="text-xs text-gray-400 mt-0.5">Born: {s.date_of_birth}</p>}
                 <div className="flex flex-wrap gap-2 mt-1.5">
                   {s.allergies && (
@@ -283,6 +299,9 @@ export default function ManageStudents() {
                 </Link>}
                 <button onClick={() => startEdit(s)} className="text-xs text-blue-500 hover:text-blue-700 font-medium py-2 px-3 rounded-lg">
                   Edit
+                </button>
+                <button onClick={() => toggleEnrolled(s)} className="text-xs text-gray-500 hover:text-gray-700 font-medium py-2 px-3 rounded-lg">
+                  {s.enrolled ? 'Mark Unenrolled' : 'Mark Enrolled'}
                 </button>
                 <button onClick={() => deleteStudent(s.id)} className="text-xs text-red-500 hover:text-red-700 font-medium py-2 px-3 rounded-lg">
                   Remove
@@ -318,7 +337,7 @@ export default function ManageStudents() {
         ))}
         {filteredStudents.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-ink/40">{search ? 'No students match your search.' : 'No students enrolled yet.'}</p>
+            <p className="text-ink/40">{search || !showUnenrolled ? 'No students match your filters.' : 'No students enrolled yet.'}</p>
           </div>
         )}
       </div>

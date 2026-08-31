@@ -2176,24 +2176,47 @@ pub async fn update_feature_flags(
 pub async fn list_all_files(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
+    axum::extract::Query(query): axum::extract::Query<crate::models::FilesQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let conn = state.db.get()?;
 
-    // Storage summary
+    // Storage summary — always computed over the full, unfiltered set.
     let total_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files", [], |row| row.get(0)).unwrap_or(0);
     let file_count: i64 = conn.query_row("SELECT COUNT(*) FROM files", [], |row| row.get(0)).unwrap_or(0);
     let session_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type = 'session'", [], |row| row.get(0)).unwrap_or(0);
     let lesson_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type = 'lesson_plan'", [], |row| row.get(0)).unwrap_or(0);
     let other_bytes: i64 = conn.query_row("SELECT COALESCE(SUM(size_bytes), 0) FROM files WHERE linked_type IS NULL OR (linked_type != 'session' AND linked_type != 'lesson_plan')", [], |row| row.get(0)).unwrap_or(0);
+    let session_count: i64 = conn.query_row("SELECT COUNT(*) FROM files WHERE linked_type = 'session'", [], |row| row.get(0)).unwrap_or(0);
+    let lesson_count: i64 = conn.query_row("SELECT COUNT(*) FROM files WHERE linked_type = 'lesson_plan'", [], |row| row.get(0)).unwrap_or(0);
+    let other_count: i64 = conn.query_row("SELECT COUNT(*) FROM files WHERE linked_type IS NULL OR (linked_type != 'session' AND linked_type != 'lesson_plan')", [], |row| row.get(0)).unwrap_or(0);
 
-    // All files with uploader info
-    let mut stmt = conn.prepare(
-        "SELECT f.id, f.filename, f.mime_type, f.size_bytes, f.linked_type, f.linked_id, f.created_at, u.display_name
-         FROM files f
-         LEFT JOIN users u ON f.uploader_id = u.id
-         ORDER BY f.created_at DESC"
-    )?;
-    let files: Vec<serde_json::Value> = stmt.query_map([], |row| {
+    let mut where_clauses = vec!["1=1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern.clone()));
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("(f.filename LIKE ?{} OR u.display_name LIKE ?{})", params_vec.len() - 1, params_vec.len()));
+        }
+    }
+    match query.linked_type.as_deref() {
+        Some("session") => where_clauses.push("f.linked_type = 'session'".to_string()),
+        Some("lesson_plan") => where_clauses.push("f.linked_type = 'lesson_plan'".to_string()),
+        Some("other") => where_clauses.push("(f.linked_type IS NULL OR (f.linked_type != 'session' AND f.linked_type != 'lesson_plan'))".to_string()),
+        _ => {}
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!(
+        "FROM files f LEFT JOIN users u ON f.uploader_id = u.id WHERE {}",
+        where_sql
+    );
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    let make_row = |row: &rusqlite::Row| -> rusqlite::Result<serde_json::Value> {
         Ok(serde_json::json!({
             "id": row.get::<_, i64>(0)?,
             "filename": row.get::<_, String>(1)?,
@@ -2204,18 +2227,52 @@ pub async fn list_all_files(
             "created_at": row.get::<_, String>(6)?,
             "uploader_name": row.get::<_, Option<String>>(7)?,
         }))
-    })?.filter_map(|r| r.ok()).collect();
+    };
+    let select = "SELECT f.id, f.filename, f.mime_type, f.size_bytes, f.linked_type, f.linked_id, f.created_at, u.display_name";
+
+    let summary = serde_json::json!({
+        "total_bytes": total_bytes,
+        "total_mb": format!("{:.1}", total_bytes as f64 / (1024.0 * 1024.0)),
+        "file_count": file_count,
+        "session_bytes": session_bytes,
+        "lesson_plan_bytes": lesson_bytes,
+        "other_bytes": other_bytes,
+        "session_count": session_count,
+        "lesson_plan_count": lesson_count,
+        "other_count": other_count,
+        "r2_free_tier_gb": 10,
+    });
+
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!("{} {} ORDER BY f.created_at DESC LIMIT ?{} OFFSET ?{}", select, base, lp.len() - 1, lp.len());
+        let mut stmt = conn.prepare(&sql)?;
+        let files: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&lp), make_row)?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({
+            "summary": summary,
+            "files": files,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+        })));
+    }
+
+    let sql = format!("{} {} ORDER BY f.created_at DESC", select, base);
+    let mut stmt = conn.prepare(&sql)?;
+    let files: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&params_refs), make_row)?.filter_map(|r| r.ok()).collect();
 
     Ok(Json(serde_json::json!({
-        "summary": {
-            "total_bytes": total_bytes,
-            "total_mb": format!("{:.1}", total_bytes as f64 / (1024.0 * 1024.0)),
-            "file_count": file_count,
-            "session_bytes": session_bytes,
-            "lesson_plan_bytes": lesson_bytes,
-            "other_bytes": other_bytes,
-            "r2_free_tier_gb": 10,
-        },
+        "summary": summary,
         "files": files,
     })))
 }

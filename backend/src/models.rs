@@ -774,6 +774,8 @@ pub struct SessionsQuery {
     /// "mine" (default): sessions in classes the user belongs to + unassigned/global sessions.
     /// "all": also include other classes' sessions, with details stripped (public-level).
     pub scope: Option<String>,
+    /// "date_asc" (default) or "date_desc".
+    pub sort: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -790,6 +792,38 @@ pub struct MembersQuery {
     pub page_size: Option<i64>,
     pub q: Option<String>,
     pub role: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FilesQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    pub q: Option<String>,
+    /// "session" | "lesson_plan" | "other"
+    pub linked_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PaymentsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    /// Search by member name.
+    pub q: Option<String>,
+    /// "charge" | "payment"
+    pub payment_type: Option<String>,
+    /// "pending" | "paid" | "overdue"
+    pub status: Option<String>,
+    pub category: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DocumentSubmissionsQuery {
+    pub page: Option<i64>,
+    pub page_size: Option<i64>,
+    /// Search by member name or template title.
+    pub q: Option<String>,
+    /// "pending" | "approved" | "rejected"
+    pub status: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { ServerPagination } from '../../components/Pagination';
 import type { User } from '../../auth';
+
+const PAGE_SIZE = 20;
 
 interface Invite {
   id: number;
@@ -24,14 +27,35 @@ export default function ManageUsers() {
   const [statusFilter, setStatusFilter] = useState('');
   const [resetPasswordId, setResetPasswordId] = useState<number | null>(null);
   const [newPassword, setNewPassword] = useState('');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const { showToast } = useToast();
 
-  const refresh = () => {
-    api.get<User[]>('/api/admin/users').then(setUsers).catch(() => {});
-    api.get<Invite[]>('/api/admin/invites').then(setInvites).catch(() => {});
-  };
+  const refresh = () => setRefreshKey(k => k + 1);
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    api.get<Invite[]>('/api/admin/invites').then(setInvites).catch(() => {});
+  }, [refreshKey]);
+
+  useEffect(() => {
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('page_size', String(PAGE_SIZE));
+    if (search) params.set('q', search);
+    if (roleFilter) params.set('role', roleFilter);
+    if (statusFilter) params.set('active', statusFilter === 'active' ? 'true' : 'false');
+    api.get<{ items: User[]; total: number }>(`/api/admin/users?${params}`).then(res => {
+      if (ignore) return;
+      setUsers(res.items);
+      setTotal(res.total);
+    }).catch(() => {});
+    return () => { ignore = true; };
+  }, [page, search, roleFilter, statusFilter, refreshKey]);
+
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => { setPage(1); }, [search, roleFilter, statusFilter]);
 
   const createInvite = async () => {
     if (!inviteEmail.trim()) {
@@ -93,17 +117,6 @@ export default function ManageUsers() {
   };
 
   const unusedInvites = invites.filter(i => !i.used_by);
-
-  const filteredUsers = users.filter(u => {
-    const matchesSearch = !search ||
-      u.display_name.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase());
-    const matchesRole = !roleFilter || u.role === roleFilter;
-    const matchesStatus = !statusFilter ||
-      (statusFilter === 'active' && u.active) ||
-      (statusFilter === 'inactive' && !u.active);
-    return matchesSearch && matchesRole && matchesStatus;
-  });
 
   const inputClass = "px-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors";
 
@@ -180,7 +193,7 @@ export default function ManageUsers() {
 
       {/* Users List */}
       <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Members ({users.length})</h2>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Members ({total})</h2>
 
         {/* Search and Filters */}
         <div className="flex flex-wrap gap-3 mb-4">
@@ -203,10 +216,6 @@ export default function ManageUsers() {
             <option value="inactive">Inactive</option>
           </select>
         </div>
-        {search || roleFilter || statusFilter ? (
-          <p className="text-xs text-gray-400 mb-3">Showing {filteredUsers.length} of {users.length} members</p>
-        ) : null}
-
         {/* Mobile: card layout, Desktop: table */}
         <div className="hidden sm:block overflow-x-auto">
           <table className="w-full text-sm min-w-[600px]">
@@ -220,7 +229,7 @@ export default function ManageUsers() {
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map(u => (
+              {users.map(u => (
                 <tr key={u.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                   <td className="py-3 font-medium text-gray-800 whitespace-nowrap">{u.display_name}</td>
                   <td className="py-3 text-gray-500">{u.email}</td>
@@ -285,7 +294,7 @@ export default function ManageUsers() {
 
         {/* Mobile card view */}
         <div className="sm:hidden space-y-3">
-          {filteredUsers.map(u => (
+          {users.map(u => (
             <div key={u.id} className="border border-gray-100 rounded-xl p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div>
@@ -329,6 +338,15 @@ export default function ManageUsers() {
             </div>
           ))}
         </div>
+
+        {users.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-ink/40">
+              {search || roleFilter || statusFilter ? 'No members match your filters.' : 'No members yet.'}
+            </p>
+          </div>
+        )}
+        <ServerPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
       </section>
     </div>
   );
