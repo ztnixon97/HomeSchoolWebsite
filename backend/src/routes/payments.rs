@@ -57,50 +57,104 @@ pub async fn list_my_payments(
 pub async fn admin_list_payments(
     RequireAdmin(_user): RequireAdmin,
     State(state): State<AppState>,
-) -> Result<Json<Vec<serde_json::Value>>, AppError> {
+    axum::extract::Query(query): axum::extract::Query<PaymentsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
     require_feature(&state.db, "payments")?;
     let conn = state.db.get()?;
 
-    let mut stmt = conn.prepare(
-        "SELECT pl.id, pl.user_id, u.display_name as user_name,
+    let mut where_clauses = vec!["1=1".to_string()];
+    let mut params_vec: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+    if let Some(ref q) = query.q {
+        let q = q.trim();
+        if !q.is_empty() {
+            let pattern = format!("%{}%", q);
+            params_vec.push(Box::new(pattern));
+            where_clauses.push(format!("u.display_name LIKE ?{}", params_vec.len()));
+        }
+    }
+    if let Some(ref t) = query.payment_type {
+        if !t.is_empty() {
+            params_vec.push(Box::new(t.clone()));
+            where_clauses.push(format!("pl.payment_type = ?{}", params_vec.len()));
+        }
+    }
+    if let Some(ref status) = query.status {
+        if !status.is_empty() {
+            params_vec.push(Box::new(status.clone()));
+            where_clauses.push(format!("pl.status = ?{}", params_vec.len()));
+        }
+    }
+    if let Some(ref category) = query.category {
+        if !category.is_empty() {
+            params_vec.push(Box::new(category.clone()));
+            where_clauses.push(format!("pl.category = ?{}", params_vec.len()));
+        }
+    }
+
+    let where_sql = where_clauses.join(" AND ");
+    let base = format!(
+        "FROM payment_ledger pl
+         JOIN users u ON pl.user_id = u.id
+         LEFT JOIN class_sessions cs ON pl.session_id = cs.id
+         LEFT JOIN users ru ON pl.recorded_by = ru.id
+         WHERE {}",
+        where_sql
+    );
+    let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
+
+    let make_row = |row: &rusqlite::Row| -> rusqlite::Result<serde_json::Value> {
+        Ok(serde_json::json!({
+            "id": row.get::<_, i64>(0)?,
+            "user_id": row.get::<_, i64>(1)?,
+            "user_name": row.get::<_, String>(2)?,
+            "description": row.get::<_, String>(3)?,
+            "amount": row.get::<_, f64>(4)?,
+            "payment_type": row.get::<_, String>(5)?,
+            "status": row.get::<_, String>(6)?,
+            "session_id": row.get::<_, Option<i64>>(7)?,
+            "session_title": row.get::<_, Option<String>>(8)?,
+            "paid_at": row.get::<_, Option<String>>(9)?,
+            "recorded_by": row.get::<_, Option<i64>>(10)?,
+            "recorded_by_name": row.get::<_, Option<String>>(11)?,
+            "notes": row.get::<_, Option<String>>(12)?,
+            "created_at": row.get::<_, String>(13)?,
+            "payment_method": row.get::<_, Option<String>>(14)?,
+            "due_date": row.get::<_, Option<String>>(15)?,
+            "category": row.get::<_, Option<String>>(16)?,
+            "reference_number": row.get::<_, Option<String>>(17)?,
+        }))
+    };
+    let select = "SELECT pl.id, pl.user_id, u.display_name as user_name,
                 pl.description, pl.amount, pl.payment_type, pl.status,
                 pl.session_id, cs.title as session_title,
                 pl.paid_at, pl.recorded_by, ru.display_name as recorded_by_name,
                 pl.notes, pl.created_at,
-                pl.payment_method, pl.due_date, pl.category, pl.reference_number
-         FROM payment_ledger pl
-         JOIN users u ON pl.user_id = u.id
-         LEFT JOIN class_sessions cs ON pl.session_id = cs.id
-         LEFT JOIN users ru ON pl.recorded_by = ru.id
-         ORDER BY pl.created_at DESC",
-    )?;
-    let rows: Vec<serde_json::Value> = stmt
-        .query_map([], |row| {
-            Ok(serde_json::json!({
-                "id": row.get::<_, i64>(0)?,
-                "user_id": row.get::<_, i64>(1)?,
-                "user_name": row.get::<_, String>(2)?,
-                "description": row.get::<_, String>(3)?,
-                "amount": row.get::<_, f64>(4)?,
-                "payment_type": row.get::<_, String>(5)?,
-                "status": row.get::<_, String>(6)?,
-                "session_id": row.get::<_, Option<i64>>(7)?,
-                "session_title": row.get::<_, Option<String>>(8)?,
-                "paid_at": row.get::<_, Option<String>>(9)?,
-                "recorded_by": row.get::<_, Option<i64>>(10)?,
-                "recorded_by_name": row.get::<_, Option<String>>(11)?,
-                "notes": row.get::<_, Option<String>>(12)?,
-                "created_at": row.get::<_, String>(13)?,
-                "payment_method": row.get::<_, Option<String>>(14)?,
-                "due_date": row.get::<_, Option<String>>(15)?,
-                "category": row.get::<_, Option<String>>(16)?,
-                "reference_number": row.get::<_, Option<String>>(17)?,
-            }))
-        })?
-        .filter_map(|r| r.ok())
-        .collect();
+                pl.payment_method, pl.due_date, pl.category, pl.reference_number";
 
-    Ok(Json(rows))
+    if query.page.is_some() || query.page_size.is_some() {
+        let page = query.page.unwrap_or(1).max(1);
+        let page_size = query.page_size.unwrap_or(20).clamp(1, 50);
+        let offset = (page - 1) * page_size;
+
+        let total: i64 = conn.query_row(&format!("SELECT COUNT(*) {}", base), rusqlite::params_from_iter(&params_refs), |row| row.get(0))?;
+
+        let mut lp: Vec<&dyn rusqlite::types::ToSql> = params_refs.clone();
+        lp.push(&page_size);
+        lp.push(&offset);
+
+        let sql = format!("{} {} ORDER BY pl.created_at DESC LIMIT ?{} OFFSET ?{}", select, base, lp.len() - 1, lp.len());
+        let mut stmt = conn.prepare(&sql)?;
+        let rows: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&lp), make_row)?.filter_map(|r| r.ok()).collect();
+
+        return Ok(Json(serde_json::json!({ "items": rows, "total": total, "page": page, "page_size": page_size })));
+    }
+
+    let sql = format!("{} {} ORDER BY pl.created_at DESC", select, base);
+    let mut stmt = conn.prepare(&sql)?;
+    let rows: Vec<serde_json::Value> = stmt.query_map(rusqlite::params_from_iter(&params_refs), make_row)?.filter_map(|r| r.ok()).collect();
+
+    Ok(Json(serde_json::json!(rows)))
 }
 
 /// POST /api/admin/payments — record payment (admin)

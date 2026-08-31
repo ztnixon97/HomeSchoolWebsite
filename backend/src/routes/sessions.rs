@@ -213,6 +213,12 @@ pub async fn list_sessions(
          {}", where_sql
     );
 
+    let order_sql = if query.sort.as_deref() == Some("date_desc") {
+        "ORDER BY cs.session_date DESC, cs.start_time DESC"
+    } else {
+        "ORDER BY cs.session_date ASC, cs.start_time ASC"
+    };
+
     let params_refs: Vec<&dyn rusqlite::types::ToSql> = params_vec.iter().map(|p| p.as_ref()).collect();
 
     // In "all" scope (non-admin), we return other classes' sessions too but strip their
@@ -271,8 +277,8 @@ pub async fn list_sessions(
                     cs.materials_needed, cs.max_students, cs.notes, cs.status,
                     cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,
                     cs.created_by, cs.created_at
-             {} ORDER BY cs.session_date ASC, cs.start_time ASC LIMIT ?{} OFFSET ?{}",
-            base_select, limit_params.len() - 1, limit_params.len()
+             {} {} LIMIT ?{} OFFSET ?{}",
+            base_select, order_sql, limit_params.len() - 1, limit_params.len()
         );
 
         let mut stmt = conn.prepare(&sql)?;
@@ -301,8 +307,8 @@ pub async fn list_sessions(
                 cs.materials_needed, cs.max_students, cs.notes, cs.status,
                 cs.session_type_id, st.name, st.label, cs.rsvp_cutoff, cs.require_approval,
                 cs.created_by, cs.created_at
-         {} ORDER BY cs.session_date ASC, cs.start_time ASC",
-        base_select
+         {} {}",
+        base_select, order_sql
     );
 
     let mut stmt = conn.prepare(&sql)?;

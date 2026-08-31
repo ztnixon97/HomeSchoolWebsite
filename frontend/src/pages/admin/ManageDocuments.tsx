@@ -2,8 +2,11 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { ServerPagination } from '../../components/Pagination';
 
 const FieldEditor = lazy(() => import('../../components/FieldEditor'));
+
+const PAGE_SIZE = 20;
 
 interface DocumentTemplate {
   id: number;
@@ -86,18 +89,49 @@ export default function ManageDocuments() {
 
   // Filter state
   const [submissionStatusFilter, setSubmissionStatusFilter] = useState('');
+  const [submissionSearch, setSubmissionSearch] = useState('');
+
+  // Submissions pagination state
+  const [submissionsPage, setSubmissionsPage] = useState(1);
+  const [submissionsTotal, setSubmissionsTotal] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [submissionsRefreshKey, setSubmissionsRefreshKey] = useState(0);
 
   const { showToast } = useToast();
 
   const refresh = () => {
     api.get<DocumentTemplate[]>('/api/admin/document-templates').then(setTemplates).catch(() => {});
-    api
-      .get<DocumentSubmission[]>('/api/admin/document-submissions')
-      .then(setSubmissions)
-      .catch(() => {});
+    setSubmissionsRefreshKey(k => k + 1);
   };
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    api.get<DocumentTemplate[]>('/api/admin/document-templates').then(setTemplates).catch(() => {});
+  }, []);
+
+  // Pending-submissions badge count, independent of the current filter/page.
+  useEffect(() => {
+    api.get<{ total: number }>('/api/admin/document-submissions?status=pending&page=1&page_size=1')
+      .then(res => setPendingCount(res.total))
+      .catch(() => {});
+  }, [submissionsRefreshKey]);
+
+  useEffect(() => {
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
+    const params = new URLSearchParams();
+    params.set('page', String(submissionsPage));
+    params.set('page_size', String(PAGE_SIZE));
+    if (submissionSearch) params.set('q', submissionSearch);
+    if (submissionStatusFilter) params.set('status', submissionStatusFilter);
+    api.get<{ items: DocumentSubmission[]; total: number }>(`/api/admin/document-submissions?${params}`).then(res => {
+      if (ignore) return;
+      setSubmissions(res.items);
+      setSubmissionsTotal(res.total);
+    }).catch(() => {});
+    return () => { ignore = true; };
+  }, [submissionsPage, submissionSearch, submissionStatusFilter, submissionsRefreshKey]);
+
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => { setSubmissionsPage(1); }, [submissionSearch, submissionStatusFilter]);
 
   const resetForm = () => {
     setEditingTemplate(null);
@@ -201,10 +235,6 @@ export default function ManageDocuments() {
     }
   };
 
-  const filteredSubmissions = submissionStatusFilter
-    ? submissions.filter(s => s.status === submissionStatusFilter)
-    : submissions;
-
   return (
     <div className="space-y-6">
       <Link to="/admin" className="text-sm text-emerald-700 hover:text-emerald-800 font-medium mb-4 inline-block">
@@ -238,9 +268,7 @@ export default function ManageDocuments() {
               : 'border-transparent text-gray-500 hover:text-gray-700'
           }`}
         >
-          Submissions ({submissions.filter(s => s.status === 'pending').length > 0
-            ? `${submissions.filter(s => s.status === 'pending').length} pending`
-            : submissions.length})
+          Submissions ({pendingCount > 0 ? `${pendingCount} pending` : submissionsTotal})
         </button>
       </div>
 
@@ -454,33 +482,36 @@ export default function ManageDocuments() {
       {/* Submissions Tab */}
       {activeTab === 'submissions' && (
         <div className="space-y-4">
-          {/* Filter */}
-          <div className="flex gap-3">
+          {/* Search and Filter */}
+          <div className="flex flex-wrap gap-3">
+            <input
+              type="text"
+              value={submissionSearch}
+              onChange={e => setSubmissionSearch(e.target.value)}
+              placeholder="Search by member or document..."
+              className="flex-1 min-w-[200px] px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+            />
             <select
               value={submissionStatusFilter}
               onChange={e => setSubmissionStatusFilter(e.target.value)}
               className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
-              <option value="">All Submissions ({submissions.length})</option>
-              <option value="pending">
-                Pending ({submissions.filter(s => s.status === 'pending').length})
-              </option>
-              <option value="approved">
-                Approved ({submissions.filter(s => s.status === 'approved').length})
-              </option>
-              <option value="rejected">
-                Rejected ({submissions.filter(s => s.status === 'rejected').length})
-              </option>
+              <option value="">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
             </select>
           </div>
 
-          {filteredSubmissions.length === 0 ? (
+          {submissions.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-ink/40">No submissions found.</p>
+              <p className="text-ink/40">
+                {submissionSearch || submissionStatusFilter ? 'No submissions match your filters.' : 'No submissions found.'}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
-              {filteredSubmissions.map(sub => (
+              {submissions.map(sub => (
                 <div
                   key={sub.id}
                   className="bg-white rounded-xl border border-gray-100 shadow-sm p-5"
@@ -623,6 +654,7 @@ export default function ManageDocuments() {
               ))}
             </div>
           )}
+          <ServerPagination page={submissionsPage} pageSize={PAGE_SIZE} total={submissionsTotal} onPageChange={setSubmissionsPage} />
         </div>
       )}
       {/* Field Editor Modal */}

@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import { useToast } from '../../components/Toast';
+import { ServerPagination } from '../../components/Pagination';
+
+const PAGE_SIZE = 20;
 
 /* ──────────────── Types ──────────────── */
 
@@ -167,6 +170,11 @@ export default function ManagePayments() {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCategory, setFilterCategory] = useState('all');
 
+  /* ── Transactions pagination state ── */
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [paymentsRefreshKey, setPaymentsRefreshKey] = useState(0);
+
   /* ── Create form state ── */
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [createUserId, setCreateUserId] = useState('');
@@ -206,10 +214,6 @@ export default function ManagePayments() {
 
   /* ── Data fetching ── */
 
-  const refreshPayments = () => {
-    api.get<AdminPayment[]>('/api/admin/payments').then(setPayments).catch(() => {});
-  };
-
   const refreshSummary = () => {
     api.get<PaymentSummary[]>('/api/admin/payments/summary').then(setSummary).catch(() => {});
   };
@@ -223,7 +227,7 @@ export default function ManagePayments() {
   };
 
   const refreshAll = () => {
-    refreshPayments();
+    setPaymentsRefreshKey(k => k + 1);
     refreshSummary();
     refreshOverdue();
     refreshStats();
@@ -232,7 +236,6 @@ export default function ManagePayments() {
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get<AdminPayment[]>('/api/admin/payments').then(setPayments),
       api.get<PaymentSummary[]>('/api/admin/payments/summary').then(setSummary),
       api.get<OverdueCharge[]>('/api/admin/payments/overdue').then(setOverdue),
       api.get<PaymentStats>('/api/admin/payments/stats').then(setStats),
@@ -243,15 +246,27 @@ export default function ManagePayments() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ── Filtered transactions ── */
+  /* ── Paginated, server-filtered transactions ── */
 
-  const filteredPayments = payments.filter(p => {
-    if (filterName && !p.user_name.toLowerCase().includes(filterName.toLowerCase())) return false;
-    if (filterType !== 'all' && p.payment_type !== filterType) return false;
-    if (filterStatus !== 'all' && p.status !== filterStatus) return false;
-    if (filterCategory !== 'all' && p.category !== filterCategory) return false;
-    return true;
-  });
+  useEffect(() => {
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('page_size', String(PAGE_SIZE));
+    if (filterName) params.set('q', filterName);
+    if (filterType !== 'all') params.set('payment_type', filterType);
+    if (filterStatus !== 'all') params.set('status', filterStatus);
+    if (filterCategory !== 'all') params.set('category', filterCategory);
+    api.get<{ items: AdminPayment[]; total: number }>(`/api/admin/payments?${params}`).then(res => {
+      if (ignore) return;
+      setPayments(res.items);
+      setTotal(res.total);
+    }).catch(() => {});
+    return () => { ignore = true; };
+  }, [page, filterName, filterType, filterStatus, filterCategory, paymentsRefreshKey]);
+
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => { setPage(1); }, [filterName, filterType, filterStatus, filterCategory]);
 
   /* ── Create ── */
 
@@ -694,9 +709,9 @@ export default function ManagePayments() {
           {/* Transaction Table */}
           <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Transactions ({filteredPayments.length})
+              Transactions ({total})
             </h2>
-            {filteredPayments.length === 0 ? (
+            {payments.length === 0 ? (
               <p className="text-ink/40 text-sm">No transactions found.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -716,7 +731,7 @@ export default function ManagePayments() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPayments.map(p =>
+                    {payments.map(p =>
                       editingId === p.id ? (
                         <tr key={p.id} className="border-b border-gray-50 bg-emerald-50/30 align-top">
                           <td className="py-3 text-gray-500 text-xs">
@@ -809,6 +824,7 @@ export default function ManagePayments() {
                 </table>
               </div>
             )}
+            <ServerPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
           </section>
         </div>
       )}

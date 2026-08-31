@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../api';
 import SessionEditor from '../../components/SessionEditor';
+import { ServerPagination } from '../../components/Pagination';
 
 interface Session {
   id: number;
@@ -15,6 +16,7 @@ interface Session {
   host_name: string | null;
   max_students: number | null;
   status: string;
+  session_type_id?: number | null;
   session_type_label: string | null;
   session_type_name: string | null;
   rsvp_cutoff: string | null;
@@ -23,6 +25,8 @@ interface Session {
   cost_amount?: number | null;
   cost_details?: string | null;
 }
+
+const PAGE_SIZE = 20;
 
 interface SessionType {
   id: number;
@@ -46,6 +50,10 @@ export default function ManageSessions() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [showPast, setShowPast] = useState(false);
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [refreshKey, setRefreshKey] = useState(0);
   const holidayType = sessionTypes.find(t => t.name === 'holiday');
 
   const [holidayTitle, setHolidayTitle] = useState('');
@@ -53,12 +61,32 @@ export default function ManageSessions() {
   const [holidayEnd, setHolidayEnd] = useState('');
   const [holidayNotes, setHolidayNotes] = useState('');
 
-  const refresh = () => {
-    api.get<Session[]>('/api/sessions').then(setSessions).catch(() => {});
-    api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
-  };
+  const refresh = () => setRefreshKey(k => k + 1);
 
-  useEffect(refresh, []);
+  useEffect(() => {
+    api.get<SessionType[]>('/api/session-types').then(setSessionTypes).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    let ignore = false; // guard against an out-of-order (stale) response overwriting newer data
+    const params = new URLSearchParams();
+    params.set('page', String(page));
+    params.set('page_size', String(PAGE_SIZE));
+    params.set('sort', 'date_desc');
+    if (!showPast) params.set('date_from', new Date().toISOString().split('T')[0]);
+    if (search) params.set('q', search);
+    if (statusFilter) params.set('status', statusFilter);
+    if (typeFilter) params.set('session_type_id', typeFilter);
+    api.get<{ items: Session[]; total: number }>(`/api/sessions?${params}`).then(res => {
+      if (ignore) return;
+      setSessions(res.items);
+      setTotal(res.total);
+    }).catch(() => {});
+    return () => { ignore = true; };
+  }, [page, search, statusFilter, typeFilter, showPast, refreshKey]);
+
+  // Reset to page 1 whenever a filter changes
+  useEffect(() => { setPage(1); }, [search, statusFilter, typeFilter, showPast]);
 
   const startEdit = (s: Session) => {
     setEditingId(s.id);
@@ -195,7 +223,7 @@ export default function ManageSessions() {
         <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)} className={inputClass}>
           <option value="">All Types</option>
           {sessionTypes.map(t => (
-            <option key={t.id} value={t.name}>{t.label}</option>
+            <option key={t.id} value={t.id}>{t.label}</option>
           ))}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className={inputClass}>
@@ -204,18 +232,14 @@ export default function ManageSessions() {
           <option value="claimed">Claimed</option>
           <option value="completed">Completed</option>
         </select>
+        <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+          <input type="checkbox" checked={showPast} onChange={e => setShowPast(e.target.checked)} className="w-4 h-4 rounded border-gray-300 text-emerald-600" />
+          Show past sessions
+        </label>
       </div>
 
       <div className="space-y-3">
-        {sessions.filter(s => {
-          const matchesSearch = !search ||
-            s.title.toLowerCase().includes(search.toLowerCase()) ||
-            (s.theme && s.theme.toLowerCase().includes(search.toLowerCase())) ||
-            (s.host_name && s.host_name.toLowerCase().includes(search.toLowerCase()));
-          const matchesType = !typeFilter || s.session_type_name === typeFilter;
-          const matchesStatus = !statusFilter || s.status === statusFilter;
-          return matchesSearch && matchesType && matchesStatus;
-        }).map(s => (
+        {sessions.map(s => (
           <div key={s.id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
               <div className="flex flex-wrap items-center gap-2">
@@ -254,10 +278,13 @@ export default function ManageSessions() {
         ))}
         {sessions.length === 0 && (
           <div className="text-center py-12">
-            <p className="text-ink/40">No sessions created yet.</p>
+            <p className="text-ink/40">
+              {search || typeFilter || statusFilter ? 'No sessions match your filters.' : 'No sessions created yet.'}
+            </p>
           </div>
         )}
       </div>
+      <ServerPagination page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
     </div>
   );
 }
